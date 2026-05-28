@@ -4,12 +4,12 @@ import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
 
 export const metadata: Metadata = {
-  title: "Dragline 3D · Built to hold.",
+  title: "Dragline 3D · Layer by layer.",
   description:
-    "Industrial-grade FDM 3D printing out of Louisville, Kentucky. Quoted in minutes. Built to hold.",
+    "Industrial-grade FDM 3D printing out of Louisville, Kentucky. Quoted in minutes. Layer by layer.",
   metadataBase: new URL("https://dragline3d.com"),
   openGraph: {
-    title: "Dragline 3D · Built to hold.",
+    title: "Dragline 3D · Layer by layer.",
     description: "Industrial-grade FDM 3D printing out of Louisville, Kentucky.",
     url: "https://dragline3d.com",
     siteName: "Dragline 3D",

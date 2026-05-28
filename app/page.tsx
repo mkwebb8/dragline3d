@@ -11,8 +11,8 @@ export default function Home() {
             EST 2026 · LOUISVILLE, KENTUCKY
           </div>
           <h1 className="font-display font-black text-6xl md:text-8xl leading-[0.88] mb-8 max-w-4xl">
-            Built<br />
-            <span className="text-amber">to hold.</span>
+            Layer<br />
+            <span className="text-amber">by layer.</span>
           </h1>
           <p className="text-bone/70 text-lg md:text-xl max-w-2xl leading-relaxed mb-10">
             Industrial-grade FDM 3D printing out of Louisville. Drop a file, get a quote, get a part.
@@ -38,8 +38,8 @@ export default function Home() {
       {/* ─────────── STATS BAR ─────────── */}
       <section className="border-b border-ironworks3 bg-ironworks2">
         <div className="max-w-6xl mx-auto px-6 py-8 grid grid-cols-2 md:grid-cols-4 gap-6">
-          <Stat label="Build volume" value="350mm³" detail="Creality K2 Plus" />
-          <Stat label="Materials" value="3" detail="PLA · PETG · ABS" />
+          <Stat label="Build volume" value="350mm³" detail="Large-format FDM" />
+          <Stat label="Materials" value="10+" detail="Standard & engineering" />
           <Stat label="Layer resolution" value="0.12mm" detail="Down from 0.28" />
           <Stat label="Lead time" value="2–5d" detail="Typical FDM job" />
         </div>
@@ -53,7 +53,7 @@ export default function Home() {
           </div>
           <h2 className="font-display font-extrabold text-4xl md:text-5xl mb-4 max-w-2xl">
             Four steps.<br />
-            <span className="text-bone/50">No bullshit.</span>
+            <span className="text-bone/50">No BS.</span>
           </h2>
           <p className="text-bone/60 max-w-xl mb-16">
             From file upload to finished part. No phone tag, no surprise charges.
@@ -94,31 +94,101 @@ export default function Home() {
           <div className="font-mono text-xs uppercase tracking-widest text-amber mb-4">
             02 — Materials
           </div>
-          <h2 className="font-display font-extrabold text-4xl md:text-5xl mb-16 max-w-2xl">
-            Pick the right plastic.<br />
-            <span className="text-bone/50">We print the rest.</span>
+          <h2 className="font-display font-extrabold text-4xl md:text-5xl mb-4 max-w-2xl">
+            Ten plastics.<br />
+            <span className="text-bone/50">One nozzle.</span>
           </h2>
+          <p className="text-bone/60 max-w-xl mb-16">
+            From everyday prototypes to high-temp engineering parts. Don't see what you need?
+            Ask — chances are it's on the spool.
+          </p>
 
-          <div className="grid md:grid-cols-3 gap-4">
-            <Material
-              name="PLA"
-              desc="General-purpose, biodegradable. Best for prototypes, models, and indoor parts."
-              specs={["Easy printing", "Stiff but brittle", "60°C softening"]}
-              swatch="#e8e6e1"
-            />
-            <Material
-              name="PETG"
-              desc="Tough and weather-resistant. The default for functional outdoor parts."
-              specs={["Impact resistant", "UV stable", "80°C softening"]}
-              swatch="#c8d4d1"
-              featured
-            />
-            <Material
-              name="ABS"
-              desc="High temperature, impact resistant. Engineering-grade for automotive and tooling."
-              specs={["Thermally stable", "Solvent weldable", "105°C softening"]}
-              swatch="#5a5a5e"
-            />
+          {/* STANDARD TIER */}
+          <div className="mb-12">
+            <div className="font-mono text-xs tracking-widest text-amber mb-4">▸ STANDARD</div>
+            <div className="grid md:grid-cols-3 gap-4">
+              <Material
+                name="PLA"
+                desc="General-purpose, biodegradable. Best for prototypes, models, and indoor parts."
+                specs={["Easy printing", "Stiff but brittle", "60°C softening"]}
+                swatch="#e8e6e1"
+              />
+              <Material
+                name="PETG"
+                desc="Tough and weather-resistant. The default for functional outdoor parts."
+                specs={["Impact resistant", "UV stable", "80°C softening"]}
+                swatch="#c8d4d1"
+                featured
+              />
+              <Material
+                name="TPU"
+                desc="Flexible rubber-like filament for gaskets, grips, and shock absorbers."
+                specs={["Shore 95A", "Tear resistant", "Vibration damping"]}
+                swatch="#3a3a3c"
+              />
+            </div>
+          </div>
+
+          {/* ENGINEERING TIER */}
+          <div className="mb-12">
+            <div className="font-mono text-xs tracking-widest text-amber mb-4">▸ ENGINEERING</div>
+            <div className="grid md:grid-cols-3 gap-4">
+              <Material
+                name="ABS"
+                desc="High temperature, impact resistant. Automotive interiors and tooling."
+                specs={["Thermally stable", "Solvent weldable", "105°C softening"]}
+                swatch="#5a5a5e"
+              />
+              <Material
+                name="ASA"
+                desc="ABS's UV-stable cousin. Outdoor parts that need to hold up in the sun."
+                specs={["UV resistant", "Weatherproof", "100°C softening"]}
+                swatch="#7a7a7e"
+              />
+              <Material
+                name="PC"
+                desc="Polycarbonate — extreme strength and heat resistance for demanding parts."
+                specs={["Highest impact", "Optically clear options", "135°C softening"]}
+                swatch="#a8a8ac"
+              />
+              <Material
+                name="PA (Nylon)"
+                desc="Wear-resistant and flexible. Gears, living hinges, and load-bearing parts."
+                specs={["Low friction", "Fatigue resistant", "180°C softening"]}
+                swatch="#d4cfb5"
+              />
+            </div>
+          </div>
+
+          {/* COMPOSITE TIER */}
+          <div>
+            <div className="font-mono text-xs tracking-widest text-amber mb-4">▸ CARBON FIBER COMPOSITES</div>
+            <div className="grid md:grid-cols-3 gap-4">
+              <Material
+                name="PLA-CF"
+                desc="Carbon-reinforced PLA. Lightweight, dimensionally stable, premium finish."
+                specs={["Reduced warping", "Stiffer than PLA", "Matte black finish"]}
+                swatch="#1a1a1c"
+              />
+              <Material
+                name="PETG-CF"
+                desc="Reinforced PETG. Stiffness of carbon with PETG's toughness and weather resistance."
+                specs={["Stiff + tough", "UV stable", "Functional parts"]}
+                swatch="#1a1a1c"
+              />
+              <Material
+                name="PA-CF"
+                desc="Carbon-reinforced nylon. Aerospace-grade strength-to-weight. Top tier."
+                specs={["Highest stiffness", "Heat & chemical resistant", "Replaces aluminum in some apps"]}
+                swatch="#1a1a1c"
+                featured
+              />
+            </div>
+          </div>
+
+          <div className="mt-10 font-mono text-xs text-steel max-w-2xl leading-relaxed">
+            Engineering and composite materials carry a higher price per gram and may require longer lead times.
+            Final pricing reflects material and machine wear.
           </div>
         </div>
       </section>

@@ -165,7 +165,7 @@ export default function QuotePage() {
               {/* Material */}
               <div className="mb-6">
                 <div className="font-display font-semibold text-sm mb-3 tracking-wide">MATERIAL</div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2 max-h-[420px] overflow-y-auto pr-1">
                   {(Object.entries(MATERIALS) as [MaterialKey, typeof MATERIALS[MaterialKey]][]).map(
                     ([key, m]) => (
                       <button
@@ -179,7 +179,7 @@ export default function QuotePage() {
                       >
                         <div className="flex items-center gap-2 mb-1">
                           <div
-                            className="w-3 h-3 rounded-full border border-ironworks3"
+                            className="w-3 h-3 rounded-full border border-ironworks3 flex-shrink-0"
                             style={{ background: m.swatch }}
                           />
                           <span className="font-display font-bold text-sm">{m.label}</span>

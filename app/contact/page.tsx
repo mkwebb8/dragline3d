@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Mail, MapPin, Clock, Send } from "lucide-react";
+import { Mail, MapPin, Send } from "lucide-react";
 
 export default function ContactPage() {
   const [name, setName] = useState("");
@@ -12,7 +12,7 @@ export default function ContactPage() {
     e.preventDefault();
     const subject = encodeURIComponent(`Dragline 3D inquiry from ${name}`);
     const body = encodeURIComponent(`${message}\n\n— ${name}\n${email}`);
-    window.location.href = `mailto:kyle@dragline3d.com?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:info@dragline3d.com?subject=${subject}&body=${body}`;
   }
 
   return (
@@ -84,20 +84,14 @@ export default function ContactPage() {
           <InfoBlock
             icon={<Mail size={20} />}
             label="EMAIL"
-            value="kyle@dragline3d.com"
-            href="mailto:kyle@dragline3d.com"
+            value="info@dragline3d.com"
+            href="mailto:info@dragline3d.com"
           />
           <InfoBlock
             icon={<MapPin size={20} />}
             label="LOCATION"
             value="Louisville, KY"
             detail="Local pickup available · USPS nationwide"
-          />
-          <InfoBlock
-            icon={<Clock size={20} />}
-            label="HOURS"
-            value="Mon–Fri · 9a–6p ET"
-            detail="Most quotes answered within a few hours."
           />
 
           <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-5 mt-8">

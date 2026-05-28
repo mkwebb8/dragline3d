@@ -15,7 +15,7 @@ export function Footer() {
               </div>
             </div>
             <div className="font-display font-extrabold text-2xl mb-2">
-              Built to hold<span className="text-amber">.</span>
+              Layer by layer<span className="text-amber">.</span>
             </div>
             <p className="text-bone/60 text-sm leading-relaxed max-w-sm">
               Industrial-grade FDM additive manufacturing out of Louisville, Kentucky.
@@ -36,21 +36,18 @@ export function Footer() {
           <div>
             <div className="font-mono text-xs text-amber tracking-widest mb-4">CONTACT</div>
             <ul className="space-y-2 text-sm text-bone/70">
-              <li>kyle@dragline3d.com</li>
+              <li>info@dragline3d.com</li>
               <li>Louisville, KY</li>
-              <li className="pt-2 font-mono text-xs text-steel">
-                Mon–Fri · 9a–6p ET
-              </li>
             </ul>
           </div>
         </div>
 
         <div className="border-t border-ironworks3 pt-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
           <div className="font-mono text-xs text-steel tracking-widest">
-            © {new Date().getFullYear()} DRAGLINE 3D · KYLE WEBB
+            © {new Date().getFullYear()} DRAGLINE 3D
           </div>
           <div className="font-mono text-xs text-steel tracking-widest">
-            BUILT TO HOLD<span className="text-amber">.</span>
+            LAYER BY LAYER<span className="text-amber">.</span>
           </div>
         </div>
       </div>
