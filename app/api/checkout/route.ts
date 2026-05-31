@@ -10,7 +10,7 @@ function computePrice(volumeMm3,material,quality,infill){
   if(!mat||!q)return null;
   const grams=(volumeMm3/1000)*mat.density*(0.12+(1-0.12)*(infill/100));
   const hours=(grams/10)*q.mult;
-  return Math.max(8,Math.round(((grams/1000)*mat.costPerKg*2.5+hours*3+4)*1.08*100)/100);
+  return Math.max(8,Math.round(((grams/1000)*mat.costPerKg*2.5+hours*0.20+4)*1.08*100)/100);
 }
 export async function POST(request) {
   const body = await request.json();
@@ -32,3 +32,4 @@ export async function POST(request) {
   if(!resp.ok)return Response.json({error:"Payment provider error"},{status:502});
   return Response.json({url:data.payment_link?.url,price});
 }
+

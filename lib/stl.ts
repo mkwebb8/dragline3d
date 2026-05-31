@@ -1,4 +1,4 @@
-import * as THREE from "three";
+﻿import * as THREE from "three";
 
 export function parseSTL(buffer: ArrayBuffer): THREE.BufferGeometry {
   const view = new DataView(buffer);
@@ -103,8 +103,8 @@ export function quoteFromGeometry(
   const grams = volumeCm3 * mat.density * effectiveFill;
   const hours = (grams / 10) * QUALITIES[quality].mult;
   const materialCost = (grams / 1000) * mat.costPerKg * 2.5;
-  const machineCost = hours * 3;
-  const setup = 4;
+  const machineCost = hours * 0.20;
+  const setup = 12;
   const subtotal = (materialCost + machineCost + setup) * 1.08;
   return {
     grams: Math.round(grams * 10) / 10,
@@ -117,3 +117,4 @@ export function quoteFromGeometry(
     },
   };
 }
+
