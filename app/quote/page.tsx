@@ -29,8 +29,85 @@ export default function QuotePage() {
   const [infill, setInfill] = useState(20);
   const [loading, setLoading] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
+  const [quoteSource, setQuoteSource] = useState<"slicer" | "estimate" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // When stats arrive OR settings change, re-quote
+  useEffect(() => {
+    if (!stats || !file) return;
+    runQuote();
+  }, [stats, material, quality, infill]);
+
+  async function runQuote() {
+    if (!stats || !file) return;
+    setLoading(true);
+    setQuote(null);
+    setQuoteSource(null);
+
+    // Try real slicer first
+    try {
+      const form = new FormData();
+      form.append("stl", file);
+      form.append("material", material);
+      form.append("quality", quality);
+      form.append("infill", String(infill));
+
+      const res = await fetch("/api/slice", { method: "POST", body: form });
+      const data = await res.json();
+
+      if (res.ok && data.price && !data.fallback) {
+        setQuote({
+          grams: data.grams,
+          hours: data.hours,
+          price: data.price,
+          breakdown: data.breakdown,
+        });
+        setQuoteSource("slicer");
+        setLoading(false);
+        return;
+      }
+    } catch {
+      // Worker unreachable — fall through to estimate
+    }
+
+    // Fallback: browser-side volume estimate
+    setQuote(quoteFromGeometry(stats.volumeMm3, material, quality, infill));
+    setQuoteSource("estimate");
+    setLoading(false);
+  }
+
+  async function handleCheckout() {
+    if (!stats || !quote) return;
+    setCheckingOut(true);
+    setCheckoutError(null);
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          volumeMm3: stats.volumeMm3,
+          material,
+          quality,
+          infill,
+          fileName: file?.name ?? "Custom part",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || "Checkout failed");
+      }
+      // Redirect to Square's hosted checkout
+      window.location.href = data.url;
+    } catch (err) {
+      setCheckoutError(
+        err instanceof Error ? err.message : "Something went wrong. Please try again."
+      );
+      setCheckingOut(false);
+    }
+  }
 
   async function handleFile(f: File | undefined) {
     if (!f) return;
@@ -51,12 +128,6 @@ export default function QuotePage() {
       setLoading(false);
     }
   }
-
-  useEffect(() => {
-    if (!stats) return;
-    setLoading(false);
-    setQuote(quoteFromGeometry(stats.volumeMm3, material, quality, infill));
-  }, [stats, material, quality, infill]);
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-12 md:py-16">
@@ -273,6 +344,14 @@ export default function QuotePage() {
                   <div className="font-mono text-xs mt-3 font-semibold tracking-widest text-ironworks/60">
                     PER UNIT · USD
                   </div>
+                  {quoteSource && (
+                    <div className="inline-flex items-center gap-1.5 mt-2 px-2 py-1 rounded-sm text-xs font-mono font-semibold bg-ironworks/10"
+                      style={{ color: quoteSource === "slicer" ? "rgba(15,15,16,0.7)" : "rgba(15,15,16,0.5)" }}>
+                      <span className="w-1.5 h-1.5 rounded-full"
+                        style={{ background: quoteSource === "slicer" ? "#16a34a" : "#ca8a04" }} />
+                      {quoteSource === "slicer" ? "SLICER ACCURATE" : "VOLUME ESTIMATE"}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3 mb-5 pb-5 border-b border-ironworks/15">
@@ -291,12 +370,30 @@ export default function QuotePage() {
                   <Row label="Setup" value={`$${quote.breakdown.setup.toFixed(2)}`} />
                 </div>
 
-                <button className="font-display w-full py-4 rounded-sm font-bold flex items-center justify-center gap-2 bg-ironworks text-amber hover:bg-black transition-colors tracking-wide">
-                  PLACE ORDER <ArrowRight size={16} />
+                <button
+                  onClick={handleCheckout}
+                  disabled={checkingOut}
+                  className="font-display w-full py-4 rounded-sm font-bold flex items-center justify-center gap-2 bg-ironworks text-amber hover:bg-black transition-colors tracking-wide disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {checkingOut ? (
+                    <>
+                      <span className="inline-block w-4 h-4 border-2 border-amber/30 border-t-amber rounded-full animate-spin" />
+                      REDIRECTING...
+                    </>
+                  ) : (
+                    <>
+                      PAY WITH SQUARE <ArrowRight size={16} />
+                    </>
+                  )}
                 </button>
-                <button className="w-full mt-2 text-sm py-2 font-medium text-ironworks/60 hover:text-ironworks">
-                  Save quote for later
-                </button>
+                {checkoutError && (
+                  <div className="mt-2 text-sm text-center text-red-700 font-medium">
+                    {checkoutError}
+                  </div>
+                )}
+                <div className="w-full mt-3 text-xs text-center text-ironworks/50 font-mono">
+                  SECURE CHECKOUT · CARD · APPLE PAY · GOOGLE PAY
+                </div>
               </>
             )}
           </div>

@@ -16,11 +16,10 @@ export default function AboutPage() {
 
       <div className="prose prose-invert max-w-none space-y-6 text-bone/80 text-lg leading-relaxed">
         <p>
-          Dragline 3D is a one-person additive manufacturing shop in Louisville, Kentucky,
-          run by Kyle Webb. Industrial-grade large-format FDM printing across ten-plus
-          filaments — from everyday PLA and PETG to engineering-grade nylons and carbon-fiber
-          composites — for prototypes, replacement parts, fixtures, jigs, and small production
-          runs.
+          Dragline 3D is an additive manufacturing shop in Louisville, Kentucky.
+          Industrial-grade large-format FDM printing across ten-plus filaments — from
+          everyday PLA and PETG to engineering-grade nylons and carbon-fiber composites —
+          for prototypes, replacement parts, fixtures, jigs, and small production runs.
         </p>
 
         <p>
