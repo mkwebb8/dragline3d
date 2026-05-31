@@ -1,4 +1,4 @@
-export const runtime = "edge";
+ï»¿export const runtime = "edge";
 const MATERIALS = {
   PLA:{costPerKg:22,density:1.24},PETG:{costPerKg:28,density:1.27},TPU:{costPerKg:38,density:1.21},
   ABS:{costPerKg:25,density:1.04},ASA:{costPerKg:32,density:1.07},PC:{costPerKg:48,density:1.20},
@@ -17,9 +17,10 @@ export async function POST(request) {
   const {volumeMm3,material,quality,infill,fileName}=body;
   if(!MATERIALS[material]||!QUALITIES[quality])return Response.json({error:"Invalid params"},{status:400});
   const price=computePrice(volumeMm3,material,quality,infill);
+  const name=`${(fileName||"Custom part").slice(0,60)} - ${material} - ${quality}`;
   const squareBody={
     idempotency_key:crypto.randomUUID(),
-    quick_pay:{name:`${(fileName||"Custom part").slice(0,60)} · ${material} · ${quality}`,price_money:{amount:Math.round(price*100),currency:"USD"},location_id:process.env.SQUARE_LOCATION_ID},
+    quick_pay:{name,price_money:{amount:Math.round(price*100),currency:"USD"},location_id:process.env.SQUARE_LOCATION_ID},
     checkout_options:{redirect_url:"https://dragline3d.com/order-confirmed",ask_for_shipping_address:true},
   };
   const resp=await fetch("https://connect.squareup.com/v2/online-checkout/payment-links",{
