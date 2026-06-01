@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Upload, Trash2, ShoppingCart, ArrowRight, AlertCircle, Package, Truck, DollarSign, Plus } from "lucide-react";
 import { parseSTL, computeVolume, quoteFromGeometry, MATERIALS, QUALITIES, type MaterialKey, type QualityKey } from "@/lib/stl";
+import { parse3MF } from "@/lib/parse3mf";
 import dynamic from "next/dynamic";
 import * as THREE from "three";
 
@@ -64,7 +65,7 @@ export default function QuotePage() {
     setFileError(null); setFile(f); setParsing(true); setStats(null); setGeometry(null); setCurrentQuote(null);
     try {
       const buffer = await f.arrayBuffer();
-      const geo = /.3mf$/i.test(f.name) ? await (await import("@/lib/parse3mf")).parse3MF(buffer) : parseSTL(buffer);
+      const geo = /\.3mf$/i.test(f.name) ? await parse3MF(buffer) : parseSTL(buffer);
       geo.computeBoundingBox();
       const size = new THREE.Vector3();
       geo.boundingBox!.getSize(size);
