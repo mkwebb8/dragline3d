@@ -15,7 +15,7 @@ export async function POST(request: Request) {
         "x-worker-secret": process.env.WORKER_SECRET || "",
         "content-length": body.byteLength.toString(),
       },
-      body: Buffer.from(body),
+      body: new Uint8Array(body),
     });
     const data = await resp.json();
     return Response.json(data, { status: resp.status });
