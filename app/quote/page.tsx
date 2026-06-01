@@ -31,6 +31,7 @@ export default function QuotePage() {
 
   // Cart
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [slicerLoading, setSlicerLoading] = useState(false);
 
   // Shipping
   const [customerName, setCustomerName] = useState("");
@@ -73,10 +74,26 @@ export default function QuotePage() {
       setStats(s);
       setGeometry(geo);
       setCurrentQuote(quoteFromGeometry(s.volumeMm3, material, quality, infill));
+      // Try slicer in background
+      setSlicerLoading(true);
+      const form = new FormData();
+      form.append("stl", f);
+      form.append("material", material);
+      form.append("quality", quality);
+      form.append("infill", String(infill));
+      fetch("/api/slice", { method: "POST", body: form })
+        .then(r => r.json())
+        .then(data => {
+          if (data.price && !data.fallback) {
+            setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, breakdown: data.breakdown });
+          }
+        })
+        .catch(() => {})
+        .finally(() => setSlicerLoading(false));
     } catch { setFileError("Could not parse STL."); }
     setParsing(false);
   }
-
+  
   function addToCart() {
     if (!file || !stats || !currentQuote || !geometry) return;
     setCartItems(prev => [...prev, {
