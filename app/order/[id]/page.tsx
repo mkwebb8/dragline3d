@@ -1,7 +1,7 @@
-﻿export const runtime = "edge";
-"use client";
+﻿"use client";
+export const runtime = "edge";
 import{useEffect,useState,use}from "react";
-import{Package,Truck,CheckCircle2,Clock,AlertCircle}from "lucide-react";
+import{CheckCircle2,AlertCircle}from "lucide-react";
 const STEPS=[{key:"received",label:"Order Received"},{key:"queued",label:"In Queue"},{key:"printing",label:"Printing"},{key:"quality_check",label:"Quality Check"},{key:"shipped",label:"Shipped"},{key:"delivered",label:"Delivered"}];
 const STATUS_ORDER=["pending","received","queued","printing","quality_check","shipped","delivered"];
 export default function OrderTracking({params}:{params:Promise<{id:string}>}){
@@ -34,7 +34,7 @@ export default function OrderTracking({params}:{params:Promise<{id:string}>}){
                         <CheckCircle2 size={16} color={done||active?"#0f0f10":"#5a5a5e"}/>
                       </div>
                       <div className={`text-sm font-medium ${active?"text-amber":done?"text-bone/60":"text-bone/30"}`}>
-                        {step.label}{active&&<span className="ml-2 font-mono text-xs text-amber">← current</span>}
+                        {step.label}{active&&<span className="ml-2 font-mono text-xs text-amber">current</span>}
                       </div>
                     </div>
                   );
@@ -65,4 +65,3 @@ export default function OrderTracking({params}:{params:Promise<{id:string}>}){
     </div>
   );
 }
-

@@ -1,5 +1,5 @@
-﻿export const runtime = "edge";
-"use client";
+﻿"use client";
+export const runtime = "edge";
 import{useEffect,useState,use}from "react";
 import{useRouter}from "next/navigation";
 import Link from "next/link";
@@ -41,9 +41,7 @@ export default function AdminOrderDetail({params}:{params:Promise<{id:string}>})
           <div className="font-display font-extrabold text-2xl">{order.customer_name}</div>
         </div>
         <div className="ml-auto">
-          <Link href={`/order/${order.id}`} target="_blank" className="flex items-center gap-1 text-xs font-mono text-bone/50 hover:text-bone transition-colors">
-            Customer view <ExternalLink size={12}/>
-          </Link>
+          <Link href={`/order/${order.id}`} target="_blank" className="flex items-center gap-1 text-xs font-mono text-bone/50 hover:text-bone transition-colors">Customer view <ExternalLink size={12}/></Link>
         </div>
       </div>
       <div className="grid md:grid-cols-2 gap-4 mb-6">
@@ -53,7 +51,7 @@ export default function AdminOrderDetail({params}:{params:Promise<{id:string}>})
             <div><span className="text-steel">Name:</span> {order.customer_name}</div>
             <div><span className="text-steel">Email:</span> <a href={`mailto:${order.customer_email}`} className="text-amber hover:underline">{order.customer_email}</a></div>
             {order.address&&<div><span className="text-steel">Ship to:</span> {order.address}, {order.city}, {order.state} {order.zip}</div>}
-            <div><span className="text-steel">Shipping:</span> {order.shipping_service||"—"} · ${order.shipping_cost?.toFixed(2)}</div>
+            <div><span className="text-steel">Shipping:</span> {order.shipping_service||"--"} · ${order.shipping_cost?.toFixed(2)}</div>
             <div><span className="text-steel">Total:</span> <span className="font-bold text-amber">${order.total?.toFixed(2)}</span></div>
             <div className="font-mono text-xs text-steel pt-1">{new Date(order.created_at).toLocaleString("en-US")}</div>
           </div>
@@ -63,23 +61,19 @@ export default function AdminOrderDetail({params}:{params:Promise<{id:string}>})
           <div className="space-y-4">
             <div>
               <label className="block font-mono text-xs text-steel mb-1.5 tracking-wider">STATUS</label>
-              <select value={status} onChange={e=>setStatus(e.target.value)} style={{color:STATUS_COLORS[status]}}
-                className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-sm">
+              <select value={status} onChange={e=>setStatus(e.target.value)} style={{color:STATUS_COLORS[status]}} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-sm">
                 {STATUS_OPTIONS.map(o=><option key={o.value} value={o.value} style={{color:STATUS_COLORS[o.value]}}>{o.label}</option>)}
               </select>
             </div>
             <div>
               <label className="block font-mono text-xs text-steel mb-1.5 tracking-wider">TRACKING NUMBER</label>
-              <input value={tracking} onChange={e=>setTracking(e.target.value)} placeholder="USPS tracking..."
-                className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm font-mono"/>
+              <input value={tracking} onChange={e=>setTracking(e.target.value)} placeholder="USPS tracking..." className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm font-mono"/>
             </div>
             <div>
               <label className="block font-mono text-xs text-steel mb-1.5 tracking-wider">NOTES</label>
-              <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={2} placeholder="Internal notes..."
-                className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm resize-none"/>
+              <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={2} placeholder="Internal notes..." className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm resize-none"/>
             </div>
-            <button onClick={handleSave} disabled={saving}
-              className="w-full py-3 font-display font-bold bg-amber text-ironworks rounded-sm hover:bg-amber-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+            <button onClick={handleSave} disabled={saving} className="w-full py-3 font-display font-bold bg-amber text-ironworks rounded-sm hover:bg-amber-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
               <Save size={16}/>{saved?"SAVED!":saving?"SAVING...":"SAVE CHANGES"}
             </button>
             {status==="shipped"&&tracking&&<div className="font-mono text-xs text-green-400 text-center">Customer will receive a shipping email</div>}
@@ -105,4 +99,3 @@ export default function AdminOrderDetail({params}:{params:Promise<{id:string}>})
     </div>
   );
 }
-
