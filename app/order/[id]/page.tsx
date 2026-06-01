@@ -1,4 +1,5 @@
-﻿"use client";
+﻿export const runtime = "edge";
+"use client";
 import{useEffect,useState,use}from "react";
 import{Package,Truck,CheckCircle2,Clock,AlertCircle}from "lucide-react";
 const STEPS=[{key:"received",label:"Order Received"},{key:"queued",label:"In Queue"},{key:"printing",label:"Printing"},{key:"quality_check",label:"Quality Check"},{key:"shipped",label:"Shipped"},{key:"delivered",label:"Delivered"}];
@@ -64,3 +65,4 @@ export default function OrderTracking({params}:{params:Promise<{id:string}>}){
     </div>
   );
 }
+

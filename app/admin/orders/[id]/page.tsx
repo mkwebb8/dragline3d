@@ -1,4 +1,5 @@
-﻿"use client";
+﻿export const runtime = "edge";
+"use client";
 import{useEffect,useState,use}from "react";
 import{useRouter}from "next/navigation";
 import Link from "next/link";
@@ -104,3 +105,4 @@ export default function AdminOrderDetail({params}:{params:Promise<{id:string}>})
     </div>
   );
 }
+
