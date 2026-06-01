@@ -64,7 +64,7 @@ export default function QuotePage() {
 
   async function handleFile(f: File | undefined) {
     if (!f) return;
-    if (!/\.stl$/i.test(f.name)) { setError("STL files only."); return; }
+    if (!/\.(stl|3mf)$/i.test(f.name)) { setError("STL or 3MF files only."); return; }
     setError(null); setFile(f); setLoading(true); setQuote(null); setGeometry(null); setStats(null);
     try {
       const buffer = await f.arrayBuffer();
@@ -84,7 +84,7 @@ export default function QuotePage() {
       <div className="mb-12 max-w-3xl">
         <div className="font-mono text-xs uppercase tracking-widest text-amber mb-4">01 — Upload your file</div>
         <h1 className="font-display font-black text-5xl md:text-7xl leading-[0.92] mb-5">Drop a file.<br /><span className="text-amber">Get a quote.</span></h1>
-        <p className="text-bone/70 text-lg leading-relaxed max-w-xl">Real prices in seconds. STL files only — drag and drop or click to browse.</p>
+        <p className="text-bone/70 text-lg leading-relaxed max-w-xl">Real prices in seconds. STL and 3MF files accepted — drag and drop or click to browse.</p>
       </div>
       <div className="grid lg:grid-cols-5 gap-6">
         <div className="lg:col-span-3">
