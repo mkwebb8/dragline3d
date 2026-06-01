@@ -60,11 +60,11 @@ export default function QuotePage() {
 
   async function handleFile(f: File | undefined) {
     if (!f) return;
-    if (!/\.stl$/i.test(f.name)) { setFileError("STL files only."); return; }
+    if (!/\.(stl|3mf)$/i.test(f.name)) { setFileError("STL or 3MF files only."); return; }
     setFileError(null); setFile(f); setParsing(true); setStats(null); setGeometry(null); setCurrentQuote(null);
     try {
       const buffer = await f.arrayBuffer();
-      const geo = parseSTL(buffer);
+      const geo = /.3mf$/i.test(f.name) ? await (await import("@/lib/parse3mf")).parse3MF(buffer) : parseSTL(buffer);
       geo.computeBoundingBox();
       const size = new THREE.Vector3();
       geo.boundingBox!.getSize(size);
@@ -176,7 +176,7 @@ export default function QuotePage() {
           Build your order<span className="text-amber">.</span>
         </h1>
         <p className="text-bone/70 text-lg leading-relaxed max-w-xl">
-          Upload one or more STL files, configure each part, add them to your cart, then checkout.
+          Upload STL or 3MF files, configure each part, add them to your cart, then checkout.
         </p>
       </div>
 
@@ -193,15 +193,15 @@ export default function QuotePage() {
               className={`grid-bg cursor-pointer rounded-sm text-center transition-all flex flex-col items-center justify-center gap-4 ${dragOver ? "border-2 border-amber bg-ironworks2" : "border-2 border-dashed border-ironworks3 bg-ironworks2/50"}`}
               style={{ minHeight: 300, padding: "48px 32px" }}
             >
-              <input ref={inputRef} type="file" accept=".stl" className="hidden" onChange={e => handleFile(e.target.files?.[0])} />
+              <input ref={inputRef} type="file" accept=".stl,.3mf" className="hidden" onChange={e => handleFile(e.target.files?.[0])} />
               <div className="rounded-full bg-amber grid place-items-center" style={{ width: 64, height: 64 }}>
                 <Plus size={28} color="#0f0f10" />
               </div>
               <div>
                 <div className="font-display font-extrabold text-2xl mb-1">
-                  {cartItems.length > 0 ? "Add another part" : "Drop your STL"}
+                  {cartItems.length > 0 ? "Add another part" : "Drop your file"}
                 </div>
-                <div className="text-bone/50 text-sm">or click to browse · .STL only</div>
+                <div className="text-bone/50 text-sm">or click to browse · .STL or .3MF</div>
               </div>
               {fileError && <div className="text-sm flex items-center gap-2 text-red-400"><AlertCircle size={14} /> {fileError}</div>}
             </div>
@@ -303,14 +303,14 @@ export default function QuotePage() {
             {cartItems.length === 0 ? (
               <div className="px-5 py-10 text-center text-bone/40 text-sm">
                 <ShoppingCart size={28} className="mx-auto mb-3 opacity-30" />
-                No parts yet — upload an STL and add it to your cart.
+                No parts yet — upload an STL or 3MF and add it to your cart.
               </div>
             ) : (
               <div className="divide-y divide-ironworks3">
                 {cartItems.map(item => (
                   <div key={item.id} className="px-5 py-4 flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm text-bone truncate">{item.fileName.replace(/\.stl$/i, "")}</div>
+                      <div className="font-medium text-sm text-bone truncate">{item.fileName.replace(/\.(stl|3mf)$/i, "")}</div>
                       <div className="font-mono text-xs text-steel mt-1">
                         {item.material} · {QUALITIES[item.quality].label}mm · {item.infill}% · {item.quote.grams}g · {item.quote.hours}h
                       </div>
