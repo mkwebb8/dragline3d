@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Upload, Trash2, ShoppingCart, ArrowRight, AlertCircle, Package, Truck, DollarSign, Plus } from "lucide-react";
 import { parseSTL, computeVolume, quoteFromGeometry, MATERIALS, QUALITIES, type MaterialKey, type QualityKey } from "@/lib/stl";
 import { parse3MF } from "@/lib/parse3mf";
@@ -43,6 +43,26 @@ export default function QuotePage() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Save cart to localStorage on change
+useEffect(() => {
+  const serializable = cartItems.map(i => ({
+    id: i.id, fileName: i.fileName, material: i.material, quality: i.quality,
+    infill: i.infill, stats: i.stats, quote: i.quote,
+  }));
+  localStorage.setItem("dragline_cart", JSON.stringify(serializable));
+}, [cartItems]);
+
+// Restore cart from localStorage on load (without files/geometry)
+useEffect(() => {
+  try {
+    const saved = localStorage.getItem("dragline_cart");
+    if (saved) {
+      const items = JSON.parse(saved);
+      setCartItems(items.map((i: any) => ({ ...i, file: null, geometry: null })));
+    }
+  } catch {}
+}, []);
 
   const selectedRate = shippingRates.find(r => r.id === selectedRateId);
   const cartSubtotal = cartItems.reduce((sum, i) => sum + i.quote.price, 0);
@@ -91,7 +111,7 @@ export default function QuotePage() {
       id: genId(), file, fileName: file.name, material, quality, infill, stats, quote: currentQuote, geometry,
     }]);
     setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null);
-    setMaterial("PLA"); setQuality("standard"); setInfill(20);
+    setMaterial("PLA"); setQuality("standard"); setInfill(15);
     setShippingRates([]); setSelectedRateId(null);
   }
 
@@ -146,8 +166,8 @@ export default function QuotePage() {
         infill: i.infill, grams: i.quote.grams, hours: i.quote.hours, price: i.quote.price,
       }))));
       for (const item of cartItems) {
-        notifyForm.append(`file_${item.id}`, item.file);
-      }
+  if (item.file) notifyForm.append(`file_${item.id}`, item.file);
+}
       fetch("/api/notify", { method: "POST", body: notifyForm }).catch(() => {});
       const res = await fetch("/api/checkout", {
         method: "POST",
