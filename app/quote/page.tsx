@@ -68,9 +68,9 @@ export default function QuotePage() {
   const orderTotal = cartSubtotal + (selectedRate?.amount || 0);
 
   function recalc(s: Stats, mat: MaterialKey, q: QualityKey, inf: number) {
+    if (slicerLoading) return;
     setCurrentQuote(quoteFromGeometry(s.volumeMm3, mat, q, inf));
   }
-
   async function handleFile(f: File | undefined) {
     if (!f) return;
     if (!/\.(stl|3mf)$/i.test(f.name)) { setFileError("STL or 3MF files only."); return; }
