@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Upload, Trash2, ShoppingCart, ArrowRight, AlertCircle, Package, Truck, DollarSign, Plus } from "lucide-react";
+import { Trash2, ShoppingCart, ArrowRight, AlertCircle, Package, Truck, DollarSign, Plus, Minus } from "lucide-react";
 import { parseSTL, computeVolume, quoteFromGeometry, MATERIALS, QUALITIES, type MaterialKey, type QualityKey } from "@/lib/stl";
 import { parse3MF } from "@/lib/parse3mf";
 import dynamic from "next/dynamic";
@@ -11,7 +11,7 @@ const STLViewer = dynamic(() => import("@/components/STLViewer").then(m => ({ de
 
 type Stats = { dims: { x: number; y: number; z: number }; volumeMm3: number };
 type Quote = { grams: number; hours: number; price: number; breakdown: { material: number; machine: number; setup: number } };
-type CartItem = { id: string; file: File; fileName: string; material: MaterialKey; quality: QualityKey; infill: number; stats: Stats; quote: Quote; geometry: any };
+type CartItem = { id: string; file: File | null; fileName: string; material: MaterialKey; quality: QualityKey; infill: number; qty: number; stats: Stats; quote: Quote; geometry: any };
 type ShippingRate = { id: string; provider: string; service: string; amount: number; currency: string; days?: number };
 
 function genId() { return Math.random().toString(36).slice(2, 10); }
@@ -23,6 +23,7 @@ export default function QuotePage() {
   const [material, setMaterial] = useState<MaterialKey>("PLA");
   const [quality, setQuality] = useState<QualityKey>("standard");
   const [infill, setInfill] = useState(15);
+  const [qty, setQty] = useState(1);
   const [currentQuote, setCurrentQuote] = useState<Quote | null>(null);
   const [parsing, setParsing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -44,28 +45,26 @@ export default function QuotePage() {
 
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Save cart to localStorage on change
-useEffect(() => {
-  const serializable = cartItems.map(i => ({
-    id: i.id, fileName: i.fileName, material: i.material, quality: i.quality,
-    infill: i.infill, stats: i.stats, quote: i.quote,
-  }));
-  localStorage.setItem("dragline_cart", JSON.stringify(serializable));
-}, [cartItems]);
+  useEffect(() => {
+    const serializable = cartItems.map(i => ({
+      id: i.id, fileName: i.fileName, material: i.material, quality: i.quality,
+      infill: i.infill, qty: i.qty, stats: i.stats, quote: i.quote,
+    }));
+    localStorage.setItem("dragline_cart", JSON.stringify(serializable));
+  }, [cartItems]);
 
-// Restore cart from localStorage on load (without files/geometry)
-useEffect(() => {
-  try {
-    const saved = localStorage.getItem("dragline_cart");
-    if (saved) {
-      const items = JSON.parse(saved);
-      setCartItems(items.map((i: any) => ({ ...i, file: null, geometry: null })));
-    }
-  } catch {}
-}, []);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("dragline_cart");
+      if (saved) {
+        const items = JSON.parse(saved);
+        setCartItems(items.map((i: any) => ({ ...i, file: null, geometry: null })));
+      }
+    } catch {}
+  }, []);
 
   const selectedRate = shippingRates.find(r => r.id === selectedRateId);
-  const cartSubtotal = cartItems.reduce((sum, i) => sum + i.quote.price, 0);
+  const cartSubtotal = cartItems.reduce((sum, i) => sum + i.quote.price * i.qty, 0);
   const orderTotal = cartSubtotal + (selectedRate?.amount || 0);
 
   function recalc(s: Stats, mat: MaterialKey, q: QualityKey, inf: number) {
@@ -108,11 +107,15 @@ useEffect(() => {
   function addToCart() {
     if (!file || !stats || !currentQuote || !geometry) return;
     setCartItems(prev => [...prev, {
-      id: genId(), file, fileName: file.name, material, quality, infill, stats, quote: currentQuote, geometry,
+      id: genId(), file, fileName: file.name, material, quality, infill, qty, stats, quote: currentQuote, geometry,
     }]);
     setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null);
-    setMaterial("PLA"); setQuality("standard"); setInfill(15);
+    setMaterial("PLA"); setQuality("standard"); setInfill(15); setQty(1);
     setShippingRates([]); setSelectedRateId(null);
+  }
+
+  function updateQty(id: string, delta: number) {
+    setCartItems(prev => prev.map(i => i.id === id ? { ...i, qty: Math.max(1, Math.min(50, i.qty + delta)) } : i));
   }
 
   function removeFromCart(id: string) {
@@ -126,7 +129,7 @@ useEffect(() => {
       setRateError("Fill in all shipping fields first."); return;
     }
     setFetchingRates(true); setRateError(null); setShippingRates([]); setSelectedRateId(null);
-    const totalGrams = cartItems.reduce((sum, i) => sum + i.quote.grams, 0);
+    const totalGrams = cartItems.reduce((sum, i) => sum + i.quote.grams * i.qty, 0);
     try {
       const res = await fetch("/api/shipping", {
         method: "POST",
@@ -163,11 +166,12 @@ useEffect(() => {
       notifyForm.append("total", String(orderTotal));
       notifyForm.append("items", JSON.stringify(cartItems.map(i => ({
         id: i.id, fileName: i.fileName, material: i.material, quality: i.quality,
-        infill: i.infill, grams: i.quote.grams, hours: i.quote.hours, price: i.quote.price,
+        infill: i.infill, qty: i.qty, grams: i.quote.grams, hours: i.quote.hours,
+        price: i.quote.price, lineTotal: i.quote.price * i.qty,
       }))));
       for (const item of cartItems) {
-  if (item.file) notifyForm.append(`file_${item.id}`, item.file);
-}
+        if (item.file) notifyForm.append(`file_${item.id}`, item.file);
+      }
       fetch("/api/notify", { method: "POST", body: notifyForm }).catch(() => {});
       const res = await fetch("/api/checkout", {
         method: "POST",
@@ -175,7 +179,7 @@ useEffect(() => {
         body: JSON.stringify({
           items: cartItems.map(i => ({
             fileName: i.fileName, material: i.material, quality: i.quality,
-            infill: i.infill, volumeMm3: i.stats.volumeMm3, price: i.quote.price,
+            infill: i.infill, qty: i.qty, volumeMm3: i.stats.volumeMm3, price: i.quote.price,
           })),
           shippingCost: selectedRate?.amount || 0,
           shippingLabel: selectedRate?.service || "",
@@ -282,7 +286,7 @@ useEffect(() => {
                 </div>
               </div>
 
-              <div className="mb-6">
+              <div className="mb-5">
                 <div className="flex justify-between items-baseline mb-3">
                   <div className="font-display font-semibold text-sm tracking-wide">INFILL</div>
                   <div className="font-mono text-sm font-semibold text-amber">{infill}%</div>
@@ -292,13 +296,33 @@ useEffect(() => {
                 <div className="flex justify-between font-mono text-xs mt-1 text-steel"><span>LIGHT</span><span>SOLID</span></div>
               </div>
 
+              <div className="mb-6">
+                <div className="font-display font-semibold text-sm mb-3 tracking-wide">QUANTITY</div>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setQty(q => Math.max(1, q - 1))}
+                    className="w-9 h-9 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors">
+                    <Minus size={14} />
+                  </button>
+                  <div className="font-display font-bold text-xl w-12 text-center">{qty}</div>
+                  <button onClick={() => setQty(q => Math.min(50, q + 1))}
+                    className="w-9 h-9 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors">
+                    <Plus size={14} />
+                  </button>
+                  {qty > 1 && currentQuote && (
+                    <div className="font-mono text-xs text-steel ml-2">
+                      ${currentQuote.price.toFixed(2)} × {qty} = <span className="text-amber font-bold">${(currentQuote.price * qty).toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {(currentQuote || slicerLoading) && (
                 <button onClick={addToCart} disabled={slicerLoading}
                   className="w-full py-4 rounded-sm font-display font-bold flex items-center justify-center gap-3 bg-amber text-ironworks hover:bg-amber-dark transition-colors tracking-wide disabled:opacity-70 disabled:cursor-wait">
                   {slicerLoading ? (
                     <><span className="inline-block w-5 h-5 border-2 border-ironworks/30 border-t-ironworks rounded-full animate-spin"/> CALCULATING...</>
                   ) : (
-                    <><ShoppingCart size={18}/> ADD TO CART — ${currentQuote!.price.toFixed(2)}</>
+                    <><ShoppingCart size={18}/> ADD TO CART — ${(currentQuote!.price * qty).toFixed(2)}{qty > 1 ? ` (${qty}×)` : ""}</>
                   )}
                 </button>
               )}
@@ -330,10 +354,22 @@ useEffect(() => {
                       <div className="font-mono text-xs text-steel mt-1">
                         {item.material} · {QUALITIES[item.quality].label}mm · {item.infill}% · {item.quote.grams}g · {item.quote.hours}h
                       </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <button onClick={() => updateQty(item.id, -1)}
+                          className="w-6 h-6 rounded-sm border border-ironworks3 flex items-center justify-center hover:border-amber transition-colors">
+                          <Minus size={10} />
+                        </button>
+                        <span className="font-mono text-xs font-bold w-4 text-center">{item.qty}</span>
+                        <button onClick={() => updateQty(item.id, 1)}
+                          className="w-6 h-6 rounded-sm border border-ironworks3 flex items-center justify-center hover:border-amber transition-colors">
+                          <Plus size={10} />
+                        </button>
+                        {item.qty > 1 && <span className="font-mono text-xs text-steel">${item.quote.price.toFixed(2)} ea</span>}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      <div className="font-display font-bold text-amber">${item.quote.price.toFixed(2)}</div>
-                      <button onClick={() => removeFromCart(item.id)} className="text-steel hover:text-red-400 transition-colors">
+                    <div className="flex items-start gap-3 flex-shrink-0">
+                      <div className="font-display font-bold text-amber">${(item.quote.price * item.qty).toFixed(2)}</div>
+                      <button onClick={() => removeFromCart(item.id)} className="text-steel hover:text-red-400 transition-colors mt-0.5">
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -413,7 +449,7 @@ useEffect(() => {
                 <DollarSign size={12} /> Order Total
               </div>
               <div className="space-y-1.5 mb-5 font-mono text-sm">
-                <div className="flex justify-between text-ironworks/70"><span>Parts ({cartItems.length})</span><span className="font-bold text-ironworks">${cartSubtotal.toFixed(2)}</span></div>
+                <div className="flex justify-between text-ironworks/70"><span>Parts ({cartItems.reduce((s, i) => s + i.qty, 0)} units)</span><span className="font-bold text-ironworks">${cartSubtotal.toFixed(2)}</span></div>
                 {selectedRate && <div className="flex justify-between text-ironworks/70"><span>Shipping</span><span className="font-bold text-ironworks">${selectedRate.amount.toFixed(2)}</span></div>}
                 {!selectedRate && shippingRates.length === 0 && <div className="text-ironworks/50 text-xs">Enter address above to calculate shipping</div>}
               </div>
