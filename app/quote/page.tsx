@@ -17,7 +17,6 @@ type ShippingRate = { id: string; provider: string; service: string; amount: num
 function genId() { return Math.random().toString(36).slice(2, 10); }
 
 export default function QuotePage() {
-  // Current item being configured
   const [file, setFile] = useState<File | null>(null);
   const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -28,12 +27,8 @@ export default function QuotePage() {
   const [parsing, setParsing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-
-  // Cart
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [slicerLoading, setSlicerLoading] = useState(false);
-
-  // Shipping
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [address, setAddress] = useState("");
@@ -44,8 +39,6 @@ export default function QuotePage() {
   const [selectedRateId, setSelectedRateId] = useState<string | null>(null);
   const [fetchingRates, setFetchingRates] = useState(false);
   const [rateError, setRateError] = useState<string | null>(null);
-
-  // Checkout
   const [checkingOut, setCheckingOut] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
@@ -55,7 +48,6 @@ export default function QuotePage() {
   const cartSubtotal = cartItems.reduce((sum, i) => sum + i.quote.price, 0);
   const orderTotal = cartSubtotal + (selectedRate?.amount || 0);
 
-  // Recompute quote when settings change
   function recalc(s: Stats, mat: MaterialKey, q: QualityKey, inf: number) {
     setCurrentQuote(quoteFromGeometry(s.volumeMm3, mat, q, inf));
   }
@@ -74,7 +66,6 @@ export default function QuotePage() {
       setStats(s);
       setGeometry(geo);
       setCurrentQuote(quoteFromGeometry(s.volumeMm3, material, quality, infill));
-      // Try slicer in background
       setSlicerLoading(true);
       const form = new FormData();
       form.append("stl", f);
@@ -90,16 +81,15 @@ export default function QuotePage() {
         })
         .catch(() => {})
         .finally(() => setSlicerLoading(false));
-    } catch { setFileError("Could not parse STL."); }
+    } catch { setFileError("Could not parse file."); }
     setParsing(false);
   }
-  
+
   function addToCart() {
     if (!file || !stats || !currentQuote || !geometry) return;
     setCartItems(prev => [...prev, {
       id: genId(), file, fileName: file.name, material, quality, infill, stats, quote: currentQuote, geometry,
     }]);
-    // Reset upload area for next part
     setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null);
     setMaterial("PLA"); setQuality("standard"); setInfill(20);
     setShippingRates([]); setSelectedRateId(null);
@@ -140,9 +130,7 @@ export default function QuotePage() {
       setCheckoutError("Please select a shipping option."); return;
     }
     setCheckingOut(true); setCheckoutError(null);
-
     try {
-      // 1. Send notification email with STL files
       const notifyForm = new FormData();
       notifyForm.append("customerName", customerName);
       notifyForm.append("customerEmail", customerEmail);
@@ -160,10 +148,7 @@ export default function QuotePage() {
       for (const item of cartItems) {
         notifyForm.append(`file_${item.id}`, item.file);
       }
-      // Fire and forget — don't block checkout on email
       fetch("/api/notify", { method: "POST", body: notifyForm }).catch(() => {});
-
-      // 2. Create Square payment link
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -199,9 +184,7 @@ export default function QuotePage() {
       </div>
 
       <div className="grid xl:grid-cols-5 gap-6">
-        {/* ── LEFT: Upload + Configure ── */}
         <div className="xl:col-span-3 space-y-6">
-          {/* Upload zone */}
           {!file ? (
             <div
               onDragOver={e => { e.preventDefault(); setDragOver(true); }}
@@ -225,7 +208,6 @@ export default function QuotePage() {
             </div>
           ) : (
             <div>
-              {/* 3D Preview */}
               <div className="rounded-sm overflow-hidden border border-ironworks3" style={{ height: 380 }}>
                 {parsing || !geometry ? (
                   <div className="h-full grid place-items-center bg-ironworks2">
@@ -245,14 +227,12 @@ export default function QuotePage() {
             </div>
           )}
 
-          {/* Configure — shown when file is loaded */}
           {stats && (
             <div className="rounded-sm p-6 bg-ironworks2 border border-ironworks3">
               <div className="font-mono text-xs uppercase tracking-widest mb-5 flex items-center gap-2 text-amber">
                 <Package size={12} /> Configure this part
               </div>
 
-              {/* Material */}
               <div className="mb-5">
                 <div className="font-display font-semibold text-sm mb-3 tracking-wide">MATERIAL</div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[300px] overflow-y-auto pr-1">
@@ -269,7 +249,6 @@ export default function QuotePage() {
                 </div>
               </div>
 
-              {/* Quality */}
               <div className="mb-5">
                 <div className="font-display font-semibold text-sm mb-3 tracking-wide">LAYER HEIGHT</div>
                 <div className="grid grid-cols-3 gap-2">
@@ -283,7 +262,6 @@ export default function QuotePage() {
                 </div>
               </div>
 
-              {/* Infill */}
               <div className="mb-6">
                 <div className="flex justify-between items-baseline mb-3">
                   <div className="font-display font-semibold text-sm tracking-wide">INFILL</div>
@@ -294,21 +272,21 @@ export default function QuotePage() {
                 <div className="flex justify-between font-mono text-xs mt-1 text-steel"><span>LIGHT</span><span>SOLID</span></div>
               </div>
 
-              {/* Add to cart button with price preview */}
-              {currentQuote && (
-                <button onClick={addToCart}
-                  className="w-full py-4 rounded-sm font-display font-bold flex items-center justify-center gap-3 bg-amber text-ironworks hover:bg-amber-dark transition-colors tracking-wide">
-                  <ShoppingCart size={18} />
-                  ADD TO CART — ${currentQuote.price.toFixed(2)}
+              {(currentQuote || slicerLoading) && (
+                <button onClick={addToCart} disabled={slicerLoading}
+                  className="w-full py-4 rounded-sm font-display font-bold flex items-center justify-center gap-3 bg-amber text-ironworks hover:bg-amber-dark transition-colors tracking-wide disabled:opacity-70 disabled:cursor-wait">
+                  {slicerLoading ? (
+                    <><span className="inline-block w-5 h-5 border-2 border-ironworks/30 border-t-ironworks rounded-full animate-spin"/> CALCULATING...</>
+                  ) : (
+                    <><ShoppingCart size={18}/> ADD TO CART — ${currentQuote!.price.toFixed(2)}</>
+                  )}
                 </button>
               )}
             </div>
           )}
         </div>
 
-        {/* ── RIGHT: Cart + Shipping + Checkout ── */}
         <div className="xl:col-span-2 space-y-4">
-          {/* Cart */}
           <div className="rounded-sm border border-ironworks3 bg-ironworks2">
             <div className="px-5 py-4 border-b border-ironworks3 flex items-center justify-between">
               <div className="font-display font-bold text-lg flex items-center gap-2">
@@ -345,7 +323,6 @@ export default function QuotePage() {
             )}
           </div>
 
-          {/* Shipping form — only show when cart has items */}
           {cartItems.length > 0 && (
             <div className="rounded-sm border border-ironworks3 bg-ironworks2">
               <div className="px-5 py-4 border-b border-ironworks3">
@@ -410,7 +387,6 @@ export default function QuotePage() {
             </div>
           )}
 
-          {/* Order total + checkout */}
           {cartItems.length > 0 && (
             <div className="rounded-sm bg-amber text-ironworks p-5">
               <div className="font-mono text-xs uppercase tracking-widest mb-4 flex items-center gap-2 text-ironworks/70">
