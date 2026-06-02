@@ -1,8 +1,16 @@
 ﻿export const runtime = "edge";
-const MATERIALS = {
-  PLA:{costPerKg:22,density:1.24},PETG:{costPerKg:28,density:1.27},TPU:{costPerKg:38,density:1.21},
-  ABS:{costPerKg:25,density:1.04},ASA:{costPerKg:32,density:1.07},PC:{costPerKg:48,density:1.20},
-  PA:{costPerKg:55,density:1.14},"PLA-CF":{costPerKg:65,density:1.30},"PETG-CF":{costPerKg:70,density:1.31},"PA-CF":{costPerKg:95,density:1.18},
+const MATERIALS: Record<string, { costPerKg: number; density: number }> = {
+  PLA:{costPerKg:16,density:1.24},
+  PETG:{costPerKg:18,density:1.27},
+  TPU:{costPerKg:24,density:1.21},
+  ABS:{costPerKg:16,density:1.04},
+  ASA:{costPerKg:22,density:1.07},
+  "PET-GF15":{costPerKg:30,density:1.45},
+  "PETG-ESD":{costPerKg:66,density:1.27},
+  PA:{costPerKg:35,density:1.14},
+  "ASA-CF":{costPerKg:40,density:1.11},
+  "PETG-CF":{costPerKg:40,density:1.31},
+  "PA-CF":{costPerKg:80,density:1.18},
 };
 const QUALITIES={draft:{mult:0.7},standard:{mult:1.0},fine:{mult:1.6}};
 function computePrice(volumeMm3,material,quality,infill){
