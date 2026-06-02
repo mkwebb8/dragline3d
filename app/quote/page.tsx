@@ -22,7 +22,7 @@ export default function QuotePage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [material, setMaterial] = useState<MaterialKey>("PLA");
   const [quality, setQuality] = useState<QualityKey>("standard");
-  const [infill, setInfill] = useState(20);
+  const [infill, setInfill] = useState(15);
   const [currentQuote, setCurrentQuote] = useState<Quote | null>(null);
   const [parsing, setParsing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
