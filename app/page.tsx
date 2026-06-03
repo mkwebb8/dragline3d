@@ -39,7 +39,7 @@ export default function Home() {
       <section className="border-b border-ironworks3 bg-ironworks2">
         <div className="max-w-6xl mx-auto px-6 py-8 grid grid-cols-2 md:grid-cols-4 gap-6">
           <Stat label="Build volume" value="350mm³" detail="Large-format FDM" />
-          <Stat label="Materials" value="10+" detail="Standard & engineering" />
+          <Stat label="Materials" value="11+" detail="Standard & engineering" />
           <Stat label="Layer resolution" value="0.12mm" detail="Down from 0.28" />
           <Stat label="Lead time" value="2–5d" detail="Typical FDM job" />
         </div>
@@ -64,13 +64,13 @@ export default function Home() {
               num="01"
               icon={<Upload size={22} />}
               title="Upload"
-              body="Drop an STL. We render it in 3D so you can confirm geometry before quoting."
+              body="Drop an STL or 3MF. We render it in 3D so you can confirm geometry before quoting."
             />
             <Step
               num="02"
               icon={<Cog size={22} />}
               title="Configure"
-              body="Pick material, layer height, and infill. Quote updates instantly."
+              body="Pick material, layer height, infill, and quantity. Quote updates from real slicer data."
             />
             <Step
               num="03"
@@ -82,7 +82,7 @@ export default function Home() {
               num="04"
               icon={<Package size={22} />}
               title="Receive"
-              body="Pick up locally or ship USPS. Every part labeled, packed, and ready."
+              body="Pick up locally or ship to your door. Every part labeled, packed, and ready."
             />
           </div>
         </div>
@@ -95,7 +95,7 @@ export default function Home() {
             02 — Materials
           </div>
           <h2 className="font-display font-extrabold text-4xl md:text-5xl mb-4 max-w-2xl">
-            Ten plastics.<br />
+            Eleven plastics.<br />
             <span className="text-bone/50">One nozzle.</span>
           </h2>
           <p className="text-bone/60 max-w-xl mb-16">
@@ -114,11 +114,10 @@ export default function Home() {
                 swatch="#e8e6e1"
               />
               <Material
-                name="PETG"
-                desc="Tough and weather-resistant. The default for functional outdoor parts."
-                specs={["Impact resistant", "UV stable", "80°C softening"]}
+                name="Pro PCTG"
+                desc="Up to 20× tougher than PETG. UV stable, chemical resistant, easy to print."
+                specs={["Impact resistant", "UV & chemical stable", "80°C softening"]}
                 swatch="#c8d4d1"
-                featured
               />
               <Material
                 name="TPU"
@@ -146,10 +145,16 @@ export default function Home() {
                 swatch="#7a7a7e"
               />
               <Material
-                name="PC"
-                desc="Polycarbonate — extreme strength and heat resistance for demanding parts."
-                specs={["Highest impact", "Optically clear options", "135°C softening"]}
-                swatch="#a8a8ac"
+                name="PET-GF15"
+                desc="Glass fiber reinforced PET. Precision jigs, fixtures, and structural parts."
+                specs={["Dimensionally stable", "155°C heat resistance", "Low moisture uptake"]}
+                swatch="#a8c4b0"
+              />
+              <Material
+                name="PETG-ESD"
+                desc="Electrostatic dissipative PETG. For electronics enclosures and sensitive assemblies."
+                specs={["ESD safe", "PETG toughness", "Protects sensitive components"]}
+                swatch="#4a90d9"
               />
               <Material
                 name="PA (Nylon)"
@@ -165,9 +170,9 @@ export default function Home() {
             <div className="font-mono text-xs tracking-widest text-amber mb-4">▸ CARBON FIBER COMPOSITES</div>
             <div className="grid md:grid-cols-3 gap-4">
               <Material
-                name="PLA-CF"
-                desc="Carbon-reinforced PLA. Lightweight, dimensionally stable, premium finish."
-                specs={["Reduced warping", "Stiffer than PLA", "Matte black finish"]}
+                name="ASA-CF"
+                desc="Carbon-reinforced ASA. Stiff, UV stable, and dimensionally precise outdoors."
+                specs={["Reduced warping", "UV resistant", "Matte black finish"]}
                 swatch="#1a1a1c"
               />
               <Material
@@ -181,7 +186,6 @@ export default function Home() {
                 desc="Carbon-reinforced nylon. Aerospace-grade strength-to-weight. Top tier."
                 specs={["Highest stiffness", "Heat & chemical resistant", "Replaces aluminum in some apps"]}
                 swatch="#1a1a1c"
-                featured
               />
             </div>
           </div>
@@ -253,37 +257,27 @@ function Material({
   desc,
   specs,
   swatch,
-  featured = false,
 }: {
   name: string;
   desc: string;
   specs: string[];
   swatch: string;
-  featured?: boolean;
 }) {
   return (
-    <div
-      className={`rounded-sm p-6 ${
-        featured
-          ? "bg-amber text-ironworks border border-amber"
-          : "bg-ironworks2 border border-ironworks3"
-      }`}
-    >
+    <div className="rounded-sm p-6 bg-ironworks2 border border-ironworks3">
       <div className="flex items-center gap-3 mb-4">
         <div
           className="w-5 h-5 rounded-full border"
-          style={{ background: swatch, borderColor: featured ? "rgba(15,15,16,0.25)" : "#3a3a3c" }}
+          style={{ background: swatch, borderColor: "#3a3a3c" }}
         />
         <div className="font-display font-extrabold text-3xl">{name}</div>
       </div>
-      <p className={`text-sm leading-relaxed mb-6 ${featured ? "text-ironworks/80" : "text-bone/60"}`}>
-        {desc}
-      </p>
+      <p className="text-sm leading-relaxed mb-6 text-bone/60">{desc}</p>
       <ul className="space-y-1.5 font-mono text-xs">
         {specs.map((s) => (
           <li key={s} className="flex items-center gap-2">
-            <span className={featured ? "text-ironworks" : "text-amber"}>▸</span>
-            <span className={featured ? "text-ironworks" : "text-bone/70"}>{s}</span>
+            <span className="text-amber">▸</span>
+            <span className="text-bone/70">{s}</span>
           </li>
         ))}
       </ul>
