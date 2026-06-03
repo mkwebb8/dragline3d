@@ -7,7 +7,7 @@ const MATERIALS: Record<string, { costPerKg: number; density: number }> = {
   "PETG-ESD":{costPerKg:66,density:1.27},PA:{costPerKg:35,density:1.14},
   "ASA-CF":{costPerKg:40,density:1.11},"PETG-CF":{costPerKg:40,density:1.31},"PA-CF":{costPerKg:80,density:1.18},
 };
-const QUALITIES: Record<string,{mult:number}>={draft:{mult:0.7},standard:{mult:1.0},fine:{mult:1.6}};
+const QUALITIES:Record<string,{mult:number}>={draft:{mult:0.7},fast:{mult:0.85},standard:{mult:1.0},fine:{mult:1.6}};
 
 function computePrice(volumeMm3:number,material:string,quality:string,infill:number){
   const mat=MATERIALS[material];const q=QUALITIES[quality];
