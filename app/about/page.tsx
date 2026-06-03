@@ -16,9 +16,9 @@ export default function AboutPage() {
 
       <div className="prose prose-invert max-w-none space-y-6 text-bone/80 text-lg leading-relaxed">
         <p>
-          Dragline 3D is an additive manufacturing shop in Louisville, Kentucky.
-          Industrial-grade large-format FDM printing across ten-plus filaments — from
-          everyday PLA and PETG to engineering-grade nylons and carbon-fiber composites —
+          Dragline 3D is a woman-owned additive manufacturing shop in Louisville, Kentucky.
+          Industrial-grade large-format FDM printing across eleven-plus filaments — from
+          everyday PLA and Pro PCTG to engineering-grade nylons and carbon-fiber composites —
           for prototypes, replacement parts, fixtures, jigs, and small production runs.
         </p>
 
@@ -41,23 +41,23 @@ export default function AboutPage() {
         </p>
 
         <h2 className="font-display font-extrabold text-3xl text-bone pt-8">
-          What I don't do.
+          What we don't do.
         </h2>
 
         <p>
           Resin printing, metal, multi-color production work, or anything that requires
-          higher resolution than what FDM can deliver. If your part needs that, I'll tell
+          higher resolution than what FDM can deliver. If your part needs that, we will tell
           you up front and point you toward a shop that can.
         </p>
 
         <h2 className="font-display font-extrabold text-3xl text-bone pt-8">
-          How I work.
+          How we work.
         </h2>
 
         <p>
           You upload a file, get a real quote, approve it, and pay. I print it on a
           calibrated machine with profiled materials. You get the part in your hands in
-          2–5 business days, locally or shipped USPS. Every quote is firm — no surprise
+          2–5 business days (pending stock), locally or shipped to your door. Every quote is firm — no surprise
           charges. Every part is checked before it ships.
         </p>
 
@@ -68,7 +68,7 @@ export default function AboutPage() {
         <p>
           Because the alternative is hunting down a CAD-literate manufacturer, waiting
           for someone to "circle back" with pricing, getting a quote three days later
-          with a $200 setup fee, and finding out they can't actually do FDM in PETG
+          with a $200 setup fee, and finding out they can't actually do FDM in PCTG
           anyway. Dragline 3D is for the parts that should take a phone call but somehow
           take a week. We cut the week out.
         </p>
