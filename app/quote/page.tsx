@@ -308,7 +308,7 @@ export default function QuotePage() {
                     className="w-9 h-9 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors">
                     <Plus size={14} />
                   </button>
-                  {qty > 1 && currentQuote && (
+                  {qty > 1 && currentQuote && !slicerLoading && (
                     <div className="font-mono text-xs text-steel ml-2">
                       ${currentQuote.price.toFixed(2)} × {qty} = <span className="text-amber font-bold">${(currentQuote.price * qty).toFixed(2)}</span>
                     </div>
