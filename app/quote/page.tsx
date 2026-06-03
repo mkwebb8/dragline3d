@@ -275,7 +275,7 @@ export default function QuotePage() {
 
               <div className="mb-5">
                 <div className="font-display font-semibold text-sm mb-3 tracking-wide">LAYER HEIGHT</div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid-cols-2 sm:grid-cols-4 gap-2">
                   {(Object.entries(QUALITIES) as [QualityKey, typeof QUALITIES[QualityKey]][]).map(([key, q]) => (
                     <button key={key} onClick={() => { setQuality(key); recalc(stats, material, key, infill); }}
                       className={`p-3 rounded-sm border text-center transition-all ${quality === key ? "border-amber bg-ironworks" : "border-ironworks3 bg-ironworks hover:border-bone/30"}`}>
