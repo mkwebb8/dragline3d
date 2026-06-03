@@ -2,7 +2,7 @@ export const runtime = "edge";
 import { createOrder } from "@/lib/db";
 
 const MATERIALS: Record<string, { costPerKg: number; density: number }> = {
-  PLA:{costPerKg:16,density:1.24},PETG:{costPerKg:18,density:1.27},TPU:{costPerKg:24,density:1.21},
+  PLA:{costPerKg:16,density:1.24},PCTG:{costPerKg:29.95,density:1.27},TPU:{costPerKg:24,density:1.21},
   ABS:{costPerKg:20,density:1.04},ASA:{costPerKg:22,density:1.07},"PET-GF15":{costPerKg:30,density:1.45},
   "PETG-ESD":{costPerKg:66,density:1.27},PA:{costPerKg:35,density:1.14},
   "ASA-CF":{costPerKg:40,density:1.11},"PETG-CF":{costPerKg:40,density:1.31},"PA-CF":{costPerKg:80,density:1.18},
