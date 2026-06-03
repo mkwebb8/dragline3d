@@ -84,9 +84,10 @@ export const MATERIALS = {
 export type MaterialKey = keyof typeof MATERIALS;
 
 export const QUALITIES = {
-  draft: { label: "0.28", desc: "Fast", mult: 0.7 },
-  standard: { label: "0.20", desc: "Standard", mult: 1.0 },
-  fine: { label: "0.12", desc: "Fine", mult: 1.6 },
+  draft:    { label: "0.28", desc: "Draft",    layerHeight: 0.28, mult: 0.7  },
+  fast:     { label: "0.24", desc: "Fast",     layerHeight: 0.24, mult: 0.85 },
+  standard: { label: "0.20", desc: "Standard", layerHeight: 0.20, mult: 1.0  },
+  fine:     { label: "0.12", desc: "Fine",     layerHeight: 0.12, mult: 1.6  },
 } as const;
 
 export type QualityKey = keyof typeof QUALITIES;
