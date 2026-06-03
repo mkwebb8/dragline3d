@@ -69,7 +69,7 @@ export function computeVolume(geometry: THREE.BufferGeometry): number {
 
 export const MATERIALS = {
   PLA:         { label: "PLA",        desc: "General purpose, biodegradable",              costPerKg: 16,  swatch: "#e8e6e1", density: 1.24 },
-  PETG:        { label: "PETG",       desc: "Tough and weather-resistant",                 costPerKg: 18,  swatch: "#c8d4d1", density: 1.27 },
+  PCTG:        { label: "Pro PCTG",   desc: "Up to 20x tougher than PETG, UV stable",      costPerKg: 29.95, swatch: "#c8d4d1", density: 1.27 },
   TPU:         { label: "TPU",        desc: "Flexible, gaskets and grips",                 costPerKg: 24,  swatch: "#3a3a3c", density: 1.21 },
   ABS:         { label: "ABS",        desc: "High temp, impact resistant",                 costPerKg: 16,  swatch: "#5a5a5e", density: 1.04 },
   ASA:         { label: "ASA",        desc: "UV-stable, outdoor parts",                    costPerKg: 22,  swatch: "#7a7a7e", density: 1.07 },
