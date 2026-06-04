@@ -23,13 +23,21 @@ export default function PackingSlip({params}:{params:{id:string}}){
   },[id,router]);
   if(loading||!order)return<div style={{fontFamily:"monospace",padding:40}}>Loading…</div>;
   const subtotal=order.order_items?.reduce((s:number,i:any)=>s+i.price,0)??order.subtotal;
+  const preTax=Math.round((subtotal/1.08)*100)/100;
+  const taxAmount=Math.round((subtotal-preTax)*100)/100;
   return(
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600;800&display=swap');
         *{box-sizing:border-box;margin:0;padding:0;}
+        html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
         body{font-family:'IBM Plex Sans',sans-serif;background:#fff;color:#111;padding:32px 40px;max-width:720px;margin:0 auto;}
-        @media print{body{padding:16px 24px;}button{display:none!important;}}
+        @media print{
+          body{padding:16px 24px;}
+          button{display:none!important;}
+          a[href]:after{content:none!important;}
+          body:after{content:none!important;}
+        }
         .mono{font-family:'IBM Plex Mono',monospace;}
         .label{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#6b7280;font-family:'IBM Plex Mono',monospace;}
         table{width:100%;border-collapse:collapse;}
@@ -37,6 +45,7 @@ export default function PackingSlip({params}:{params:{id:string}}){
         td{padding:8px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;font-size:12px;}
         .swatch{display:inline-block;width:12px;height:12px;border-radius:2px;border:1px solid #d1d5db;vertical-align:middle;margin-right:5px;}
       `}</style>
+
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:28}}>
         <div>
           <div style={{fontWeight:800,fontSize:22,letterSpacing:"-0.02em"}}>DRAGLINE 3D</div>
@@ -48,7 +57,9 @@ export default function PackingSlip({params}:{params:{id:string}}){
           <div style={{marginTop:6,display:"inline-block",padding:"2px 8px",background:"#111",color:"#fff",fontSize:10,fontWeight:600,letterSpacing:".08em",borderRadius:2}} className="mono">PACKING SLIP</div>
         </div>
       </div>
+
       <hr style={{borderColor:"#111",borderWidth:2,marginBottom:20}}/>
+
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24,marginBottom:24}}>
         <div>
           <div className="label" style={{marginBottom:6}}>Ship To</div>
@@ -62,6 +73,7 @@ export default function PackingSlip({params}:{params:{id:string}}){
           {order.tracking_number&&<><div className="label" style={{marginTop:12,marginBottom:4}}>Tracking</div><div style={{fontWeight:600,fontSize:12}} className="mono">{order.tracking_number}</div></>}
         </div>
       </div>
+
       <table style={{marginBottom:16}}>
         <thead>
           <tr><th style={{width:"40%"}}>File</th><th>Material</th><th>Color</th><th>Quality</th><th>Infill</th><th style={{textAlign:"right"}}>Price</th></tr>
@@ -83,13 +95,24 @@ export default function PackingSlip({params}:{params:{id:string}}){
           })}
         </tbody>
       </table>
+
       <div style={{display:"flex",justifyContent:"flex-end",marginBottom:28}}>
-        <div style={{minWidth:220}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",color:"#6b7280"}}><span>Parts subtotal</span><span className="mono">${subtotal?.toFixed(2)}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",color:"#6b7280"}}><span>Shipping ({order.shipping_service})</span><span className="mono">${order.shipping_cost?.toFixed(2)}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:800,padding:"8px 0",borderTop:"2px solid #111",marginTop:4}}><span>Total</span><span className="mono">${order.total?.toFixed(2)}</span></div>
+        <div style={{minWidth:260}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",color:"#6b7280"}}>
+            <span>Parts subtotal (pre-tax)</span><span className="mono">${preTax.toFixed(2)}</span>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",color:"#6b7280"}}>
+            <span>KY Sales Tax (6%)</span><span className="mono">${taxAmount.toFixed(2)}</span>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",color:"#6b7280"}}>
+            <span>Shipping ({order.shipping_service})</span><span className="mono">${order.shipping_cost?.toFixed(2)}</span>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:800,padding:"8px 0",borderTop:"2px solid #111",marginTop:4}}>
+            <span>Total</span><span className="mono">${order.total?.toFixed(2)}</span>
+          </div>
         </div>
       </div>
+
       <hr style={{borderColor:"#e5e7eb",marginBottom:16}}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{fontSize:10,color:"#9ca3af"}}>Thank you for your order · questions? info@dragline3d.com</div>
