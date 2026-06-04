@@ -1,9 +1,9 @@
-﻿"use client";
+"use client";
 export const runtime = "edge";
 import{useEffect,useState,use}from "react";
 import{useRouter}from "next/navigation";
 import Link from "next/link";
-import{ArrowLeft,Save,ExternalLink}from "lucide-react";
+import{ArrowLeft,Save,ExternalLink,FileText,Receipt}from "lucide-react";
 const STATUS_OPTIONS=[{value:"pending",label:"Payment Pending"},{value:"received",label:"Order Received"},{value:"queued",label:"In Queue"},{value:"printing",label:"Printing"},{value:"quality_check",label:"Quality Check"},{value:"shipped",label:"Shipped"},{value:"delivered",label:"Delivered"},{value:"cancelled",label:"Cancelled"}];
 const STATUS_COLORS:Record<string,string>={pending:"#6b7280",received:"#3b82f6",queued:"#f59e0b",printing:"#f97316",quality_check:"#a855f7",shipped:"#22c55e",delivered:"#16a34a",cancelled:"#ef4444"};
 export default function AdminOrderDetail({params}:{params:Promise<{id:string}>}){
@@ -15,12 +15,15 @@ export default function AdminOrderDetail({params}:{params:Promise<{id:string}>})
   const[tracking,setTracking]=useState("");
   const[notes,setNotes]=useState("");
   const[saved,setSaved]=useState(false);
+  const[invoicing,setInvoicing]=useState(false);
+  const[invoiceUrl,setInvoiceUrl]=useState<string|null>(null);
+  const[invoiceError,setInvoiceError]=useState<string|null>(null);
   const router=useRouter();
   useEffect(()=>{
     const token=localStorage.getItem("dragline_admin_token");
     if(!token){router.push("/admin/login");return;}
     fetch(`/api/admin/orders/${id}`,{headers:{Authorization:`Bearer ${token}`}})
-      .then(r=>r.json()).then(data=>{setOrder(data);setStatus(data.status||"received");setTracking(data.tracking_number||"");setNotes(data.notes||"");})
+      .then(r=>r.json()).then(data=>{setOrder(data);setStatus(data.status||"received");setTracking(data.tracking_number||"");setNotes(data.notes||"");setInvoiceUrl(data.square_invoice_url||null);})
       .finally(()=>setLoading(false));
   },[id,router]);
   async function handleSave(){
@@ -29,6 +32,14 @@ export default function AdminOrderDetail({params}:{params:Promise<{id:string}>})
     const res=await fetch(`/api/admin/orders/${id}`,{method:"PATCH",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({status,tracking_number:tracking,notes})});
     if(res.ok){const u=await res.json();setOrder(u);setSaved(true);setTimeout(()=>setSaved(false),2000);}
     setSaving(false);
+  }
+  async function handleCreateInvoice(){
+    const token=localStorage.getItem("dragline_admin_token");if(!token)return;
+    setInvoicing(true);setInvoiceError(null);
+    const res=await fetch(`/api/admin/orders/${id}/invoice`,{method:"POST",headers:{Authorization:`Bearer ${token}`}});
+    if(res.ok){const data=await res.json();setInvoiceUrl(data.invoice_url);window.open(data.invoice_url,"_blank");}
+    else{const err=await res.json();setInvoiceError(err.error||"Failed to create invoice");}
+    setInvoicing(false);
   }
   if(loading)return<div className="max-w-4xl mx-auto px-6 py-16 text-center"><div className="inline-block w-8 h-8 border-2 border-ironworks3 border-t-amber rounded-full animate-spin"/></div>;
   if(!order)return<div className="max-w-4xl mx-auto px-6 py-16 text-center text-bone/50">Order not found</div>;
@@ -40,10 +51,28 @@ export default function AdminOrderDetail({params}:{params:Promise<{id:string}>})
           <div className="font-mono text-xs text-amber font-bold">{order.id}</div>
           <div className="font-display font-extrabold text-2xl">{order.customer_name}</div>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-3">
           <Link href={`/order/${order.id}`} target="_blank" className="flex items-center gap-1 text-xs font-mono text-bone/50 hover:text-bone transition-colors">Customer view <ExternalLink size={12}/></Link>
         </div>
       </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-3 mb-6">
+        {invoiceUrl?(
+          <a href={invoiceUrl} target="_blank" className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white font-display font-bold text-sm rounded-sm transition-colors">
+            <Receipt size={15}/>VIEW INVOICE
+          </a>
+        ):(
+          <button onClick={handleCreateInvoice} disabled={invoicing} className="flex items-center gap-2 px-4 py-2.5 bg-amber text-ironworks font-display font-bold text-sm rounded-sm hover:bg-amber-dark transition-colors disabled:opacity-50">
+            <Receipt size={15}/>{invoicing?"CREATING...":"CREATE SQUARE INVOICE"}
+          </button>
+        )}
+        <button onClick={()=>window.open(`/admin/orders/${id}/packing-slip`,"_blank")} className="flex items-center gap-2 px-4 py-2.5 bg-ironworks2 border border-ironworks3 hover:border-amber text-bone font-display font-bold text-sm rounded-sm transition-colors">
+          <FileText size={15}/>PACKING SLIP
+        </button>
+        {invoiceError&&<div className="text-xs text-red-400 self-center font-mono">{invoiceError}</div>}
+      </div>
+
       <div className="grid md:grid-cols-2 gap-4 mb-6">
         <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-5">
           <div className="font-mono text-xs text-amber tracking-widest mb-3">CUSTOMER</div>
