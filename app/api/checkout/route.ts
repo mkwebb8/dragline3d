@@ -39,31 +39,15 @@ export async function POST(request:Request){
   const subtotal=dbItems.reduce((s:number,i:any)=>s+i.price*i.qty,0);
   const taxAmount=Math.round(subtotal*TAX_RATE*100)/100;
   const shipping=shippingCost||0;
-
-  // Add tax line item to Square order
-  lineItems.push({
-    name:"KY Sales Tax (6%)",
-    quantity:"1",
-    base_price_money:{amount:Math.round(taxAmount*100),currency:"USD"},
-  });
-
+  lineItems.push({name:"KY Sales Tax (6%)",quantity:"1",base_price_money:{amount:Math.round(taxAmount*100),currency:"USD"}});
   if(shipping>0){
-    lineItems.push({
-      name:`Shipping - ${shippingLabel||"USPS"}`,
-      quantity:"1",
-      base_price_money:{amount:Math.round(shipping*100),currency:"USD"},
-    });
+    lineItems.push({name:`Shipping - ${shippingLabel||"USPS"}`,quantity:"1",base_price_money:{amount:Math.round(shipping*100),currency:"USD"}});
   }
-
   const total=subtotal+taxAmount+shipping;
   const squareBody={
     idempotency_key:crypto.randomUUID(),
     order:{location_id:locationId,line_items:lineItems},
-    checkout_options:{
-      redirect_url:`https://dragline3d.com/order-confirmed?id=${orderId}`,
-      ask_for_shipping_address:false,
-      merchant_support_email:"info@dragline3d.com",
-    },
+    checkout_options:{redirect_url:`https://dragline3d.com/order-confirmed?id=${orderId}`,ask_for_shipping_address:false,merchant_support_email:"info@dragline3d.com"},
     pre_populated_data:{buyer_email:customerEmail||""},
     payment_note:`Dragline 3D order ${orderId}`,
   };
@@ -73,7 +57,10 @@ export async function POST(request:Request){
     body:JSON.stringify(squareBody),
   });
   const data=await resp.json();
-if(!resp.ok)return Response.json({error:"Payment provider error",square_error:data},{status:502});
+  if(!resp.ok){
+    console.error("Square error:",JSON.stringify(data));
+    return Response.json({error:"Payment provider error",square_error:data},{status:502});
+  }
   createOrder({
     id:orderId,square_payment_link_id:data.payment_link?.id,
     customer_name:customerName||"",customer_email:customerEmail||"",
