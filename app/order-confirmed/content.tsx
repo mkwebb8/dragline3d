@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import{useEffect,useState}from "react";
 import{useSearchParams}from "next/navigation";
 import Link from "next/link";
@@ -23,13 +23,13 @@ export default function OrderConfirmedContent(){
           <div className="font-display font-bold text-2xl text-amber tracking-wider">{orderId}</div>
         </div>
       )}
-      <p className="text-bone/70 text-lg leading-relaxed mb-10">You will get a Square receipt by email. I will follow up shortly to confirm your print timeline. Most jobs ship in 2-5 business days.</p>
+      <p className="text-bone/70 text-lg leading-relaxed mb-10">You will get a Square receipt by email. We will follow up shortly to confirm your print timeline. Most jobs ship in 2-5 business days.</p>
       <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-6 text-left mb-10">
         <div className="font-mono text-xs tracking-widest text-amber mb-3">WHAT HAPPENS NEXT</div>
         <ol className="space-y-3 text-bone/80 text-sm">
-          <li className="flex gap-3"><span className="font-mono text-amber">01</span> I review your file and confirm it is print-ready.</li>
+          <li className="flex gap-3"><span className="font-mono text-amber">01</span> We review your file and confirm it is print-ready.</li>
           <li className="flex gap-3"><span className="font-mono text-amber">02</span> You get an email with your timeline and any questions.</li>
-          <li className="flex gap-3"><span className="font-mono text-amber">03</span> I print, inspect, and pack your part.</li>
+          <li className="flex gap-3"><span className="font-mono text-amber">03</span> We print, inspect, and pack your part.</li>
           <li className="flex gap-3"><span className="font-mono text-amber">04</span> You get a tracking number when it ships.</li>
         </ol>
       </div>
