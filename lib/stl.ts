@@ -124,7 +124,7 @@ export function quoteFromGeometry(
   const grams = (volumeMm3 / 1000) * mat.density * (0.12 + (1 - 0.12) * (infill / 100));
   const hours = (grams / 10) * q.mult;
   const matCost     = (grams / 1000) * mat.costPerKg * 2.5;
-  const machineCost = hours * 0.20;
+  const machineCost = hours * 0.50;
   const setupCost   = 12;
   const price = Math.max(8, Math.round((matCost + machineCost + setupCost) * 1.08 * 100) / 100);
   return { grams: Math.round(grams * 10) / 10, hours: Math.round(hours * 10) / 10, price, breakdown: { material: matCost, machine: machineCost, setup: setupCost } };
