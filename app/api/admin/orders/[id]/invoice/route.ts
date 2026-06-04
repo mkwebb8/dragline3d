@@ -8,6 +8,10 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
   const order=await getOrder(id);
   if(!order)return Response.json({error:"Order not found"},{status:404});
 
+  const subtotal=(order.order_items||[]).reduce((s:number,i:any)=>s+i.price,0);
+  const taxAmount=Math.round(subtotal*0.06*100)/100;
+  const shippingAmount=order.shipping_cost||0;
+
   const squareRes=await fetch("https://connect.squareup.com/v2/invoices",{
     method:"POST",
     headers:{"Content-Type":"application/json","Authorization":`Bearer ${process.env.SQUARE_ACCESS_TOKEN}`,"Square-Version":"2024-01-18"},
@@ -24,7 +28,18 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
               base_price_money:{amount:Math.round(item.price*100),currency:"USD"},
               note:`${item.material} · ${item.quality} · ${item.infill}% infill`,
             })),
-            {name:`Shipping — ${order.shipping_service||"USPS"}`,quantity:"1",base_price_money:{amount:Math.round((order.shipping_cost||0)*100),currency:"USD"}},
+            {
+              name:"KY Sales Tax (6%)",
+              quantity:"1",
+              base_price_money:{amount:Math.round(taxAmount*100),currency:"USD"},
+              note:"Kentucky sales tax on parts only",
+            },
+            {
+              name:`Shipping — ${order.shipping_service||"USPS"}`,
+              quantity:"1",
+              base_price_money:{amount:Math.round(shippingAmount*100),currency:"USD"},
+              note:"Shipping is tax-exempt",
+            },
           ],
         },
         primary_recipient:{
