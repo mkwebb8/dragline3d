@@ -1,22 +1,16 @@
 "use client";
 export const runtime = "edge";
-import{useEffect,useState,use}from "react";
+import{useEffect,useState}from "react";
 import{useRouter}from "next/navigation";
 
 const COLOR_SWATCHES:Record<string,string>={
-  "Midnight Black":"#111111",
-  "Snow White":"#f5f5f5",
-  "Charcoal Gray":"#4b5563",
-  "Natural":"#d4c4a0",
-  "Red":"#dc2626",
-  "Blue":"#2563eb",
-  "Yellow":"#eab308",
-  "Orange":"#ea580c",
-  "Green":"#16a34a",
+  "Midnight Black":"#111111","Snow White":"#f5f5f5","Charcoal Gray":"#4b5563",
+  "Natural":"#d4c4a0","Red":"#dc2626","Blue":"#2563eb","Yellow":"#eab308",
+  "Orange":"#ea580c","Green":"#16a34a",
 };
 
-export default function PackingSlip({params}:{params:Promise<{id:string}>}){
-  const{id}=use(params);
+export default function PackingSlip({params}:{params:{id:string}}){
+  const{id}=params;
   const[order,setOrder]=useState<any>(null);
   const[loading,setLoading]=useState(true);
   const router=useRouter();
@@ -43,8 +37,6 @@ export default function PackingSlip({params}:{params:Promise<{id:string}>}){
         td{padding:8px 0;border-bottom:1px solid #f3f4f6;vertical-align:top;font-size:12px;}
         .swatch{display:inline-block;width:12px;height:12px;border-radius:2px;border:1px solid #d1d5db;vertical-align:middle;margin-right:5px;}
       `}</style>
-
-      {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:28}}>
         <div>
           <div style={{fontWeight:800,fontSize:22,letterSpacing:"-0.02em"}}>DRAGLINE 3D</div>
@@ -56,10 +48,7 @@ export default function PackingSlip({params}:{params:Promise<{id:string}>}){
           <div style={{marginTop:6,display:"inline-block",padding:"2px 8px",background:"#111",color:"#fff",fontSize:10,fontWeight:600,letterSpacing:".08em",borderRadius:2}} className="mono">PACKING SLIP</div>
         </div>
       </div>
-
       <hr style={{borderColor:"#111",borderWidth:2,marginBottom:20}}/>
-
-      {/* Ship To */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24,marginBottom:24}}>
         <div>
           <div className="label" style={{marginBottom:6}}>Ship To</div>
@@ -70,24 +59,12 @@ export default function PackingSlip({params}:{params:Promise<{id:string}>}){
         <div>
           <div className="label" style={{marginBottom:6}}>Shipping Method</div>
           <div style={{fontWeight:600,fontSize:13}}>{order.shipping_service||"—"}</div>
-          {order.tracking_number&&<>
-            <div className="label" style={{marginTop:12,marginBottom:4}}>Tracking</div>
-            <div style={{fontWeight:600,fontSize:12}} className="mono">{order.tracking_number}</div>
-          </>}
+          {order.tracking_number&&<><div className="label" style={{marginTop:12,marginBottom:4}}>Tracking</div><div style={{fontWeight:600,fontSize:12}} className="mono">{order.tracking_number}</div></>}
         </div>
       </div>
-
-      {/* Parts Table */}
       <table style={{marginBottom:16}}>
         <thead>
-          <tr>
-            <th style={{width:"40%"}}>File</th>
-            <th>Material</th>
-            <th>Color</th>
-            <th>Quality</th>
-            <th>Infill</th>
-            <th style={{textAlign:"right"}}>Price</th>
-          </tr>
+          <tr><th style={{width:"40%"}}>File</th><th>Material</th><th>Color</th><th>Quality</th><th>Infill</th><th style={{textAlign:"right"}}>Price</th></tr>
         </thead>
         <tbody>
           {order.order_items?.map((item:any)=>{
@@ -97,10 +74,7 @@ export default function PackingSlip({params}:{params:Promise<{id:string}>}){
               <tr key={item.id}>
                 <td style={{fontWeight:600,paddingRight:8}}>{item.file_name}</td>
                 <td style={{color:"#374151"}}>{item.material}</td>
-                <td>
-                  <span className="swatch" style={{background:swatchColor,borderColor:color==="Snow White"?"#d1d5db":swatchColor}}/>
-                  <span style={{color:"#374151"}}>{color}</span>
-                </td>
+                <td><span className="swatch" style={{background:swatchColor,borderColor:color==="Snow White"?"#d1d5db":swatchColor}}/><span style={{color:"#374151"}}>{color}</span></td>
                 <td style={{color:"#374151"}} className="mono">{item.quality}</td>
                 <td style={{color:"#374151"}} className="mono">{item.infill}%</td>
                 <td style={{textAlign:"right",fontWeight:600}} className="mono">${item.price?.toFixed(2)}</td>
@@ -109,23 +83,13 @@ export default function PackingSlip({params}:{params:Promise<{id:string}>}){
           })}
         </tbody>
       </table>
-
-      {/* Totals */}
       <div style={{display:"flex",justifyContent:"flex-end",marginBottom:28}}>
         <div style={{minWidth:220}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",color:"#6b7280"}}>
-            <span>Parts subtotal</span><span className="mono">${subtotal?.toFixed(2)}</span>
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",color:"#6b7280"}}>
-            <span>Shipping ({order.shipping_service})</span><span className="mono">${order.shipping_cost?.toFixed(2)}</span>
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:800,padding:"8px 0",borderTop:"2px solid #111",marginTop:4}}>
-            <span>Total</span><span className="mono">${order.total?.toFixed(2)}</span>
-          </div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",color:"#6b7280"}}><span>Parts subtotal</span><span className="mono">${subtotal?.toFixed(2)}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",color:"#6b7280"}}><span>Shipping ({order.shipping_service})</span><span className="mono">${order.shipping_cost?.toFixed(2)}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:800,padding:"8px 0",borderTop:"2px solid #111",marginTop:4}}><span>Total</span><span className="mono">${order.total?.toFixed(2)}</span></div>
         </div>
       </div>
-
-      {/* Footer */}
       <hr style={{borderColor:"#e5e7eb",marginBottom:16}}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{fontSize:10,color:"#9ca3af"}}>Thank you for your order · questions? info@dragline3d.com</div>
