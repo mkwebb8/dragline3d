@@ -10,7 +10,7 @@ import * as THREE from "three";
 const STLViewer = dynamic(() => import("@/components/STLViewer").then(m => ({ default: m.STLViewer })), { ssr: false });
 
 type Stats = { dims: { x: number; y: number; z: number }; volumeMm3: number };
-type Quote = { grams: number; hours: number; price: number; breakdown: { material: number; machine: number; setup: number } };
+type Quote = { grams: number; hours: number; price: number; fromSlicer: boolean; breakdown: { material: number; machine: number; setup: number } };
 type CartItem = { id: string; file: File | null; fileName: string; material: MaterialKey; quality: QualityKey; infill: number; qty: number; color: string; stats: Stats; quote: Quote; geometry: any };
 type ShippingRate = { id: string; provider: string; service: string; amount: number; currency: string; days?: number };
 
@@ -31,6 +31,8 @@ export default function QuotePage() {
   const [fileError, setFileError] = useState<string | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [slicerLoading, setSlicerLoading] = useState(false);
+  const [slicerFailed, setSlicerFailed] = useState(false);
+  const [slicerComplete, setSlicerComplete] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [address, setAddress] = useState("");
@@ -75,15 +77,40 @@ export default function QuotePage() {
   const totalHours = cartItems.reduce((s, i) => s + i.quote.hours * i.qty, 0);
   const totalLbs = cartItems.reduce((s, i) => s + i.quote.grams * i.qty, 0) / 453.592;
 
+  function runSlicer(f: File, mat: MaterialKey, q: QualityKey, inf: number) {
+    setSlicerLoading(true);
+    setSlicerFailed(false);
+    setSlicerComplete(false);
+    const form = new FormData();
+    form.append("stl", f);
+    form.append("material", mat);
+    form.append("quality", q);
+    form.append("infill", String(inf));
+    fetch("/api/slice", { method: "POST", body: form })
+      .then(r => r.json())
+      .then(data => {
+        if (data.price && !data.fallback) {
+          setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
+          setSlicerFailed(false);
+        } else {
+          setSlicerFailed(true);
+        }
+      })
+      .catch(() => { setSlicerFailed(true); })
+      .finally(() => { setSlicerLoading(false); setSlicerComplete(true); });
+  }
+
   function recalc(s: Stats, mat: MaterialKey, q: QualityKey, inf: number) {
     if (slicerLoading) return;
     setCurrentQuote(quoteFromGeometry(s.volumeMm3, mat, q, inf));
+    if (slicerComplete && file) runSlicer(file, mat, q, inf);
   }
 
   async function handleFile(f: File | undefined) {
     if (!f) return;
     if (!/\.(stl|3mf)$/i.test(f.name)) { setFileError("STL or 3MF files only."); return; }
-    setFileError(null); setFile(f); setParsing(true); setStats(null); setGeometry(null); setCurrentQuote(null);
+    setFileError(null); setFile(f); setParsing(true); setStats(null); setGeometry(null);
+    setCurrentQuote(null); setSlicerFailed(false); setSlicerComplete(false);
     try {
       const buffer = await f.arrayBuffer();
       const geo = /\.3mf$/i.test(f.name) ? await parse3MF(buffer) : parseSTL(buffer);
@@ -92,25 +119,17 @@ export default function QuotePage() {
       geo.boundingBox!.getSize(size);
       const s: Stats = { dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: computeVolume(geo) };
       setStats(s); setGeometry(geo);
-      setCurrentQuote(quoteFromGeometry(s.volumeMm3, material, quality, infill));
-      setSlicerLoading(true);
-      const form = new FormData();
-      form.append("stl", f); form.append("material", material);
-      form.append("quality", quality); form.append("infill", String(infill));
-      fetch("/api/slice", { method: "POST", body: form })
-        .then(r => r.json())
-        .then(data => { if (data.price && !data.fallback) setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, breakdown: data.breakdown }); })
-        .catch(() => {})
-        .finally(() => setSlicerLoading(false));
+      runSlicer(f, material, quality, infill);
     } catch { setFileError("Could not parse file."); }
     setParsing(false);
   }
 
   function addToCart() {
-    if (!file || !stats || !currentQuote || !geometry) return;
+    if (!file || !stats || !currentQuote || !geometry || !currentQuote.fromSlicer) return;
     setCartItems(prev => [...prev, { id: genId(), file, fileName: file.name, material, quality, infill, qty, color, stats, quote: currentQuote, geometry }]);
     setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null);
     setMaterial("PLA"); setQuality("standard"); setInfill(15); setQty(1); setColor("Midnight Black");
+    setSlicerComplete(false); setSlicerFailed(false);
     setShippingRates([]); setSelectedRateId(null);
   }
 
@@ -199,7 +218,7 @@ export default function QuotePage() {
               </div>
               <div className="mt-2 flex justify-between items-center text-sm">
                 <span className="font-mono text-xs text-steel">{file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                <button onClick={() => { setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null); }} className="text-steel hover:text-bone transition-colors underline text-xs">Remove</button>
+                <button onClick={() => { setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null); setSlicerFailed(false); setSlicerComplete(false); }} className="text-steel hover:text-bone transition-colors underline text-xs">Remove</button>
               </div>
             </div>
           )}
@@ -265,19 +284,25 @@ export default function QuotePage() {
                   <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-9 h-9 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors"><Minus size={14} /></button>
                   <div className="font-display font-bold text-xl w-12 text-center">{qty}</div>
                   <button onClick={() => setQty(q => Math.min(50, q + 1))} className="w-9 h-9 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors"><Plus size={14} /></button>
-                  {qty > 1 && currentQuote && !slicerLoading && (
+                  {qty > 1 && currentQuote?.fromSlicer && !slicerLoading && (
                     <div className="font-mono text-xs text-steel ml-2">${currentQuote.price.toFixed(2)} × {qty} = <span className="text-amber font-bold">${(currentQuote.price * qty).toFixed(2)}</span></div>
                   )}
                 </div>
               </div>
 
-              {(currentQuote || slicerLoading) && (
-                <button onClick={addToCart} disabled={slicerLoading}
+              {slicerFailed ? (
+                <div className="w-full py-4 rounded-sm border border-red-400/50 text-red-400 font-mono text-xs text-center flex items-center justify-center gap-2">
+                  <AlertCircle size={14} /> SLICER UNAVAILABLE — cannot calculate price. Try again shortly.
+                </div>
+              ) : (
+                <button onClick={addToCart} disabled={slicerLoading || !currentQuote?.fromSlicer}
                   className="w-full py-4 rounded-sm font-display font-bold flex items-center justify-center gap-3 bg-amber text-ironworks hover:bg-amber-dark transition-colors tracking-wide disabled:opacity-70 disabled:cursor-wait">
                   {slicerLoading ? (
                     <><span className="inline-block w-5 h-5 border-2 border-ironworks/30 border-t-ironworks rounded-full animate-spin"/> CALCULATING...</>
+                  ) : currentQuote?.fromSlicer ? (
+                    <><ShoppingCart size={18}/> ADD TO CART — ${(currentQuote.price * qty).toFixed(2)}{qty > 1 ? ` (${qty}×)` : ""}</>
                   ) : (
-                    <><ShoppingCart size={18}/> ADD TO CART — ${(currentQuote!.price * qty).toFixed(2)}{qty > 1 ? ` (${qty}×)` : ""}</>
+                    <><span className="inline-block w-5 h-5 border-2 border-ironworks/30 border-t-ironworks rounded-full animate-spin"/> CALCULATING...</>
                   )}
                 </button>
               )}
@@ -311,7 +336,7 @@ export default function QuotePage() {
                         <div className="mt-1">
                           <div className="flex items-center gap-1.5 flex-wrap font-mono text-xs text-steel">
                             {itemColor && <span className="inline-block w-2.5 h-2.5 rounded-full border border-ironworks3 flex-shrink-0" style={{ background: itemColor.hex }} />}
-                            <span>{item.material} · {item.color} · {QUALITIES[item.quality].label}mm · {item.infill}% · {item.quote.grams}g · {item.quote.hours}h</span>
+                            <span>{item.material} · {item.color} · {QUALITIES[item.quality].label}mm · {item.infill}% · {item.quote.grams}g{item.quote.hours > 0 ? ` · ${item.quote.hours}h` : ""}</span>
                           </div>
                           <div className="flex gap-1.5 mt-1.5 flex-wrap">
                             {MATERIAL_COLORS[item.material]?.map(c => (
@@ -404,7 +429,7 @@ export default function QuotePage() {
               <div className="font-mono text-xs uppercase tracking-widest mb-4 flex items-center gap-2 text-ironworks/70"><DollarSign size={12} /> Order Total</div>
               <div className="space-y-1.5 mb-5 font-mono text-sm">
                 <div className="flex justify-between text-ironworks/70"><span>Parts ({cartItems.reduce((s, i) => s + i.qty, 0)} units)</span><span className="font-bold text-ironworks">${cartSubtotal.toFixed(2)}</span></div>
-                <div className="flex justify-between text-ironworks/70"><span>Est. print time</span><span className="font-bold text-ironworks">{totalHours.toFixed(1)}h</span></div>
+                {totalHours > 0 && <div className="flex justify-between text-ironworks/70"><span>Est. print time</span><span className="font-bold text-ironworks">{totalHours.toFixed(1)}h</span></div>}
                 <div className="flex justify-between text-ironworks/70"><span>Total weight</span><span className="font-bold text-ironworks">{totalLbs.toFixed(2)} lbs</span></div>
                 {selectedRate && <div className="flex justify-between text-ironworks/70"><span>Shipping</span><span className="font-bold text-ironworks">${selectedRate.amount.toFixed(2)}</span></div>}
                 {!selectedRate && shippingRates.length === 0 && <div className="text-ironworks/50 text-xs">Enter address above to calculate shipping</div>}
