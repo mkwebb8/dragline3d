@@ -14,7 +14,7 @@ function computePrice(volumeMm3:number,material:string,quality:string,infill:num
   if(!mat||!q)return null;
   const grams=(volumeMm3/1000)*mat.density*(0.12+(1-0.12)*(infill/100));
   const hours=(grams/10)*q.mult;
-  return Math.max(8,Math.round(((grams/1000)*mat.costPerKg*2.5+hours*0.20+12)*1.08*100)/100);
+  return Math.max(8,Math.round(((grams/1000)*mat.costPerKg*2.5+hours*0.50+12)*1.08*100)/100);
 }
 
 export async function POST(request:Request){
