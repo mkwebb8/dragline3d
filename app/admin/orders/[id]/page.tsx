@@ -1,13 +1,13 @@
 "use client";
 export const runtime = "edge";
-import{useEffect,useState,use}from "react";
+import{useEffect,useState}from "react";
 import{useRouter}from "next/navigation";
 import Link from "next/link";
 import{ArrowLeft,Save,ExternalLink,FileText,Receipt}from "lucide-react";
 const STATUS_OPTIONS=[{value:"pending",label:"Payment Pending"},{value:"received",label:"Order Received"},{value:"queued",label:"In Queue"},{value:"printing",label:"Printing"},{value:"quality_check",label:"Quality Check"},{value:"shipped",label:"Shipped"},{value:"delivered",label:"Delivered"},{value:"cancelled",label:"Cancelled"}];
 const STATUS_COLORS:Record<string,string>={pending:"#6b7280",received:"#3b82f6",queued:"#f59e0b",printing:"#f97316",quality_check:"#a855f7",shipped:"#22c55e",delivered:"#16a34a",cancelled:"#ef4444"};
-export default function AdminOrderDetail({params}:{params:Promise<{id:string}>}){
-  const{id}=use(params);
+export default function AdminOrderDetail({params}:{params:{id:string}}){
+  const{id}=params;
   const[order,setOrder]=useState<any>(null);
   const[loading,setLoading]=useState(true);
   const[saving,setSaving]=useState(false);
@@ -55,8 +55,6 @@ export default function AdminOrderDetail({params}:{params:Promise<{id:string}>})
           <Link href={`/order/${order.id}`} target="_blank" className="flex items-center gap-1 text-xs font-mono text-bone/50 hover:text-bone transition-colors">Customer view <ExternalLink size={12}/></Link>
         </div>
       </div>
-
-      {/* Action Buttons */}
       <div className="flex gap-3 mb-6">
         {invoiceUrl?(
           <a href={invoiceUrl} target="_blank" className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white font-display font-bold text-sm rounded-sm transition-colors">
@@ -72,7 +70,6 @@ export default function AdminOrderDetail({params}:{params:Promise<{id:string}>})
         </button>
         {invoiceError&&<div className="text-xs text-red-400 self-center font-mono">{invoiceError}</div>}
       </div>
-
       <div className="grid md:grid-cols-2 gap-4 mb-6">
         <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-5">
           <div className="font-mono text-xs text-amber tracking-widest mb-3">CUSTOMER</div>
