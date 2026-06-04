@@ -118,7 +118,7 @@ export function quoteFromGeometry(
   material: MaterialKey,
   quality: QualityKey,
   infill: number
-): { grams: number; hours: number; price: number; breakdown: { material: number; machine: number; setup: number } } {
+): { grams: number; hours: number; price: number; fromSlicer: boolean; breakdown: { material: number; machine: number; setup: number } } {
   const mat = MATERIALS[material];
   const q   = QUALITIES[quality];
   const grams = (volumeMm3 / 1000) * mat.density * (0.12 + (1 - 0.12) * (infill / 100));
@@ -127,5 +127,5 @@ export function quoteFromGeometry(
   const machineCost = hours * 0.50;
   const setupCost   = 12;
   const price = Math.max(8, Math.round((matCost + machineCost + setupCost) * 1.08 * 100) / 100);
-  return { grams: Math.round(grams * 10) / 10, hours: Math.round(hours * 10) / 10, price, breakdown: { material: matCost, machine: machineCost, setup: setupCost } };
+  return { grams: Math.round(grams * 10) / 10, hours: Math.round(hours * 10) / 10, price, fromSlicer: false, breakdown: { material: matCost, machine: machineCost, setup: setupCost } };
 }
