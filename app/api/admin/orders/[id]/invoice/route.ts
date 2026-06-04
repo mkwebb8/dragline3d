@@ -8,15 +8,9 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
   const order=await getOrder(id);
   if(!order)return Response.json({error:"Order not found"},{status:404});
 
-  // Prices stored in DB already include 6% KY tax (× 1.08)
-  // Divide by 1.08 so Square can apply tax and arrive at the correct total
-  const preTaxItems=(order.order_items||[]).map((item:any)=>({
-    name:item.file_name,
-    quantity:"1",
-    base_price_money:{amount:Math.round((item.price/1.08)*100),currency:"USD"},
-    note:`${item.material} · ${item.quality} · ${item.infill}% infill`,
-    taxes:[{name:"KY Sales Tax",percentage:"6",inclusion_type:"ADDITIVE",scope:"LINE_ITEM"}],
-  }));
+  const subtotal=(order.order_items||[]).reduce((s:number,i:any)=>s+i.price,0);
+  const preTax=Math.round((subtotal/1.08)*100)/100;
+  const taxAmount=Math.round((subtotal-preTax)*100)/100;
 
   const squareRes=await fetch("https://connect.squareup.com/v2/invoices",{
     method:"POST",
@@ -28,7 +22,18 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
           location_id:process.env.SQUARE_LOCATION_ID,
           reference_id:order.id,
           line_items:[
-            ...preTaxItems,
+            ...(order.order_items||[]).map((item:any)=>({
+              name:item.file_name,
+              quantity:"1",
+              base_price_money:{amount:Math.round((item.price/1.08)*100),currency:"USD"},
+              note:`${item.material} · ${item.quality} · ${item.infill}% infill`,
+            })),
+            {
+              name:"KY Sales Tax (6%)",
+              quantity:"1",
+              base_price_money:{amount:Math.round(taxAmount*100),currency:"USD"},
+              note:"Kentucky sales tax on parts",
+            },
             {
               name:`Shipping — ${order.shipping_service||"USPS"}`,
               quantity:"1",
@@ -48,7 +53,7 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
         invoice_number:order.id,
         title:`Dragline 3D — Order ${order.id}`,
         description:"Custom 3D printing order — dragline3d.com",
-        idempotency_key:`invoice-${order.id}`,
+        idempotency_key:`invoice-${order.id}-v2`,
       },
     }),
   });
@@ -61,7 +66,7 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
   await fetch(`https://connect.squareup.com/v2/invoices/${invoice.id}/publish`,{
     method:"POST",
     headers:{"Content-Type":"application/json","Authorization":`Bearer ${process.env.SQUARE_ACCESS_TOKEN}`,"Square-Version":"2024-01-18"},
-    body:JSON.stringify({version:invoice.version,idempotency_key:`publish-${order.id}`}),
+    body:JSON.stringify({version:invoice.version,idempotency_key:`publish-${order.id}-v2`}),
   });
 
   await fetch(`${process.env.SUPABASE_URL}/rest/v1/orders?id=eq.${id}`,{
