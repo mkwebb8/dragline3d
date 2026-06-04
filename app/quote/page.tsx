@@ -412,7 +412,7 @@ export default function QuotePage() {
                           <input type="radio" name="shipping" value={rate.id} checked={selectedRateId === rate.id} onChange={() => setSelectedRateId(rate.id)} className="accent-amber" />
                           <div>
                             <div className="text-sm font-medium">{rate.service}</div>
-                            {rate.days && <div className="font-mono text-xs text-steel">{rate.days} business days</div>}
+                            <div className="font-mono text-xs text-steel">{rate.provider}{rate.days ? ` · ${rate.days} business days` : ""}</div>
                           </div>
                         </div>
                         <div className="font-mono font-bold text-amber">${rate.amount.toFixed(2)}</div>
