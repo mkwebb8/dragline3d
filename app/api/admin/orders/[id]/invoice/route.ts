@@ -8,6 +8,16 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
   const order=await getOrder(id);
   if(!order)return Response.json({error:"Order not found"},{status:404});
 
+  // Prices stored in DB already include 6% KY tax (× 1.08)
+  // Divide by 1.08 so Square can apply tax and arrive at the correct total
+  const preTaxItems=(order.order_items||[]).map((item:any)=>({
+    name:item.file_name,
+    quantity:"1",
+    base_price_money:{amount:Math.round((item.price/1.08)*100),currency:"USD"},
+    note:`${item.material} · ${item.quality} · ${item.infill}% infill`,
+    taxes:[{name:"KY Sales Tax",percentage:"6",inclusion_type:"ADDITIVE",scope:"LINE_ITEM"}],
+  }));
+
   const squareRes=await fetch("https://connect.squareup.com/v2/invoices",{
     method:"POST",
     headers:{"Content-Type":"application/json","Authorization":`Bearer ${process.env.SQUARE_ACCESS_TOKEN}`,"Square-Version":"2024-01-18"},
@@ -18,12 +28,7 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
           location_id:process.env.SQUARE_LOCATION_ID,
           reference_id:order.id,
           line_items:[
-            ...(order.order_items||[]).map((item:any)=>({
-              name:item.file_name,
-              quantity:"1",
-              base_price_money:{amount:Math.round(item.price*100),currency:"USD"},
-              note:`${item.material} · ${item.quality} · ${item.infill}% infill · incl. 6% KY tax`,
-            })),
+            ...preTaxItems,
             {
               name:`Shipping — ${order.shipping_service||"USPS"}`,
               quantity:"1",
