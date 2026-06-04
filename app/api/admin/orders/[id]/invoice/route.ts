@@ -1,16 +1,12 @@
 export const runtime="edge";
-import{NextRequest,NextResponse}from "next/server";
 import{verifyAdminToken}from "@/lib/adminAuth";
-import{createClient}from "@supabase/supabase-js";
+import{getOrder}from "@/lib/db";
 
 export async function POST(request:Request,{params}:{params:{id:string}}){
   if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
   const{id}=params;
-  const supabase=createClient(process.env.SUPABASE_URL!,process.env.SUPABASE_SERVICE_KEY!);
-
-  const{data:order}=await supabase.from("orders").select("*").eq("id",id).single();
+  const order=await getOrder(id);
   if(!order)return Response.json({error:"Order not found"},{status:404});
-  const{data:items}=await supabase.from("order_items").select("*").eq("order_id",id);
 
   const squareRes=await fetch("https://connect.squareup.com/v2/invoices",{
     method:"POST",
@@ -22,7 +18,7 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
           location_id:process.env.SQUARE_LOCATION_ID,
           reference_id:order.id,
           line_items:[
-            ...(items||[]).map((item:any)=>({
+            ...(order.order_items||[]).map((item:any)=>({
               name:item.file_name,
               quantity:"1",
               base_price_money:{amount:Math.round(item.price*100),currency:"USD"},
@@ -58,6 +54,11 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
     body:JSON.stringify({version:invoice.version,idempotency_key:`publish-${order.id}`}),
   });
 
-  await supabase.from("orders").update({square_invoice_url:invoiceUrl}).eq("id",id);
+  await fetch(`${process.env.SUPABASE_URL}/rest/v1/orders?id=eq.${id}`,{
+    method:"PATCH",
+    headers:{"Content-Type":"application/json","Authorization":`Bearer ${process.env.SUPABASE_SERVICE_KEY}`,"apikey":process.env.SUPABASE_SERVICE_KEY!},
+    body:JSON.stringify({square_invoice_url:invoiceUrl}),
+  });
+
   return Response.json({invoice_url:invoiceUrl,invoice_id:invoice.id});
 }
