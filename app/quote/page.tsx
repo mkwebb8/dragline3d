@@ -73,7 +73,8 @@ export default function QuotePage() {
 
   const selectedRate = shippingRates.find(r => r.id === selectedRateId);
   const cartSubtotal = cartItems.reduce((sum, i) => sum + i.quote.price * i.qty, 0);
-  const orderTotal = cartSubtotal + (selectedRate?.amount || 0);
+  const taxAmount = Math.round(cartSubtotal * 0.06 * 100) / 100;
+  const orderTotal = cartSubtotal + taxAmount + (selectedRate?.amount || 0);
   const totalHours = cartItems.reduce((s, i) => s + i.quote.hours * i.qty, 0);
   const totalLbs = cartItems.reduce((s, i) => s + i.quote.grams * i.qty, 0) / 453.592;
 
@@ -429,6 +430,7 @@ export default function QuotePage() {
               <div className="font-mono text-xs uppercase tracking-widest mb-4 flex items-center gap-2 text-ironworks/70"><DollarSign size={12} /> Order Total</div>
               <div className="space-y-1.5 mb-5 font-mono text-sm">
                 <div className="flex justify-between text-ironworks/70"><span>Parts ({cartItems.reduce((s, i) => s + i.qty, 0)} units)</span><span className="font-bold text-ironworks">${cartSubtotal.toFixed(2)}</span></div>
+                <div className="flex justify-between text-ironworks/70"><span>KY Sales Tax (6%)</span><span className="font-bold text-ironworks">${taxAmount.toFixed(2)}</span></div>
                 {totalHours > 0 && <div className="flex justify-between text-ironworks/70"><span>Est. print time</span><span className="font-bold text-ironworks">{totalHours.toFixed(1)}h</span></div>}
                 <div className="flex justify-between text-ironworks/70"><span>Total weight</span><span className="font-bold text-ironworks">{totalLbs.toFixed(2)} lbs</span></div>
                 {selectedRate && <div className="flex justify-between text-ironworks/70"><span>Shipping</span><span className="font-bold text-ironworks">${selectedRate.amount.toFixed(2)}</span></div>}
