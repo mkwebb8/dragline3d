@@ -177,7 +177,7 @@ export default function QuotePage() {
       const res = await fetch("/api/checkout", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          items: cartItems.map(i => ({ fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, volumeMm3: i.stats.volumeMm3, price: i.quote.price })),
+          items: cartItems.map(i => ({ fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, volumeMm3: i.stats.volumeMm3, price: i.quote.price, grams: i.quote.grams, hours: i.quote.hours })),
           shippingCost: localPickup ? 0 : (selectedRate?.amount || 0),
           shippingLabel: localPickup ? "Local Pickup" : (selectedRate?.service || ""),
           customerEmail, customerName,
