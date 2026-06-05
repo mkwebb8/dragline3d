@@ -27,16 +27,30 @@ export async function POST(request:Request){
       }
     }
 
-    // Build items table
-    const itemRows=items.map((i:any)=>`
+    const totalQty=items.reduce((s:number,i:any)=>s+(i.qty||1),0);
+
+    // Build items table with qty column
+    const itemRows=items.map((i:any)=>{
+      const qty=i.qty||1;
+      return`
       <tr style="border-bottom:1px solid #333">
         <td style="padding:8px;color:#fff">${i.fileName}</td>
         <td style="padding:8px;color:#aaa">${i.material}</td>
         <td style="padding:8px;color:#aaa">${i.color||"Midnight Black"}</td>
         <td style="padding:8px;color:#aaa">${i.quality} · ${i.infill}%</td>
         <td style="padding:8px;color:#aaa">${i.grams}g</td>
-        <td style="padding:8px;color:#f59e0b;text-align:right">$${(i.price*i.qty).toFixed(2)}</td>
-      </tr>`).join("");
+        <td style="padding:8px;color:#aaa;text-align:center">${qty}</td>
+        <td style="padding:8px;color:#f59e0b;text-align:right">$${(i.price*qty).toFixed(2)}</td>
+      </tr>`;
+    }).join("");
+
+    const shippingDisplay=shippingLabel==="Local Pickup"
+      ?`Local Pickup · $0`
+      :`${shippingLabel} · $${shippingCost}`;
+
+    const addressDisplay=shippingLabel==="Local Pickup"
+      ?`Local Pickup — Louisville, KY`
+      :`${address}, ${city}, ${state} ${zip}`;
 
     const html=`
     <div style="background:#111;color:#fff;font-family:monospace;padding:32px;max-width:600px">
@@ -46,11 +60,11 @@ export async function POST(request:Request){
         <div style="color:#f59e0b;font-size:11px;letter-spacing:.1em;margin-bottom:12px">CUSTOMER</div>
         <div style="color:#fff;margin-bottom:4px">${customerName}</div>
         <div style="color:#aaa;font-size:12px">${customerEmail}</div>
-        <div style="color:#aaa;font-size:12px;margin-top:8px">${address}, ${city}, ${state} ${zip}</div>
-        <div style="color:#aaa;font-size:12px;margin-top:4px">Shipping: ${shippingLabel} · $${shippingCost}</div>
+        <div style="color:#aaa;font-size:12px;margin-top:8px">${addressDisplay}</div>
+        <div style="color:#aaa;font-size:12px;margin-top:4px">Shipping: ${shippingDisplay}</div>
       </div>
       <div style="background:#1a1a1a;border:1px solid #333;border-radius:4px;padding:16px;margin-bottom:16px">
-        <div style="color:#f59e0b;font-size:11px;letter-spacing:.1em;margin-bottom:12px">PARTS (${items.length})</div>
+        <div style="color:#f59e0b;font-size:11px;letter-spacing:.1em;margin-bottom:12px">PARTS (${items.length} lines · ${totalQty} pcs)</div>
         <table style="width:100%;border-collapse:collapse">
           <thead>
             <tr style="border-bottom:1px solid #444">
@@ -59,6 +73,7 @@ export async function POST(request:Request){
               <th style="padding:8px;color:#666;text-align:left;font-size:11px">COLOR</th>
               <th style="padding:8px;color:#666;text-align:left;font-size:11px">QUALITY</th>
               <th style="padding:8px;color:#666;text-align:left;font-size:11px">WEIGHT</th>
+              <th style="padding:8px;color:#666;text-align:center;font-size:11px">QTY</th>
               <th style="padding:8px;color:#666;text-align:right;font-size:11px">PRICE</th>
             </tr>
           </thead>
