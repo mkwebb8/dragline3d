@@ -33,7 +33,8 @@ export default function QuotePage() {
   const [slicerLoading, setSlicerLoading] = useState(false);
   const [slicerFailed, setSlicerFailed] = useState(false);
   const [slicerComplete, setSlicerComplete] = useState(false);
-  const [customerName, setCustomerName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
@@ -47,6 +48,7 @@ export default function QuotePage() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const customerName = `${firstName} ${lastName}`.trim();
 
   useEffect(() => {
     const colors = MATERIAL_COLORS[material];
@@ -145,7 +147,10 @@ export default function QuotePage() {
 
   async function getShippingRates() {
     if (cartItems.length === 0) return;
-    if (!customerName || !address || !city || !stateField || !zip) { setRateError("Fill in all shipping fields first."); return; }
+    if (!firstName || !lastName || !address || !city || !stateField || !zip) {
+      setRateError("Fill in all shipping fields first.");
+      return;
+    }
     setFetchingRates(true); setRateError(null); setShippingRates([]); setSelectedRateId(null);
     const totalGrams = cartItems.reduce((sum, i) => sum + i.quote.grams * i.qty, 0);
     try {
@@ -160,7 +165,10 @@ export default function QuotePage() {
 
   async function handleCheckout() {
     if (cartItems.length === 0) return;
-    if (!customerName || !customerEmail || !address || !city || !stateField || !zip) { setCheckoutError("Please fill in all shipping fields."); return; }
+    if (!firstName || !lastName || !customerEmail || !address || !city || !stateField || !zip) {
+      setCheckoutError("Please fill in all shipping fields.");
+      return;
+    }
     if (!selectedRate && shippingRates.length > 0) { setCheckoutError("Please select a shipping option."); return; }
     setCheckingOut(true); setCheckoutError(null);
     try {
@@ -374,13 +382,17 @@ export default function QuotePage() {
               <div className="px-5 py-4 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-mono text-xs text-steel mb-1 tracking-wider">NAME</label>
-                    <input value={customerName} onChange={e => setCustomerName(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="Full name" />
+                    <label className="block font-mono text-xs text-steel mb-1 tracking-wider">FIRST NAME</label>
+                    <input value={firstName} onChange={e => setFirstName(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="First name" />
                   </div>
                   <div>
-                    <label className="block font-mono text-xs text-steel mb-1 tracking-wider">EMAIL</label>
-                    <input type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="your@email.com" />
+                    <label className="block font-mono text-xs text-steel mb-1 tracking-wider">LAST NAME</label>
+                    <input value={lastName} onChange={e => setLastName(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="Last name" />
                   </div>
+                </div>
+                <div>
+                  <label className="block font-mono text-xs text-steel mb-1 tracking-wider">EMAIL</label>
+                  <input type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="your@email.com" />
                 </div>
                 <div>
                   <label className="block font-mono text-xs text-steel mb-1 tracking-wider">ADDRESS</label>
