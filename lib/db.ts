@@ -28,7 +28,7 @@ export async function createOrder(order:any):Promise<Order>{
 
 export async function getOrders(status?:OrderStatus):Promise<Order[]>{
   const f=status?`?status=eq.${status}&order=created_at.desc`:"?order=created_at.desc";
-  const r=await supabase(`orders${f}`);if(!r.ok)throw new Error(await r.text());return r.json();
+  const r=await supabase(`orders${f}&select=*,order_items(*)`);if(!r.ok)throw new Error(await r.text());return r.json();
 }
 
 export async function getOrder(id:string):Promise<Order|null>{
