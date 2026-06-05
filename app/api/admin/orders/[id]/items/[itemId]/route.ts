@@ -3,7 +3,7 @@ import{verifyAdminToken}from "@/lib/adminAuth";
 export async function PATCH(request:Request,{params}:{params:{id:string,itemId:string}}){
   if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
   const body=await request.json();
-  const allowed=["completed","part_status","print_hours","printed_qty"];
+  const allowed=["completed","part_status","print_hours","printed_qty","grams"];
   const updates:Record<string,any>={};
   for(const k of allowed)if(body[k]!==undefined)updates[k]=body[k];
   // Keep completed in sync with part_status
