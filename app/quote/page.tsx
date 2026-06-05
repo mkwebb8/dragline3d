@@ -451,7 +451,7 @@ export default function QuotePage() {
               {(selectedRate || shippingRates.length === 0) && (
                 <div className="font-display font-black leading-none mb-5" style={{ fontSize: 56, letterSpacing: "-0.04em" }}>${orderTotal.toFixed(2)}</div>
               )}
-              <button onClick={handleCheckout} disabled={checkingOut || (!selectedRate && shippingRates.length > 0)}
+              <button onClick={handleCheckout} disabled={checkingOut || !selectedRate}
                 className="w-full py-4 rounded-sm font-display font-bold flex items-center justify-center gap-2 bg-ironworks text-amber hover:bg-black transition-colors tracking-wide disabled:opacity-50 disabled:cursor-not-allowed">
                 {checkingOut ? (<><span className="inline-block w-4 h-4 border-2 border-amber/30 border-t-amber rounded-full animate-spin" /> REDIRECTING...</>) : (<>PAY WITH SQUARE <ArrowRight size={16} /></>)}
               </button>
