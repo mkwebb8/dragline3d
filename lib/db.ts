@@ -1,5 +1,5 @@
 ﻿export type OrderStatus = "pending"|"received"|"queued"|"printing"|"quality_check"|"shipped"|"delivered"|"cancelled";
-export type OrderItem = { id?:string;order_id?:string;file_name:string;material:string;quality:string;infill:number;grams?:number;hours?:number;price:number };
+export type OrderItem = { id?:string;order_id?:string;file_name:string;material:string;quality:string;infill:number;grams?:number;hours?:number;price:number;qty?:number;color?:string };
 export type Order = { id:string;square_payment_link_id?:string;customer_name:string;customer_email:string;address?:string;city?:string;state?:string;zip?:string;shipping_service?:string;shipping_cost?:number;subtotal?:number;total:number;status:OrderStatus;tracking_number?:string;notes?:string;created_at?:string;updated_at?:string;order_items?:OrderItem[] };
 
 function supabase(path:string,opts:RequestInit={}){
