@@ -93,6 +93,7 @@ export default function PartsPage(){
   const[loading,setLoading]=useState(true);
   const[token,setToken]=useState("");
   const[editingHours,setEditingHours]=useState<Record<string,string>>({});
+  const[editingGrams,setEditingGrams]=useState<Record<string,string>>({});
   const[saving,setSaving]=useState<Record<string,boolean>>({});
   const router=useRouter();
 
@@ -137,7 +138,6 @@ export default function PartsPage(){
     const current=part.printed_qty||0;
     const next=Math.max(0,Math.min(qty,current+delta));
     if(next===current)return;
-    // Auto-complete when all printed
     const updates:Record<string,any>={printed_qty:next};
     if(next>=qty){updates.part_status="completed";updates.completed=true;}
     else if(part.part_status==="completed"){updates.part_status="printing";updates.completed=false;}
@@ -149,6 +149,13 @@ export default function PartsPage(){
     if(isNaN(val)||val<=0)return;
     await updatePart(itemId,{print_hours:val});
     setEditingHours(s=>({...s,[itemId]:""}));
+  }
+
+  async function saveGrams(itemId:string){
+    const val=parseFloat(editingGrams[itemId]);
+    if(isNaN(val)||val<=0)return;
+    await updatePart(itemId,{grams:val});
+    setEditingGrams(s=>({...s,[itemId]:""}));
   }
 
   const incompleteParts=parts.filter(p=>!p.completed);
@@ -212,9 +219,10 @@ export default function PartsPage(){
                         {hasMultiple&&<span className="font-mono text-xs font-bold text-amber">{qty}×</span>}
                         <div className="font-medium text-sm truncate">{part.file_name}</div>
                         {part.print_hours&&<span className="font-mono text-xs text-amber bg-amber/10 px-1.5 py-0.5 rounded-sm">custom time</span>}
+                        {editingGrams[part.id]===undefined&&part.grams&&<span className="font-mono text-xs text-steel/50 bg-ironworks px-1.5 py-0.5 rounded-sm">{part.grams}g ea</span>}
                       </div>
                       <div className="font-mono text-xs text-steel mb-2">
-                        {part.material} · {part.color||"Midnight Black"} · {part.quality} · {part.infill}% · {part.grams}g ea · {formatHours(effectiveHours)} ea
+                        {part.material} · {part.color||"Midnight Black"} · {part.quality} · {part.infill}% · {formatHours(effectiveHours)} ea
                       </div>
                       <div className="flex items-center gap-2">
                         <Link href={`/admin/orders/${part.order_id}`} className="font-mono text-xs text-amber hover:underline">{part.order_id}</Link>
@@ -225,7 +233,6 @@ export default function PartsPage(){
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                      {/* Printed qty counter — only show for multi-qty parts */}
                       {hasMultiple&&(
                         <div className="flex items-center gap-1.5">
                           <span className="font-mono text-xs text-steel">printed:</span>
@@ -234,9 +241,16 @@ export default function PartsPage(){
                           <button onClick={()=>updatePrintedQty(part.id,1)} disabled={saving[part.id]||printedQty>=qty} className="w-6 h-6 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors disabled:opacity-30"><Plus size={10}/></button>
                         </div>
                       )}
+                      {/* Grams editor */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-xs text-steel">g:</span>
+                        <input type="number" step="0.1" min="0.1" placeholder={`${Number(part.grams||0).toFixed(1)}`} value={editingGrams[part.id]||""} onChange={e=>setEditingGrams(s=>({...s,[part.id]:e.target.value}))} className="w-20 px-2 py-1 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono"/>
+                        {editingGrams[part.id]&&<button onClick={()=>saveGrams(part.id)} className="px-2 py-1 text-xs font-mono bg-amber text-ironworks rounded-sm">save</button>}
+                      </div>
                       {/* Hours editor */}
                       <div className="flex items-center gap-1.5">
-                        <input type="number" step="0.1" min="0.1" placeholder={`${effectiveHours.toFixed(1)}h`} value={editingHours[part.id]||""} onChange={e=>setEditingHours(s=>({...s,[part.id]:e.target.value}))} className="w-20 px-2 py-1 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono"/>
+                        <span className="font-mono text-xs text-steel">h:</span>
+                        <input type="number" step="0.1" min="0.1" placeholder={`${effectiveHours.toFixed(1)}`} value={editingHours[part.id]||""} onChange={e=>setEditingHours(s=>({...s,[part.id]:e.target.value}))} className="w-20 px-2 py-1 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono"/>
                         {editingHours[part.id]&&<button onClick={()=>saveHours(part.id)} className="px-2 py-1 text-xs font-mono bg-amber text-ironworks rounded-sm">save</button>}
                       </div>
                     </div>
