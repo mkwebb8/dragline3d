@@ -9,7 +9,7 @@ export async function GET(request:Request){
     const orders=await getOrders(status as any);
     const withHours=orders.map((o:any)=>({
       ...o,
-      total_hours:o.order_items?.reduce((s:number,i:any)=>s+(i.hours||0),0)||0,
+      total_hours:o.order_items?.reduce((s:number,i:any)=>s+(!i.completed?(i.hours||0):0),0)||0,
     }));
     return Response.json(withHours);
   }catch(e:any){return Response.json({error:e.message},{status:500});}
