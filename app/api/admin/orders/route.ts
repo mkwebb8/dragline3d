@@ -7,7 +7,6 @@ export async function GET(request:Request){
   const status=url.searchParams.get("status")||undefined;
   try{
     const orders=await getOrders(status as any);
-    // Add total_hours per order for backlog calculation
     const withHours=orders.map((o:any)=>({
       ...o,
       total_hours:o.order_items?.reduce((s:number,i:any)=>s+(i.hours||0),0)||0,
