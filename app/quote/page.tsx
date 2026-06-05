@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Trash2, ShoppingCart, ArrowRight, AlertCircle, Package, Truck, DollarSign, Plus, Minus } from "lucide-react";
+import { Trash2, ShoppingCart, ArrowRight, AlertCircle, Package, Truck, DollarSign, Plus, Minus, MapPin } from "lucide-react";
 import { parseSTL, computeVolume, quoteFromGeometry, MATERIALS, QUALITIES, MATERIAL_COLORS, type MaterialKey, type QualityKey } from "@/lib/stl";
 import { parse3MF } from "@/lib/parse3mf";
 import dynamic from "next/dynamic";
@@ -40,6 +40,7 @@ export default function QuotePage() {
   const [city, setCity] = useState("");
   const [stateField, setStateField] = useState("");
   const [zip, setZip] = useState("");
+  const [localPickup, setLocalPickup] = useState(false);
   const [shippingRates, setShippingRates] = useState<ShippingRate[]>([]);
   const [selectedRateId, setSelectedRateId] = useState<string | null>(null);
   const [fetchingRates, setFetchingRates] = useState(false);
@@ -76,28 +77,21 @@ export default function QuotePage() {
   const selectedRate = shippingRates.find(r => r.id === selectedRateId);
   const cartSubtotal = cartItems.reduce((sum, i) => sum + i.quote.price * i.qty, 0);
   const taxAmount = Math.round(cartSubtotal * 0.06 * 100) / 100;
-  const orderTotal = cartSubtotal + taxAmount + (selectedRate?.amount || 0);
+  const orderTotal = cartSubtotal + taxAmount + (localPickup ? 0 : (selectedRate?.amount || 0));
   const totalHours = cartItems.reduce((s, i) => s + i.quote.hours * i.qty, 0);
   const totalLbs = cartItems.reduce((s, i) => s + i.quote.grams * i.qty, 0) / 453.592;
 
   function runSlicer(f: File, mat: MaterialKey, q: QualityKey, inf: number) {
-    setSlicerLoading(true);
-    setSlicerFailed(false);
-    setSlicerComplete(false);
+    setSlicerLoading(true); setSlicerFailed(false); setSlicerComplete(false);
     const form = new FormData();
-    form.append("stl", f);
-    form.append("material", mat);
-    form.append("quality", q);
-    form.append("infill", String(inf));
+    form.append("stl", f); form.append("material", mat); form.append("quality", q); form.append("infill", String(inf));
     fetch("/api/slice", { method: "POST", body: form })
       .then(r => r.json())
       .then(data => {
         if (data.price && !data.fallback) {
           setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
           setSlicerFailed(false);
-        } else {
-          setSlicerFailed(true);
-        }
+        } else { setSlicerFailed(true); }
       })
       .catch(() => { setSlicerFailed(true); })
       .finally(() => { setSlicerLoading(false); setSlicerComplete(true); });
@@ -118,11 +112,9 @@ export default function QuotePage() {
       const buffer = await f.arrayBuffer();
       const geo = /\.3mf$/i.test(f.name) ? await parse3MF(buffer) : parseSTL(buffer);
       geo.computeBoundingBox();
-      const size = new THREE.Vector3();
-      geo.boundingBox!.getSize(size);
+      const size = new THREE.Vector3(); geo.boundingBox!.getSize(size);
       const s: Stats = { dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: computeVolume(geo) };
-      setStats(s); setGeometry(geo);
-      runSlicer(f, material, quality, infill);
+      setStats(s); setGeometry(geo); runSlicer(f, material, quality, infill);
     } catch { setFileError("Could not parse file."); }
     setParsing(false);
   }
@@ -148,9 +140,9 @@ export default function QuotePage() {
   async function getShippingRates() {
     if (cartItems.length === 0) return;
     if (!firstName || !lastName || !address || !city || !stateField || !zip) {
-      setRateError("Fill in all shipping fields first.");
-      return;
+      setRateError("Fill in all shipping fields first."); return;
     }
+    setLocalPickup(false);
     setFetchingRates(true); setRateError(null); setShippingRates([]); setSelectedRateId(null);
     const totalGrams = cartItems.reduce((sum, i) => sum + i.quote.grams * i.qty, 0);
     try {
@@ -165,24 +157,36 @@ export default function QuotePage() {
 
   async function handleCheckout() {
     if (cartItems.length === 0) return;
-    if (!firstName || !lastName || !customerEmail || !address || !city || !stateField || !zip) {
-      setCheckoutError("Please fill in all shipping fields.");
-      return;
-    }
-    if (!selectedRate && shippingRates.length > 0) { setCheckoutError("Please select a shipping option."); return; }
+    if (!firstName || !lastName || !customerEmail) { setCheckoutError("Please fill in your name and email."); return; }
+    if (!localPickup && (!address || !city || !stateField || !zip)) { setCheckoutError("Please fill in your shipping address or select Local Pickup."); return; }
+    if (!selectedRate && !localPickup) { setCheckoutError("Please select a shipping option or Local Pickup."); return; }
     setCheckingOut(true); setCheckoutError(null);
     try {
       const notifyForm = new FormData();
       notifyForm.append("customerName", customerName); notifyForm.append("customerEmail", customerEmail);
-      notifyForm.append("address", address); notifyForm.append("city", city);
-      notifyForm.append("state", stateField); notifyForm.append("zip", zip);
-      notifyForm.append("shippingLabel", selectedRate?.service || "Standard");
-      notifyForm.append("shippingCost", String(selectedRate?.amount || 0));
+      notifyForm.append("address", localPickup ? "Local Pickup" : address);
+      notifyForm.append("city", localPickup ? "Louisville" : city);
+      notifyForm.append("state", localPickup ? "KY" : stateField);
+      notifyForm.append("zip", localPickup ? "" : zip);
+      notifyForm.append("shippingLabel", localPickup ? "Local Pickup" : (selectedRate?.service || "Standard"));
+      notifyForm.append("shippingCost", String(localPickup ? 0 : (selectedRate?.amount || 0)));
       notifyForm.append("total", String(orderTotal));
       notifyForm.append("items", JSON.stringify(cartItems.map(i => ({ id: i.id, fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, grams: i.quote.grams, hours: i.quote.hours, price: i.quote.price, lineTotal: i.quote.price * i.qty }))));
       for (const item of cartItems) { if (item.file) notifyForm.append(`file_${item.id}`, item.file); }
       fetch("/api/notify", { method: "POST", body: notifyForm }).catch(() => {});
-      const res = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: cartItems.map(i => ({ fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, volumeMm3: i.stats.volumeMm3, price: i.quote.price })), shippingCost: selectedRate?.amount || 0, shippingLabel: selectedRate?.service || "", customerEmail, customerName }) });
+      const res = await fetch("/api/checkout", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: cartItems.map(i => ({ fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, volumeMm3: i.stats.volumeMm3, price: i.quote.price })),
+          shippingCost: localPickup ? 0 : (selectedRate?.amount || 0),
+          shippingLabel: localPickup ? "Local Pickup" : (selectedRate?.service || ""),
+          customerEmail, customerName,
+          address: localPickup ? "Local Pickup" : address,
+          city: localPickup ? "Louisville" : city,
+          state: localPickup ? "KY" : stateField,
+          zip: localPickup ? "" : zip,
+        })
+      });
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data.error || "Checkout failed");
       window.location.href = data.url;
@@ -235,7 +239,6 @@ export default function QuotePage() {
           {stats && (
             <div className="rounded-sm p-6 bg-ironworks2 border border-ironworks3">
               <div className="font-mono text-xs uppercase tracking-widest mb-5 flex items-center gap-2 text-amber"><Package size={12} /> Configure this part</div>
-
               <div className="mb-5">
                 <div className="font-display font-semibold text-sm mb-3 tracking-wide">MATERIAL</div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[300px] overflow-y-auto pr-1">
@@ -251,7 +254,6 @@ export default function QuotePage() {
                   ))}
                 </div>
               </div>
-
               <div className="mb-5">
                 <div className="font-display font-semibold text-sm mb-3 tracking-wide flex items-center gap-2">
                   COLOR <span className="font-mono font-normal text-xs text-steel normal-case">{color}</span>
@@ -264,7 +266,6 @@ export default function QuotePage() {
                   ))}
                 </div>
               </div>
-
               <div className="mb-5">
                 <div className="font-display font-semibold text-sm mb-3 tracking-wide">LAYER HEIGHT</div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -277,7 +278,6 @@ export default function QuotePage() {
                   ))}
                 </div>
               </div>
-
               <div className="mb-5">
                 <div className="flex justify-between items-baseline mb-3">
                   <div className="font-display font-semibold text-sm tracking-wide">INFILL</div>
@@ -286,7 +286,6 @@ export default function QuotePage() {
                 <input type="range" min="5" max="100" step="5" value={infill} onChange={e => { const v = +e.target.value; setInfill(v); recalc(stats, material, quality, v); }} className="w-full" />
                 <div className="flex justify-between font-mono text-xs mt-1 text-steel"><span>LIGHT</span><span>SOLID</span></div>
               </div>
-
               <div className="mb-6">
                 <div className="font-display font-semibold text-sm mb-3 tracking-wide">QUANTITY</div>
                 <div className="flex items-center gap-3">
@@ -298,7 +297,6 @@ export default function QuotePage() {
                   )}
                 </div>
               </div>
-
               {slicerFailed ? (
                 <div className="w-full py-4 rounded-sm border border-red-400/50 text-red-400 font-mono text-xs text-center flex items-center justify-center gap-2">
                   <AlertCircle size={14} /> SLICER UNAVAILABLE — cannot calculate price. Try again shortly.
@@ -328,7 +326,6 @@ export default function QuotePage() {
               </div>
               {cartItems.length > 0 && <div className="font-mono text-sm text-amber font-bold">${cartSubtotal.toFixed(2)}</div>}
             </div>
-
             {cartItems.length === 0 ? (
               <div className="px-5 py-10 text-center text-bone/40 text-sm">
                 <ShoppingCart size={28} className="mx-auto mb-3 opacity-30" />
@@ -394,44 +391,68 @@ export default function QuotePage() {
                   <label className="block font-mono text-xs text-steel mb-1 tracking-wider">EMAIL</label>
                   <input type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="your@email.com" />
                 </div>
-                <div>
-                  <label className="block font-mono text-xs text-steel mb-1 tracking-wider">ADDRESS</label>
-                  <input value={address} onChange={e => setAddress(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="123 Main St" />
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="col-span-1">
-                    <label className="block font-mono text-xs text-steel mb-1 tracking-wider">CITY</label>
-                    <input value={city} onChange={e => setCity(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="Louisville" />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-steel mb-1 tracking-wider">STATE</label>
-                    <input value={stateField} onChange={e => setStateField(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="KY" maxLength={2} />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-steel mb-1 tracking-wider">ZIP</label>
-                    <input value={zip} onChange={e => setZip(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="40201" />
-                  </div>
-                </div>
-                <button onClick={getShippingRates} disabled={fetchingRates}
-                  className="w-full py-2.5 rounded-sm border border-amber text-amber font-display font-bold text-sm hover:bg-amber hover:text-ironworks transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                  {fetchingRates ? (<><span className="inline-block w-4 h-4 border-2 border-amber/30 border-t-amber rounded-full animate-spin" /> Getting rates...</>) : "GET SHIPPING RATES"}
+
+                {/* Local Pickup toggle */}
+                <button
+                  onClick={() => { setLocalPickup(true); setShippingRates([]); setSelectedRateId(null); setRateError(null); }}
+                  className={`w-full py-2.5 rounded-sm border font-display font-bold text-sm transition-colors flex items-center justify-center gap-2 ${localPickup ? "border-amber bg-amber/10 text-amber" : "border-ironworks3 text-bone/60 hover:border-bone"}`}>
+                  <MapPin size={14} /> LOCAL PICKUP — Louisville, KY
                 </button>
-                {rateError && <div className="text-red-400 text-xs">{rateError}</div>}
-                {shippingRates.length > 0 && (
-                  <div className="space-y-2">
-                    {shippingRates.map(rate => (
-                      <label key={rate.id} className={`flex items-center justify-between p-3 rounded-sm border cursor-pointer transition-all ${selectedRateId === rate.id ? "border-amber bg-ironworks" : "border-ironworks3 hover:border-bone/30"}`}>
-                        <div className="flex items-center gap-3">
-                          <input type="radio" name="shipping" value={rate.id} checked={selectedRateId === rate.id} onChange={() => setSelectedRateId(rate.id)} className="accent-amber" />
-                          <div>
-                            <div className="text-sm font-medium">{rate.service}</div>
-                            <div className="font-mono text-xs text-steel">{rate.provider}{rate.days ? ` · ${rate.days} business days` : ""}</div>
-                          </div>
-                        </div>
-                        <div className="font-mono font-bold text-amber">${rate.amount.toFixed(2)}</div>
-                      </label>
-                    ))}
+                {localPickup && (
+                  <div className="bg-amber/10 border border-amber/30 rounded-sm px-4 py-3 text-xs text-amber/80 font-mono">
+                    No shipping charge. After checkout we'll email you to coordinate a pickup time at our Louisville location.
                   </div>
+                )}
+
+                {/* Address fields — hidden when local pickup selected */}
+                {!localPickup && (
+                  <>
+                    <div>
+                      <label className="block font-mono text-xs text-steel mb-1 tracking-wider">ADDRESS</label>
+                      <input value={address} onChange={e => setAddress(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="123 Main St" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-1">
+                        <label className="block font-mono text-xs text-steel mb-1 tracking-wider">CITY</label>
+                        <input value={city} onChange={e => setCity(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="Louisville" />
+                      </div>
+                      <div>
+                        <label className="block font-mono text-xs text-steel mb-1 tracking-wider">STATE</label>
+                        <input value={stateField} onChange={e => setStateField(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="KY" maxLength={2} />
+                      </div>
+                      <div>
+                        <label className="block font-mono text-xs text-steel mb-1 tracking-wider">ZIP</label>
+                        <input value={zip} onChange={e => setZip(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="40201" />
+                      </div>
+                    </div>
+                    <button onClick={getShippingRates} disabled={fetchingRates}
+                      className="w-full py-2.5 rounded-sm border border-amber text-amber font-display font-bold text-sm hover:bg-amber hover:text-ironworks transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                      {fetchingRates ? (<><span className="inline-block w-4 h-4 border-2 border-amber/30 border-t-amber rounded-full animate-spin" /> Getting rates...</>) : "GET SHIPPING RATES"}
+                    </button>
+                    {rateError && <div className="text-red-400 text-xs">{rateError}</div>}
+                    {shippingRates.length > 0 && (
+                      <div className="space-y-2">
+                        {shippingRates.map(rate => (
+                          <label key={rate.id} className={`flex items-center justify-between p-3 rounded-sm border cursor-pointer transition-all ${selectedRateId === rate.id ? "border-amber bg-ironworks" : "border-ironworks3 hover:border-bone/30"}`}>
+                            <div className="flex items-center gap-3">
+                              <input type="radio" name="shipping" value={rate.id} checked={selectedRateId === rate.id} onChange={() => setSelectedRateId(rate.id)} className="accent-amber" />
+                              <div>
+                                <div className="text-sm font-medium">{rate.service}</div>
+                                <div className="font-mono text-xs text-steel">{rate.provider}{rate.days ? ` · ${rate.days} business days` : ""}</div>
+                              </div>
+                            </div>
+                            <div className="font-mono font-bold text-amber">${rate.amount.toFixed(2)}</div>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {localPickup && (
+                  <button onClick={() => setLocalPickup(false)} className="text-xs font-mono text-steel hover:text-bone underline text-center w-full">
+                    Switch to shipping instead
+                  </button>
                 )}
               </div>
             </div>
@@ -445,13 +466,14 @@ export default function QuotePage() {
                 <div className="flex justify-between text-ironworks/70"><span>KY Sales Tax (6%)</span><span className="font-bold text-ironworks">${taxAmount.toFixed(2)}</span></div>
                 {totalHours > 0 && <div className="flex justify-between text-ironworks/70"><span>Est. print time</span><span className="font-bold text-ironworks">{totalHours.toFixed(1)}h</span></div>}
                 <div className="flex justify-between text-ironworks/70"><span>Total weight</span><span className="font-bold text-ironworks">{totalLbs.toFixed(2)} lbs</span></div>
-                {selectedRate && <div className="flex justify-between text-ironworks/70"><span>Shipping</span><span className="font-bold text-ironworks">${selectedRate.amount.toFixed(2)}</span></div>}
-                {!selectedRate && shippingRates.length === 0 && <div className="text-ironworks/50 text-xs">Enter address above to calculate shipping</div>}
+                {localPickup && <div className="flex justify-between text-ironworks/70"><span>Shipping</span><span className="font-bold text-ironworks">Local Pickup</span></div>}
+                {selectedRate && !localPickup && <div className="flex justify-between text-ironworks/70"><span>Shipping</span><span className="font-bold text-ironworks">${selectedRate.amount.toFixed(2)}</span></div>}
+                {!selectedRate && !localPickup && shippingRates.length === 0 && <div className="text-ironworks/50 text-xs">Select Local Pickup or enter address above</div>}
               </div>
-              {(selectedRate || shippingRates.length === 0) && (
+              {(selectedRate || localPickup || shippingRates.length === 0) && (
                 <div className="font-display font-black leading-none mb-5" style={{ fontSize: 56, letterSpacing: "-0.04em" }}>${orderTotal.toFixed(2)}</div>
               )}
-              <button onClick={handleCheckout} disabled={checkingOut || !selectedRate}
+              <button onClick={handleCheckout} disabled={checkingOut || (!selectedRate && !localPickup)}
                 className="w-full py-4 rounded-sm font-display font-bold flex items-center justify-center gap-2 bg-ironworks text-amber hover:bg-black transition-colors tracking-wide disabled:opacity-50 disabled:cursor-not-allowed">
                 {checkingOut ? (<><span className="inline-block w-4 h-4 border-2 border-amber/30 border-t-amber rounded-full animate-spin" /> REDIRECTING...</>) : (<>PAY WITH SQUARE <ArrowRight size={16} /></>)}
               </button>
