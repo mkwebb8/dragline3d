@@ -181,7 +181,16 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
             {order.address&&<div><span className="text-steel">Ship to:</span> {order.address}, {order.city}, {order.state} {order.zip}</div>}
             <div><span className="text-steel">Shipping:</span> {order.shipping_service||"--"} · ${order.shipping_cost?.toFixed(2)}</div>
             <div><span className="text-steel">Total:</span> <span className="font-bold text-amber">${order.total?.toFixed(2)}</span></div>
-            <div className="font-mono text-xs text-steel pt-1">{new Date(order.created_at).toLocaleString("en-US")}</div>
+{(()=>{
+  const COST_PER_KG:Record<string,number>={PLA:16,PETG:18,TPU:24,ABS:20,ASA:22,"PET-GF15":30,"PETG-ESD":66,PA:35,"ASA-CF":40,"PETG-CF":40,"PA-CF":80,PCTG:29.95};
+  const totalGrams=order.order_items?.reduce((s:number,i:any)=>s+(i.grams||0),0)||0;
+  const matCost=order.order_items?.reduce((s:number,i:any)=>s+((i.grams||0)/1000)*(COST_PER_KG[i.material]||16),0)||0;
+  return(<>
+    <div><span className="text-steel">Filament:</span> {(totalGrams/1000).toFixed(3)} kg</div>
+    <div><span className="text-steel">Material cost:</span> <span className="text-red-400">${matCost.toFixed(2)}</span></div>
+  </>);
+})()}
+<div className="font-mono text-xs text-steel pt-1">{new Date(order.created_at).toLocaleString("en-US")}</div>
           </div>
         </div>
         <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-5">
