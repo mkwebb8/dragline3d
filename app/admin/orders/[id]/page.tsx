@@ -100,7 +100,12 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
   if(!order)return<div className="max-w-4xl mx-auto px-6 py-16 text-center text-bone/50">Order not found</div>;
 
   const completedCount=order.order_items?.filter((i:any)=>i.completed).length||0;
-  const totalCount=order.order_items?.length||0;
+  const totalCount=order.order_items?.reduce((s:number,i:any)=>s+(i.qty||1),0)||0;
+  const completedQty=order.order_items?.filter((i:any)=>i.completed).reduce((s:number,i:any)=>s+(i.qty||1),0)||0;
+
+  const COST_PER_KG:Record<string,number>={PLA:16,PETG:18,TPU:24,ABS:20,ASA:22,"PET-GF15":30,"PETG-ESD":66,PA:35,"ASA-CF":40,"PETG-CF":40,"PA-CF":80,PCTG:29.95};
+  const totalGrams=order.order_items?.reduce((s:number,i:any)=>s+(i.grams||0)*(i.qty||1),0)||0;
+  const matCost=order.order_items?.reduce((s:number,i:any)=>s+((i.grams||0)*(i.qty||1)/1000)*(COST_PER_KG[i.material]||16),0)||0;
 
   return(
     <div className="max-w-4xl mx-auto px-6 py-8">
@@ -178,19 +183,12 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
           <div className="space-y-1.5 text-sm">
             <div><span className="text-steel">Name:</span> {order.customer_name}</div>
             <div><span className="text-steel">Email:</span> <a href={`mailto:${order.customer_email}`} className="text-amber hover:underline">{order.customer_email}</a></div>
-            {order.address&&<div><span className="text-steel">Ship to:</span> {order.address}, {order.city}, {order.state} {order.zip}</div>}
-            <div><span className="text-steel">Shipping:</span> {order.shipping_service||"--"} · ${order.shipping_cost?.toFixed(2)}</div>
+            {order.address&&<div><span className="text-steel">Ship to:</span> {order.address}{order.city?`, ${order.city}`:""}{order.state?`, ${order.state}`:""} {order.zip}</div>}
+            <div><span className="text-steel">Shipping:</span> {order.shipping_service||"--"} · ${Number(order.shipping_cost||0).toFixed(2)}</div>
             <div><span className="text-steel">Total:</span> <span className="font-bold text-amber">${order.total?.toFixed(2)}</span></div>
-{(()=>{
-  const COST_PER_KG:Record<string,number>={PLA:16,PETG:18,TPU:24,ABS:20,ASA:22,"PET-GF15":30,"PETG-ESD":66,PA:35,"ASA-CF":40,"PETG-CF":40,"PA-CF":80,PCTG:29.95};
-  const totalGrams=order.order_items?.reduce((s:number,i:any)=>s+(i.grams||0),0)||0;
-  const matCost=order.order_items?.reduce((s:number,i:any)=>s+((i.grams||0)/1000)*(COST_PER_KG[i.material]||16),0)||0;
-  return(<>
-    <div><span className="text-steel">Filament:</span> {(totalGrams/1000).toFixed(3)} kg</div>
-    <div><span className="text-steel">Material cost:</span> <span className="text-red-400">${matCost.toFixed(2)}</span></div>
-  </>);
-})()}
-<div className="font-mono text-xs text-steel pt-1">{new Date(order.created_at).toLocaleString("en-US")}</div>
+            <div><span className="text-steel">Filament:</span> {(totalGrams/1000).toFixed(3)} kg</div>
+            <div><span className="text-steel">Material cost:</span> <span className="text-red-400">${matCost.toFixed(2)}</span></div>
+            <div className="font-mono text-xs text-steel pt-1">{new Date(order.created_at).toLocaleString("en-US")}</div>
           </div>
         </div>
         <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-5">
@@ -221,9 +219,9 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
       {order.order_items?.length>0&&(
         <div className="bg-ironworks2 border border-ironworks3 rounded-sm">
           <div className="px-5 py-4 border-b border-ironworks3 flex items-center justify-between">
-            <div className="font-mono text-xs text-amber tracking-widest">PARTS ({completedCount}/{totalCount} done)</div>
+            <div className="font-mono text-xs text-amber tracking-widest">PARTS ({completedQty}/{totalCount} done)</div>
             <div className="flex items-center gap-3">
-              {completedCount===totalCount&&totalCount>0&&(
+              {completedQty===totalCount&&totalCount>0&&(
                 <div className="font-mono text-xs text-green-400">All parts complete</div>
               )}
               <Link href="/admin/parts" className="font-mono text-xs text-steel hover:text-amber transition-colors">Manage in Parts Queue →</Link>
@@ -234,18 +232,25 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
               const partStatus=item.part_status||"pending";
               const cfg=PART_STATUS_CONFIG[partStatus]||PART_STATUS_CONFIG.pending;
               const Icon=cfg.icon;
+              const qty=item.qty||1;
               return(
                 <div key={item.id} className={`px-5 py-4 flex items-center justify-between gap-4 transition-colors ${item.completed?"bg-green-500/5":""}`}>
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <Icon size={18} className="flex-shrink-0" style={{color:cfg.color}}/>
                     <div className={item.completed?"opacity-50":""}>
-                      <div className={`font-medium text-sm ${item.completed?"line-through text-steel":""}`}>{item.file_name}</div>
-                      <div className="font-mono text-xs text-steel mt-1">{item.material} · {item.quality} · {item.infill}% · {item.grams}g · {item.hours}h</div>
+                      <div className={`font-medium text-sm ${item.completed?"line-through text-steel":""}`}>
+                        {qty>1&&<span className="font-mono text-amber font-bold mr-1.5">{qty}×</span>}
+                        {item.file_name}
+                      </div>
+                      <div className="font-mono text-xs text-steel mt-1">{item.material} · {item.quality} · {item.infill}% · {item.grams}g ea · {item.hours}h ea</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <span className="font-mono text-xs px-2 py-1 rounded-sm border" style={{color:cfg.color,borderColor:`${cfg.color}44`,background:`${cfg.color}11`}}>{cfg.label}</span>
-                    <div className={`font-display font-bold text-amber ${item.completed?"opacity-50":""}`}>${item.price?.toFixed(2)}</div>
+                    <div className={`font-display font-bold text-amber ${item.completed?"opacity-50":""}`}>
+                      ${(item.price*qty).toFixed(2)}
+                      {qty>1&&<span className="font-mono text-xs text-steel font-normal ml-1">${item.price?.toFixed(2)} ea</span>}
+                    </div>
                   </div>
                 </div>
               );
