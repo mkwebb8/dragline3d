@@ -3,7 +3,8 @@ export const runtime = "edge";
 import{useEffect,useState}from "react";
 import{useRouter}from "next/navigation";
 import Link from "next/link";
-import{ArrowLeft,Save,ExternalLink,FileText,Receipt,Package,CheckCircle2,Circle}from "lucide-react";
+import{ArrowLeft,Save,ExternalLink,FileText,Receipt,Package,CheckCircle2,Circle,Scissors,Printer,PlayCircle}from "lucide-react";
+
 const STATUS_OPTIONS=[{value:"pending",label:"Payment Pending"},{value:"received",label:"Order Received"},{value:"queued",label:"In Queue"},{value:"printing",label:"Printing"},{value:"quality_check",label:"Quality Check"},{value:"shipped",label:"Shipped"},{value:"delivered",label:"Delivered"},{value:"cancelled",label:"Cancelled"}];
 const STATUS_COLORS:Record<string,string>={pending:"#6b7280",received:"#3b82f6",queued:"#f59e0b",printing:"#f97316",quality_check:"#a855f7",shipped:"#22c55e",delivered:"#16a34a",cancelled:"#ef4444"};
 const BOX_PRESETS=[
@@ -13,6 +14,15 @@ const BOX_PRESETS=[
   {label:"XL (24×18×10)",l:24,w:18,h:10},
   {label:"Custom",l:0,w:0,h:0},
 ];
+
+const PART_STATUS_CONFIG:Record<string,{label:string;color:string;icon:any}>={
+  pending:{label:"Pending",color:"#6b7280",icon:Circle},
+  sliced:{label:"Sliced",color:"#3b82f6",icon:Scissors},
+  sent_to_printer:{label:"Sent to Printer",color:"#f59e0b",icon:Printer},
+  printing:{label:"Printing",color:"#f97316",icon:PlayCircle},
+  completed:{label:"Completed",color:"#22c55e",icon:CheckCircle2},
+};
+
 export default function AdminOrderDetail({params}:{params:{id:string}}){
   const{id}=params;
   const[order,setOrder]=useState<any>(null);
@@ -34,7 +44,6 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
   const[creatingLabel,setCreatingLabel]=useState(false);
   const[labelUrl,setLabelUrl]=useState<string|null>(null);
   const[labelError,setLabelError]=useState<string|null>(null);
-  const[togglingItem,setTogglingItem]=useState<string|null>(null);
   const router=useRouter();
 
   useEffect(()=>{
@@ -54,29 +63,6 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
     setBoxPreset(i);
     const p=BOX_PRESETS[i];
     if(p.l){setBoxL(String(p.l));setBoxW(String(p.w));setBoxH(String(p.h));}
-  }
-
-  async function toggleItemComplete(itemId:string,completed:boolean){
-    const token=localStorage.getItem("dragline_admin_token");if(!token)return;
-    setTogglingItem(itemId);
-    const res=await fetch(`/api/admin/orders/${id}/items/${itemId}`,{
-      method:"PATCH",
-      headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},
-      body:JSON.stringify({completed}),
-    });
-    if(res.ok){
-      setOrder((prev:any)=>({
-        ...prev,
-        order_items:prev.order_items.map((i:any)=>i.id===itemId?{...i,completed}:i),
-      }));
-      // Auto-advance to quality_check if all items complete
-      const updatedItems=order.order_items.map((i:any)=>i.id===itemId?{...i,completed}:i);
-      const allDone=updatedItems.every((i:any)=>i.completed);
-      if(allDone&&(status==="printing"||status==="queued")){
-        setStatus("quality_check");
-      }
-    }
-    setTogglingItem(null);
   }
 
   async function handleSave(){
@@ -227,32 +213,34 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
         <div className="bg-ironworks2 border border-ironworks3 rounded-sm">
           <div className="px-5 py-4 border-b border-ironworks3 flex items-center justify-between">
             <div className="font-mono text-xs text-amber tracking-widest">PARTS ({completedCount}/{totalCount} done)</div>
-            {completedCount===totalCount&&totalCount>0&&(
-              <div className="font-mono text-xs text-green-400">All parts complete</div>
-            )}
+            <div className="flex items-center gap-3">
+              {completedCount===totalCount&&totalCount>0&&(
+                <div className="font-mono text-xs text-green-400">All parts complete</div>
+              )}
+              <Link href="/admin/parts" className="font-mono text-xs text-steel hover:text-amber transition-colors">Manage in Parts Queue →</Link>
+            </div>
           </div>
           <div className="divide-y divide-ironworks3">
-            {order.order_items.map((item:any)=>(
-              <div key={item.id} className={`px-5 py-4 flex items-center justify-between gap-4 transition-colors ${item.completed?"bg-green-500/5":""}`}>
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <button
-                    onClick={()=>toggleItemComplete(item.id,!item.completed)}
-                    disabled={togglingItem===item.id}
-                    className="flex-shrink-0 transition-colors"
-                  >
-                    {item.completed
-                      ? <CheckCircle2 size={20} className="text-green-400"/>
-                      : <Circle size={20} className="text-steel hover:text-bone"/>
-                    }
-                  </button>
-                  <div className={item.completed?"opacity-50":""}>
-                    <div className={`font-medium text-sm ${item.completed?"line-through text-steel":""}`}>{item.file_name}</div>
-                    <div className="font-mono text-xs text-steel mt-1">{item.material} · {item.quality} · {item.infill}% · {item.grams}g · {item.hours}h</div>
+            {order.order_items.map((item:any)=>{
+              const partStatus=item.part_status||"pending";
+              const cfg=PART_STATUS_CONFIG[partStatus]||PART_STATUS_CONFIG.pending;
+              const Icon=cfg.icon;
+              return(
+                <div key={item.id} className={`px-5 py-4 flex items-center justify-between gap-4 transition-colors ${item.completed?"bg-green-500/5":""}`}>
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <Icon size={18} className="flex-shrink-0" style={{color:cfg.color}}/>
+                    <div className={item.completed?"opacity-50":""}>
+                      <div className={`font-medium text-sm ${item.completed?"line-through text-steel":""}`}>{item.file_name}</div>
+                      <div className="font-mono text-xs text-steel mt-1">{item.material} · {item.quality} · {item.infill}% · {item.grams}g · {item.hours}h</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <span className="font-mono text-xs px-2 py-1 rounded-sm border" style={{color:cfg.color,borderColor:`${cfg.color}44`,background:`${cfg.color}11`}}>{cfg.label}</span>
+                    <div className={`font-display font-bold text-amber ${item.completed?"opacity-50":""}`}>${item.price?.toFixed(2)}</div>
                   </div>
                 </div>
-                <div className={`font-display font-bold text-amber flex-shrink-0 ${item.completed?"opacity-50":""}`}>${item.price?.toFixed(2)}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
