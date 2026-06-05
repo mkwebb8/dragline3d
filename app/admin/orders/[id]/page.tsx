@@ -30,6 +30,7 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
   const[boxL,setBoxL]=useState("14");
   const[boxW,setBoxW]=useState("12");
   const[boxH,setBoxH]=useState("6");
+  const[recipientName,setRecipientName]=useState("");
   const[creatingLabel,setCreatingLabel]=useState(false);
   const[labelUrl,setLabelUrl]=useState<string|null>(null);
   const[labelError,setLabelError]=useState<string|null>(null);
@@ -42,6 +43,7 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
         setOrder(data);setStatus(data.status||"received");setTracking(data.tracking_number||"");
         setNotes(data.notes||"");setInvoiceUrl(data.square_invoice_url||null);
         setLabelUrl(data.label_url||null);
+        setRecipientName(data.customer_name||"");
       })
       .finally(()=>setLoading(false));
   },[id,router]);
@@ -68,7 +70,7 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
   async function handleCreateLabel(){
     const token=localStorage.getItem("dragline_admin_token");if(!token)return;
     setCreatingLabel(true);setLabelError(null);
-    const res=await fetch(`/api/admin/orders/${id}/label`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({length:parseFloat(boxL),width:parseFloat(boxW),height:parseFloat(boxH)})});
+    const res=await fetch(`/api/admin/orders/${id}/label`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({length:parseFloat(boxL),width:parseFloat(boxW),height:parseFloat(boxH),recipientName:recipientName||undefined})});
     if(res.ok){
       const data=await res.json();
       setLabelUrl(data.label_url);
@@ -93,7 +95,6 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
         </div>
       </div>
 
-      {/* Action Buttons */}
       <div className="flex flex-wrap gap-3 mb-6">
         {invoiceUrl?(
           <a href={invoiceUrl} target="_blank" className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white font-display font-bold text-sm rounded-sm transition-colors">
@@ -119,7 +120,6 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
         {invoiceError&&<div className="text-xs text-red-400 self-center font-mono">{invoiceError}</div>}
       </div>
 
-      {/* Box Picker */}
       {showLabelPicker&&(
         <div className="bg-ironworks2 border border-amber/40 rounded-sm p-5 mb-6">
           <div className="font-mono text-xs text-amber tracking-widest mb-4">BOX DIMENSIONS</div>
@@ -137,6 +137,10 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
                 <input value={val as string} onChange={e=>{(set as any)(e.target.value);setBoxPreset(4);}} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm font-mono"/>
               </div>
             ))}
+          </div>
+          <div className="mb-4">
+            <label className="block font-mono text-xs text-steel mb-1">RECIPIENT NAME <span className="text-steel/50">(optional — overrides customer name on label)</span></label>
+            <input value={recipientName} onChange={e=>setRecipientName(e.target.value)} placeholder={order.customer_name} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm"/>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={handleCreateLabel} disabled={creatingLabel} className="flex items-center gap-2 px-4 py-2.5 bg-amber text-ironworks font-display font-bold text-sm rounded-sm hover:bg-amber-dark transition-colors disabled:opacity-50">
