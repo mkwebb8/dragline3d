@@ -61,7 +61,7 @@ export async function POST(request:Request){
     console.error("Square error:",JSON.stringify(data));
     return Response.json({error:"Payment provider error",square_error:data},{status:502});
   }
-  createOrder({
+  await createOrder({
     id:orderId,square_payment_link_id:data.payment_link?.id,
     customer_name:customerName||"",customer_email:customerEmail||"",
     address:address||"",city:city||"",state:state||"",zip:zip||"",
