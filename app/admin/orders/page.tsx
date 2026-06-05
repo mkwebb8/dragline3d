@@ -15,13 +15,6 @@ function formatDuration(seconds: number) {
   return `${m}m`;
 }
 
-function formatHours(hours: number) {
-  const h = Math.floor(hours);
-  const m = Math.round((hours - h) * 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
-
 function PrinterWidget({ token }: { token: string }) {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState(false);
@@ -151,10 +144,6 @@ export default function AdminOrders() {
 
   const FILTERS = ["all", "received", "queued", "printing", "quality_check", "shipped", "cancelled"];
 
-  // Backlog: sum hours from queued + printing orders
-  const backlogOrders = orders.filter(o => o.status === "queued" || o.status === "printing");
-  const backlogHours = backlogOrders.reduce((sum, o) => sum + (o.total_hours || 0), 0);
-
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
       <div className="flex items-center justify-between mb-8">
@@ -167,22 +156,12 @@ export default function AdminOrders() {
         </div>
         <div className="flex items-center gap-3">
           <button onClick={fetchOrders} className="p-2 rounded-sm border border-ironworks3 text-bone/60 hover:text-bone transition-colors"><RefreshCw size={16} /></button>
-<Link href="/admin/parts" className="flex items-center gap-2 px-3 py-2 rounded-sm border border-ironworks3 text-bone/60 hover:text-bone text-sm transition-colors font-mono text-xs">PARTS QUEUE</Link>
+          <Link href="/admin/parts" className="flex items-center gap-2 px-3 py-2 rounded-sm border border-ironworks3 text-bone/60 hover:text-bone text-sm transition-colors font-mono text-xs">PARTS QUEUE</Link>
           <button onClick={logout} className="flex items-center gap-2 px-3 py-2 rounded-sm border border-ironworks3 text-bone/60 hover:text-bone text-sm transition-colors"><LogOut size={14} /> Logout</button>
         </div>
       </div>
 
       {token && <PrinterWidget token={token} />}
-
-      {/* Backlog estimate */}
-      {backlogHours > 0 && (
-        <div className="mb-4 px-4 py-3 bg-ironworks2 border border-ironworks3 rounded-sm flex items-center gap-3">
-          <Clock size={14} className="text-amber" />
-          <span className="font-mono text-xs text-steel">PRINT BACKLOG</span>
-          <span className="font-mono text-xs font-bold text-amber">~{formatHours(backlogHours)}</span>
-          <span className="font-mono text-xs text-steel">across {backlogOrders.length} order{backlogOrders.length !== 1 ? "s" : ""}</span>
-        </div>
-      )}
 
       <div className="flex gap-2 mb-6 flex-wrap">
         {FILTERS.map(f => (
