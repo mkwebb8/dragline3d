@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { DraglineMark } from "@/components/DraglineMark";
-import { LogOut, RefreshCw, ExternalLink, Printer, Thermometer, Clock, Layers } from "lucide-react";
+import { LogOut, RefreshCw, ExternalLink, Printer, Thermometer, Clock, Layers, Plus } from "lucide-react";
 
 const STATUS_LABELS: Record<string, string> = { pending: "Payment Pending", received: "Order Received", queued: "In Queue", printing: "Printing", quality_check: "Quality Check", shipped: "Shipped", delivered: "Delivered", cancelled: "Cancelled" };
 const STATUS_COLORS: Record<string, string> = { pending: "#6b7280", received: "#3b82f6", queued: "#f59e0b", printing: "#f97316", quality_check: "#a855f7", shipped: "#22c55e", delivered: "#16a34a", cancelled: "#ef4444" };
@@ -157,6 +157,7 @@ export default function AdminOrders() {
         <div className="flex items-center gap-3">
           <button onClick={fetchOrders} className="p-2 rounded-sm border border-ironworks3 text-bone/60 hover:text-bone transition-colors"><RefreshCw size={16} /></button>
           <Link href="/admin/parts" className="flex items-center gap-2 px-3 py-2 rounded-sm border border-ironworks3 text-bone/60 hover:text-bone text-sm transition-colors font-mono text-xs">PARTS QUEUE</Link>
+          <Link href="/admin/orders/new" className="flex items-center gap-2 px-3 py-2 rounded-sm bg-amber text-ironworks font-mono text-xs font-bold hover:opacity-90 transition-colors"><Plus size={14}/>NEW ORDER</Link>
           <button onClick={logout} className="flex items-center gap-2 px-3 py-2 rounded-sm border border-ironworks3 text-bone/60 hover:text-bone text-sm transition-colors"><LogOut size={14} /> Logout</button>
         </div>
       </div>
