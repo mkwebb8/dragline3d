@@ -12,18 +12,24 @@ const PART_STATUSES=[
   {value:"completed",label:"Completed",color:"#22c55e"},
 ];
 
-const STATUS_ICONS:Record<string,any>={
-  pending:Circle,sliced:Scissors,sent_to_printer:Printer,printing:PlayCircle,completed:CheckCircle2,
-};
-
 function formatHours(h:number){
   const hrs=Math.floor(h);const mins=Math.round((h-hrs)*60);
-  if(hrs>0)return`${hrs}h ${mins}m`;return`${mins}m`;
+  if(hrs>0&&mins>0)return`${hrs}h ${mins}m`;
+  if(hrs>0)return`${hrs}h`;
+  return`${mins}m`;
 }
 
 function formatDuration(seconds:number){
   const h=Math.floor(seconds/3600);const m=Math.floor((seconds%3600)/60);
   if(h>0)return`${h}h ${m}m`;return`${m}m`;
+}
+
+function hoursToHM(h:number):{h:number;m:number}{
+  return{h:Math.floor(h),m:Math.round((h-Math.floor(h))*60)};
+}
+
+function hmToHours(h:number,m:number):number{
+  return h+(m/60);
 }
 
 function PrinterWidget({token}:{token:string}){
@@ -92,7 +98,7 @@ export default function PartsPage(){
   const[parts,setParts]=useState<any[]>([]);
   const[loading,setLoading]=useState(true);
   const[token,setToken]=useState("");
-  const[editingHours,setEditingHours]=useState<Record<string,string>>({});
+  const[editingHours,setEditingHours]=useState<Record<string,{h:string;m:string}>>({});
   const[editingGrams,setEditingGrams]=useState<Record<string,string>>({});
   const[saving,setSaving]=useState<Record<string,boolean>>({});
   const router=useRouter();
@@ -144,11 +150,20 @@ export default function PartsPage(){
     await updatePart(itemId,updates);
   }
 
+  function startEditingHours(partId:string,currentHours:number){
+    const{h,m}=hoursToHM(currentHours);
+    setEditingHours(s=>({...s,[partId]:{h:String(h),m:String(m)}}));
+  }
+
   async function saveHours(itemId:string){
-    const val=parseFloat(editingHours[itemId]);
-    if(isNaN(val)||val<=0)return;
+    const ed=editingHours[itemId];
+    if(!ed)return;
+    const h=parseInt(ed.h)||0;
+    const m=parseInt(ed.m)||0;
+    if(h===0&&m===0)return;
+    const val=hmToHours(h,m);
     await updatePart(itemId,{print_hours:val});
-    setEditingHours(s=>({...s,[itemId]:""}));
+    setEditingHours(s=>{const n={...s};delete n[itemId];return n;});
   }
 
   async function saveGrams(itemId:string){
@@ -160,7 +175,14 @@ export default function PartsPage(){
 
   const incompleteParts=parts.filter(p=>!p.completed);
   const backlogHours=incompleteParts.reduce((s,p)=>s+(p.print_hours||p.hours||0)*(p.qty||1),0);
-  const statusGroups=PART_STATUSES.map(s=>({...s,parts:parts.filter(p=>(p.part_status||"pending")===s.value&&!p.completed)}));
+
+  // Sort: printing first, then by order date
+  const sortedParts=(group:any[])=>[
+    ...group.filter(p=>p.part_status==="printing"),
+    ...group.filter(p=>p.part_status!=="printing"),
+  ];
+
+  const statusGroups=PART_STATUSES.map(s=>({...s,parts:sortedParts(parts.filter(p=>(p.part_status||"pending")===s.value&&!p.completed))}));
   const completedParts=parts.filter(p=>p.completed);
 
   if(loading)return<div className="max-w-5xl mx-auto px-6 py-16 text-center"><div className="inline-block w-8 h-8 border-2 border-ironworks3 border-t-amber rounded-full animate-spin"/></div>;
@@ -211,18 +233,19 @@ export default function PartsPage(){
               const qty=part.qty||1;
               const printedQty=part.printed_qty||0;
               const hasMultiple=qty>1;
+              const isEditingH=!!editingHours[part.id];
+              const hm=hoursToHM(effectiveHours);
               return(
-                <div key={part.id} className="bg-ironworks2 border border-ironworks3 rounded-sm p-4">
+                <div key={part.id} className={`bg-ironworks2 border rounded-sm p-4 ${part.part_status==="printing"?"border-orange-500/40":"border-ironworks3"}`}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         {hasMultiple&&<span className="font-mono text-xs font-bold text-amber">{qty}×</span>}
                         <div className="font-medium text-sm truncate">{part.file_name}</div>
                         {part.print_hours&&<span className="font-mono text-xs text-amber bg-amber/10 px-1.5 py-0.5 rounded-sm">custom time</span>}
-                        {editingGrams[part.id]===undefined&&part.grams&&<span className="font-mono text-xs text-steel/50 bg-ironworks px-1.5 py-0.5 rounded-sm">{part.grams}g ea</span>}
                       </div>
                       <div className="font-mono text-xs text-steel mb-2">
-                        {part.material} · {part.color||"Midnight Black"} · {part.quality} · {part.infill}% · {formatHours(effectiveHours)} ea
+                        {part.material} · {part.color||"Midnight Black"} · {part.quality} · {part.infill}% · {Number(part.grams||0).toFixed(1)}g ea · {formatHours(effectiveHours)} ea
                       </div>
                       <div className="flex items-center gap-2">
                         <Link href={`/admin/orders/${part.order_id}`} className="font-mono text-xs text-amber hover:underline">{part.order_id}</Link>
@@ -244,15 +267,24 @@ export default function PartsPage(){
                       {/* Grams editor */}
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono text-xs text-steel">g:</span>
-                        <input type="number" step="0.1" min="0.1" placeholder={`${Number(part.grams||0).toFixed(1)}`} value={editingGrams[part.id]||""} onChange={e=>setEditingGrams(s=>({...s,[part.id]:e.target.value}))} className="w-20 px-2 py-1 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono"/>
+                        <input type="number" step="0.1" min="0.1" placeholder={Number(part.grams||0).toFixed(1)} value={editingGrams[part.id]||""} onChange={e=>setEditingGrams(s=>({...s,[part.id]:e.target.value}))} className="w-16 px-2 py-1 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono"/>
                         {editingGrams[part.id]&&<button onClick={()=>saveGrams(part.id)} className="px-2 py-1 text-xs font-mono bg-amber text-ironworks rounded-sm">save</button>}
                       </div>
-                      {/* Hours editor */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-xs text-steel">h:</span>
-                        <input type="number" step="0.1" min="0.1" placeholder={`${effectiveHours.toFixed(1)}`} value={editingHours[part.id]||""} onChange={e=>setEditingHours(s=>({...s,[part.id]:e.target.value}))} className="w-20 px-2 py-1 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono"/>
-                        {editingHours[part.id]&&<button onClick={()=>saveHours(part.id)} className="px-2 py-1 text-xs font-mono bg-amber text-ironworks rounded-sm">save</button>}
-                      </div>
+                      {/* Hours + minutes editor */}
+                      {!isEditingH?(
+                        <button onClick={()=>startEditingHours(part.id,effectiveHours)} className="font-mono text-xs text-steel hover:text-amber transition-colors">
+                          {formatHours(effectiveHours)} ✎
+                        </button>
+                      ):(
+                        <div className="flex items-center gap-1">
+                          <input type="number" min="0" placeholder={String(hm.h)} value={editingHours[part.id]?.h||""} onChange={e=>setEditingHours(s=>({...s,[part.id]:{...s[part.id],h:e.target.value}}))} className="w-10 px-1 py-1 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono text-center"/>
+                          <span className="font-mono text-xs text-steel">h</span>
+                          <input type="number" min="0" max="59" placeholder={String(hm.m)} value={editingHours[part.id]?.m||""} onChange={e=>setEditingHours(s=>({...s,[part.id]:{...s[part.id],m:e.target.value}}))} className="w-10 px-1 py-1 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono text-center"/>
+                          <span className="font-mono text-xs text-steel">m</span>
+                          <button onClick={()=>saveHours(part.id)} className="px-2 py-1 text-xs font-mono bg-amber text-ironworks rounded-sm">save</button>
+                          <button onClick={()=>setEditingHours(s=>{const n={...s};delete n[part.id];return n;})} className="font-mono text-xs text-steel hover:text-bone">✕</button>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-ironworks3">
