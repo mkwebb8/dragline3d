@@ -15,7 +15,7 @@ export function generateOrderId(){
 }
 
 export async function createOrder(order:any):Promise<Order>{
-  const id=generateOrderId();const{items,...o}=order;
+  const{items,...o}=order;const id=o.id||generateOrderId();
   const resp=await supabase("orders",{method:"POST",body:JSON.stringify({id,...o})});
   if(!resp.ok)throw new Error(await resp.text());
   const[created]=await resp.json();
