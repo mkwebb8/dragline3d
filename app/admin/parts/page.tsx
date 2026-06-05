@@ -2,7 +2,7 @@
 import{useEffect,useState,useCallback}from "react";
 import{useRouter}from "next/navigation";
 import Link from "next/link";
-import{RefreshCw,Clock,CheckCircle2,Circle,Scissors,Printer,PlayCircle,Thermometer,Layers,List}from "lucide-react";
+import{RefreshCw,Clock,CheckCircle2,Circle,Scissors,Printer,PlayCircle,Thermometer,Layers,List,Minus,Plus}from "lucide-react";
 
 const PART_STATUSES=[
   {value:"pending",label:"Pending",color:"#6b7280"},
@@ -120,8 +120,28 @@ export default function PartsPage(){
       headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},
       body:JSON.stringify(updates),
     });
-    setParts(prev=>prev.map(p=>p.id===itemId?{...p,...updates,completed:updates.part_status==="completed"?true:updates.part_status?false:p.completed}:p));
+    setParts(prev=>prev.map(p=>{
+      if(p.id!==itemId)return p;
+      const updated={...p,...updates};
+      if(updates.part_status==="completed")updated.completed=true;
+      else if(updates.part_status&&updates.part_status!=="completed")updated.completed=false;
+      return updated;
+    }));
     setSaving(s=>({...s,[itemId]:false}));
+  }
+
+  async function updatePrintedQty(itemId:string,delta:number){
+    const part=parts.find(p=>p.id===itemId);
+    if(!part)return;
+    const qty=part.qty||1;
+    const current=part.printed_qty||0;
+    const next=Math.max(0,Math.min(qty,current+delta));
+    if(next===current)return;
+    // Auto-complete when all printed
+    const updates:Record<string,any>={printed_qty:next};
+    if(next>=qty){updates.part_status="completed";updates.completed=true;}
+    else if(part.part_status==="completed"){updates.part_status="printing";updates.completed=false;}
+    await updatePart(itemId,updates);
   }
 
   async function saveHours(itemId:string){
@@ -132,7 +152,7 @@ export default function PartsPage(){
   }
 
   const incompleteParts=parts.filter(p=>!p.completed);
-  const backlogHours=incompleteParts.reduce((s,p)=>s+(p.print_hours||p.hours||0),0);
+  const backlogHours=incompleteParts.reduce((s,p)=>s+(p.print_hours||p.hours||0)*(p.qty||1),0);
   const statusGroups=PART_STATUSES.map(s=>({...s,parts:parts.filter(p=>(p.part_status||"pending")===s.value&&!p.completed)}));
   const completedParts=parts.filter(p=>p.completed);
 
@@ -160,7 +180,7 @@ export default function PartsPage(){
           <Clock size={14} className="text-amber"/>
           <span className="font-mono text-xs text-steel">PRINT BACKLOG</span>
           <span className="font-mono text-xs font-bold text-amber">~{formatHours(backlogHours)}</span>
-          <span className="font-mono text-xs text-steel">across {incompleteParts.length} part{incompleteParts.length!==1?"s":""}</span>
+          <span className="font-mono text-xs text-steel">across {incompleteParts.length} line{incompleteParts.length!==1?"s":""} · {incompleteParts.reduce((s,p)=>s+(p.qty||1),0)} pcs</span>
         </div>
       )}
 
@@ -181,16 +201,20 @@ export default function PartsPage(){
           <div className="space-y-2">
             {group.parts.map(part=>{
               const effectiveHours=part.print_hours||part.hours||0;
+              const qty=part.qty||1;
+              const printedQty=part.printed_qty||0;
+              const hasMultiple=qty>1;
               return(
                 <div key={part.id} className="bg-ironworks2 border border-ironworks3 rounded-sm p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
+                        {hasMultiple&&<span className="font-mono text-xs font-bold text-amber">{qty}×</span>}
                         <div className="font-medium text-sm truncate">{part.file_name}</div>
                         {part.print_hours&&<span className="font-mono text-xs text-amber bg-amber/10 px-1.5 py-0.5 rounded-sm">custom time</span>}
                       </div>
                       <div className="font-mono text-xs text-steel mb-2">
-                        {part.material} · {part.color||"Midnight Black"} · {part.quality} · {part.infill}% · {part.grams}g · {formatHours(effectiveHours)}
+                        {part.material} · {part.color||"Midnight Black"} · {part.quality} · {part.infill}% · {part.grams}g ea · {formatHours(effectiveHours)} ea
                       </div>
                       <div className="flex items-center gap-2">
                         <Link href={`/admin/orders/${part.order_id}`} className="font-mono text-xs text-amber hover:underline">{part.order_id}</Link>
@@ -201,6 +225,16 @@ export default function PartsPage(){
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                      {/* Printed qty counter — only show for multi-qty parts */}
+                      {hasMultiple&&(
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs text-steel">printed:</span>
+                          <button onClick={()=>updatePrintedQty(part.id,-1)} disabled={saving[part.id]||printedQty<=0} className="w-6 h-6 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors disabled:opacity-30"><Minus size={10}/></button>
+                          <span className={`font-mono text-sm font-bold w-8 text-center ${printedQty>=qty?"text-green-400":"text-amber"}`}>{printedQty}/{qty}</span>
+                          <button onClick={()=>updatePrintedQty(part.id,1)} disabled={saving[part.id]||printedQty>=qty} className="w-6 h-6 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors disabled:opacity-30"><Plus size={10}/></button>
+                        </div>
+                      )}
+                      {/* Hours editor */}
                       <div className="flex items-center gap-1.5">
                         <input type="number" step="0.1" min="0.1" placeholder={`${effectiveHours.toFixed(1)}h`} value={editingHours[part.id]||""} onChange={e=>setEditingHours(s=>({...s,[part.id]:e.target.value}))} className="w-20 px-2 py-1 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono"/>
                         {editingHours[part.id]&&<button onClick={()=>saveHours(part.id)} className="px-2 py-1 text-xs font-mono bg-amber text-ironworks rounded-sm">save</button>}
@@ -235,11 +269,13 @@ export default function PartsPage(){
                 <div className="flex items-center gap-3 min-w-0">
                   <CheckCircle2 size={16} className="text-green-400 flex-shrink-0"/>
                   <div>
-                    <div className="font-medium text-sm line-through text-steel truncate">{part.file_name}</div>
+                    <div className="font-medium text-sm line-through text-steel truncate">
+                      {(part.qty||1)>1&&<span className="mr-1">{part.qty}×</span>}{part.file_name}
+                    </div>
                     <div className="font-mono text-xs text-steel">{part.material} · {part.quality} · {part.order_id}</div>
                   </div>
                 </div>
-                <button onClick={()=>updatePart(part.id,{part_status:"printing",completed:false})} className="text-xs font-mono text-steel hover:text-bone border border-ironworks3 px-2 py-1 rounded-sm">undo</button>
+                <button onClick={()=>updatePart(part.id,{part_status:"printing",completed:false,printed_qty:0})} className="text-xs font-mono text-steel hover:text-bone border border-ironworks3 px-2 py-1 rounded-sm">undo</button>
               </div>
             ))}
           </div>
