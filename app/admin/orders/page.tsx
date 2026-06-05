@@ -15,6 +15,13 @@ function formatDuration(seconds: number) {
   return `${m}m`;
 }
 
+function formatHours(hours: number) {
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
 function PrinterWidget({ token }: { token: string }) {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState(false);
@@ -71,7 +78,6 @@ function PrinterWidget({ token }: { token: string }) {
 
       {isActive && (
         <div className="p-4">
-          {/* Progress bar */}
           <div className="mb-3">
             <div className="flex justify-between font-mono text-xs mb-1.5">
               <span className="text-bone/60">Progress</span>
@@ -81,8 +87,6 @@ function PrinterWidget({ token }: { token: string }) {
               <div className="h-full bg-amber transition-all duration-1000 rounded-full" style={{ width: `${progress * 100}%` }} />
             </div>
           </div>
-
-          {/* Stats row */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-ironworks rounded-sm p-3">
               <div className="font-mono text-xs text-steel mb-1 flex items-center gap-1"><Clock size={10}/> Elapsed</div>
@@ -101,7 +105,6 @@ function PrinterWidget({ token }: { token: string }) {
               <div className="font-display font-bold text-sm">{bed?.temperature?.toFixed(0)}°<span className="text-steel text-xs">/{bed?.target?.toFixed(0)}°</span></div>
             </div>
           </div>
-
           {vsd?.layer > 0 && (
             <div className="mt-2 font-mono text-xs text-steel flex items-center gap-1">
               <Layers size={10}/> Layer {vsd.layer} · Z {stats?.z_pos?.toFixed(2)}mm
@@ -146,7 +149,11 @@ export default function AdminOrders() {
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
   function logout() { localStorage.removeItem("dragline_admin_token"); router.push("/admin/login"); }
 
-  const FILTERS = ["all", "received", "queued", "printing", "quality_check", "shipped"];
+  const FILTERS = ["all", "received", "queued", "printing", "quality_check", "shipped", "cancelled"];
+
+  // Backlog: sum hours from queued + printing orders
+  const backlogOrders = orders.filter(o => o.status === "queued" || o.status === "printing");
+  const backlogHours = backlogOrders.reduce((sum, o) => sum + (o.total_hours || 0), 0);
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
@@ -165,6 +172,16 @@ export default function AdminOrders() {
       </div>
 
       {token && <PrinterWidget token={token} />}
+
+      {/* Backlog estimate */}
+      {backlogHours > 0 && (
+        <div className="mb-4 px-4 py-3 bg-ironworks2 border border-ironworks3 rounded-sm flex items-center gap-3">
+          <Clock size={14} className="text-amber" />
+          <span className="font-mono text-xs text-steel">PRINT BACKLOG</span>
+          <span className="font-mono text-xs font-bold text-amber">~{formatHours(backlogHours)}</span>
+          <span className="font-mono text-xs text-steel">across {backlogOrders.length} order{backlogOrders.length !== 1 ? "s" : ""}</span>
+        </div>
+      )}
 
       <div className="flex gap-2 mb-6 flex-wrap">
         {FILTERS.map(f => (
