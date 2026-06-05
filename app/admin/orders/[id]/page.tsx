@@ -3,7 +3,7 @@ export const runtime = "edge";
 import{useEffect,useState}from "react";
 import{useRouter}from "next/navigation";
 import Link from "next/link";
-import{ArrowLeft,Save,ExternalLink,FileText,Receipt,Package}from "lucide-react";
+import{ArrowLeft,Save,ExternalLink,FileText,Receipt,Package,CheckCircle2,Circle}from "lucide-react";
 const STATUS_OPTIONS=[{value:"pending",label:"Payment Pending"},{value:"received",label:"Order Received"},{value:"queued",label:"In Queue"},{value:"printing",label:"Printing"},{value:"quality_check",label:"Quality Check"},{value:"shipped",label:"Shipped"},{value:"delivered",label:"Delivered"},{value:"cancelled",label:"Cancelled"}];
 const STATUS_COLORS:Record<string,string>={pending:"#6b7280",received:"#3b82f6",queued:"#f59e0b",printing:"#f97316",quality_check:"#a855f7",shipped:"#22c55e",delivered:"#16a34a",cancelled:"#ef4444"};
 const BOX_PRESETS=[
@@ -34,7 +34,9 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
   const[creatingLabel,setCreatingLabel]=useState(false);
   const[labelUrl,setLabelUrl]=useState<string|null>(null);
   const[labelError,setLabelError]=useState<string|null>(null);
+  const[togglingItem,setTogglingItem]=useState<string|null>(null);
   const router=useRouter();
+
   useEffect(()=>{
     const token=localStorage.getItem("dragline_admin_token");
     if(!token){router.push("/admin/login");return;}
@@ -47,11 +49,36 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
       })
       .finally(()=>setLoading(false));
   },[id,router]);
+
   function selectPreset(i:number){
     setBoxPreset(i);
     const p=BOX_PRESETS[i];
     if(p.l){setBoxL(String(p.l));setBoxW(String(p.w));setBoxH(String(p.h));}
   }
+
+  async function toggleItemComplete(itemId:string,completed:boolean){
+    const token=localStorage.getItem("dragline_admin_token");if(!token)return;
+    setTogglingItem(itemId);
+    const res=await fetch(`/api/admin/orders/${id}/items/${itemId}`,{
+      method:"PATCH",
+      headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},
+      body:JSON.stringify({completed}),
+    });
+    if(res.ok){
+      setOrder((prev:any)=>({
+        ...prev,
+        order_items:prev.order_items.map((i:any)=>i.id===itemId?{...i,completed}:i),
+      }));
+      // Auto-advance to quality_check if all items complete
+      const updatedItems=order.order_items.map((i:any)=>i.id===itemId?{...i,completed}:i);
+      const allDone=updatedItems.every((i:any)=>i.completed);
+      if(allDone&&(status==="printing"||status==="queued")){
+        setStatus("quality_check");
+      }
+    }
+    setTogglingItem(null);
+  }
+
   async function handleSave(){
     const token=localStorage.getItem("dragline_admin_token");if(!token)return;
     setSaving(true);
@@ -59,6 +86,7 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
     if(res.ok){const u=await res.json();setOrder(u);setSaved(true);setTimeout(()=>setSaved(false),2000);}
     setSaving(false);
   }
+
   async function handleCreateInvoice(){
     const token=localStorage.getItem("dragline_admin_token");if(!token)return;
     setInvoicing(true);setInvoiceError(null);
@@ -67,6 +95,7 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
     else{const err=await res.json();setInvoiceError(err.error||"Failed to create invoice");}
     setInvoicing(false);
   }
+
   async function handleCreateLabel(){
     const token=localStorage.getItem("dragline_admin_token");if(!token)return;
     setCreatingLabel(true);setLabelError(null);
@@ -80,8 +109,13 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
     }else{const err=await res.json();setLabelError(err.error||"Label creation failed");}
     setCreatingLabel(false);
   }
+
   if(loading)return<div className="max-w-4xl mx-auto px-6 py-16 text-center"><div className="inline-block w-8 h-8 border-2 border-ironworks3 border-t-amber rounded-full animate-spin"/></div>;
   if(!order)return<div className="max-w-4xl mx-auto px-6 py-16 text-center text-bone/50">Order not found</div>;
+
+  const completedCount=order.order_items?.filter((i:any)=>i.completed).length||0;
+  const totalCount=order.order_items?.length||0;
+
   return(
     <div className="max-w-4xl mx-auto px-6 py-8">
       <div className="flex items-center gap-3 mb-8">
@@ -188,17 +222,35 @@ export default function AdminOrderDetail({params}:{params:{id:string}}){
           </div>
         </div>
       </div>
+
       {order.order_items?.length>0&&(
         <div className="bg-ironworks2 border border-ironworks3 rounded-sm">
-          <div className="px-5 py-4 border-b border-ironworks3 font-mono text-xs text-amber tracking-widest">PARTS ({order.order_items.length})</div>
+          <div className="px-5 py-4 border-b border-ironworks3 flex items-center justify-between">
+            <div className="font-mono text-xs text-amber tracking-widest">PARTS ({completedCount}/{totalCount} done)</div>
+            {completedCount===totalCount&&totalCount>0&&(
+              <div className="font-mono text-xs text-green-400">All parts complete</div>
+            )}
+          </div>
           <div className="divide-y divide-ironworks3">
             {order.order_items.map((item:any)=>(
-              <div key={item.id} className="px-5 py-4 flex items-center justify-between gap-4">
-                <div>
-                  <div className="font-medium text-sm">{item.file_name}</div>
-                  <div className="font-mono text-xs text-steel mt-1">{item.material} · {item.quality} · {item.infill}% · {item.grams}g · {item.hours}h</div>
+              <div key={item.id} className={`px-5 py-4 flex items-center justify-between gap-4 transition-colors ${item.completed?"bg-green-500/5":""}`}>
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <button
+                    onClick={()=>toggleItemComplete(item.id,!item.completed)}
+                    disabled={togglingItem===item.id}
+                    className="flex-shrink-0 transition-colors"
+                  >
+                    {item.completed
+                      ? <CheckCircle2 size={20} className="text-green-400"/>
+                      : <Circle size={20} className="text-steel hover:text-bone"/>
+                    }
+                  </button>
+                  <div className={item.completed?"opacity-50":""}>
+                    <div className={`font-medium text-sm ${item.completed?"line-through text-steel":""}`}>{item.file_name}</div>
+                    <div className="font-mono text-xs text-steel mt-1">{item.material} · {item.quality} · {item.infill}% · {item.grams}g · {item.hours}h</div>
+                  </div>
                 </div>
-                <div className="font-display font-bold text-amber">${item.price?.toFixed(2)}</div>
+                <div className={`font-display font-bold text-amber flex-shrink-0 ${item.completed?"opacity-50":""}`}>${item.price?.toFixed(2)}</div>
               </div>
             ))}
           </div>
