@@ -4,7 +4,7 @@ import{getOrder}from "@/lib/db";
 export async function POST(request:Request,{params}:{params:{id:string}}){
   if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
   const{id}=params;
-  const{length,width,height,rateId}=await request.json();
+  const{length,width,height,rateId,recipientName}=await request.json();
   const order=await getOrder(id);
   if(!order)return Response.json({error:"Order not found"},{status:404});
   const shippoKey=process.env.SHIPPO_API_KEY;
@@ -37,7 +37,7 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
       zip:process.env.SHIP_FROM_ZIP||"40201",
       country:"US",
     },
-    address_to:{name:order.customer_name,street1:order.address,city:order.city,state:order.state,zip:order.zip,country:"US"},
+    address_to:{name:recipientName||order.customer_name,street1:order.address,city:order.city,state:order.state,zip:order.zip,country:"US"},
     parcels:[{length:String(length),width:String(width),height:String(height),distance_unit:"in",weight:String(weightOz),mass_unit:"oz"}],
     async:false,
   };
