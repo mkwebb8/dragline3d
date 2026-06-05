@@ -66,6 +66,5 @@ export async function POST(request:Request){
     customer_name:customerName||"",customer_email:customerEmail||"",
     address:address||"",city:city||"",state:state||"",zip:zip||"",
     shipping_service:shippingLabel||"",shipping_cost:shipping,subtotal,total,status:"pending",items:dbItems,
-  } as any).catch((e:Error)=>console.error("DB error:",e.message));
-  return Response.json({url:data.payment_link?.url,orderId});
+  } as any).then(()=>console.log("Order saved:",orderId)).catch((e:Error)=>console.error("DB error:",e.message));
 }
