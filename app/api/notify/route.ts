@@ -36,7 +36,7 @@ b64 = btoa(b64);
 fileEntries.push({name:value.name,file:new File([buf],value.name,{type:value.type})});
       }
     }
-
+console.log("[notify] orderId:", orderId, "fileEntries:", fileEntries.length);
     // Save files to TrueNAS (fire and forget)
     if(orderId&&customerName&&fileEntries.length>0){
       try{
