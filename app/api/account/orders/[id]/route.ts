@@ -6,11 +6,12 @@ function supabase(path:string,opts:RequestInit={}){
   return fetch(`${url}/rest/v1/${path}`,{...opts,headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json",Prefer:"return=representation",...(opts.headers||{})}});
 }
 
-export async function GET(request:Request,{params}:{params:{id:string}}){
+export async function GET(request:Request,{params}:{params:Promise<{id:string}>}){
   const{searchParams}=new URL(request.url);
   const email=searchParams.get("email");
   if(!email)return Response.json({error:"Email required"},{status:400});
-  const r=await supabase(`orders?id=eq.${params.id}&customer_email=eq.${encodeURIComponent(email)}&select=*,order_items(*)`);
+  const{id}=await params;
+  const r=await supabase(`orders?id=eq.${id}&customer_email=eq.${encodeURIComponent(email)}&select=*,order_items(*)`);
   if(!r.ok)return Response.json({error:"Failed to fetch order"},{status:500});
   const rows=await r.json();
   if(!rows.length)return Response.json({error:"Order not found"},{status:404});

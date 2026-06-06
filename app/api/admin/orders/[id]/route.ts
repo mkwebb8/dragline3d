@@ -2,24 +2,26 @@ export const runtime="edge";
 import{verifyAdminToken}from "@/lib/adminAuth";
 import{getOrder,updateOrder}from "@/lib/db";
 
-export async function GET(request:Request,{params}:{params:{id:string}}){
+export async function GET(request:Request,{params}:{params:Promise<{id:string}>}){
   if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
-  try{const o=await getOrder(params.id);if(!o)return Response.json({error:"Not found"},{status:404});return Response.json(o);}
+  const{id}=await params;
+  try{const o=await getOrder(id);if(!o)return Response.json({error:"Not found"},{status:404});return Response.json(o);}
   catch(e:any){return Response.json({error:e.message},{status:500});}
 }
 
-export async function PATCH(request:Request,{params}:{params:{id:string}}){
+export async function PATCH(request:Request,{params}:{params:Promise<{id:string}>}){
   if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
+  const{id}=await params;
   try{
     const body=await request.json();
     const allowed=["status","tracking_number","notes"];
     const updates:Record<string,string>={};
     for(const k of allowed)if(body[k]!==undefined)updates[k]=body[k];
-    const updated=await updateOrder(params.id,updates);
+    const updated=await updateOrder(id,updates);
 
     const rk=process.env.RESEND_API_KEY;
     if(rk&&updates.status){
-      const order=await getOrder(params.id);
+      const order=await getOrder(id);
       if(order){
         const trackUrl=`https://dragline3d.com/order/${order.id}`;
         const base=`<div style="background:#111;color:#fff;font-family:monospace;padding:32px;max-width:600px"><div style="font-size:20px;font-weight:bold;color:#f59e0b;margin-bottom:4px">DRAGLINE 3D</div><div style="color:#666;font-size:12px;margin-bottom:24px">Layer by layer · dragline3d.com</div>`;
