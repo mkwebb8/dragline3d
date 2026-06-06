@@ -8,6 +8,36 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
   const order=await getOrder(id);
   if(!order)return Response.json({error:"Order not found"},{status:404});
 
+  // If we already have the invoice URL saved, just return it
+  if(order.square_invoice_url){
+    return Response.json({invoice_url:order.square_invoice_url});
+  }
+
+  // Check Square for an existing invoice by reference_id (order.id)
+  const searchRes=await fetch(`https://connect.squareup.com/v2/invoices/search`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":`Bearer ${process.env.SQUARE_ACCESS_TOKEN}`,"Square-Version":"2024-01-18"},
+    body:JSON.stringify({
+      query:{filter:{location_ids:[process.env.SQUARE_LOCATION_ID]}},
+      limit:100,
+    }),
+  });
+  if(searchRes.ok){
+    const searchData=await searchRes.json();
+    const existing=(searchData.invoices||[]).find((inv:any)=>inv.invoice_number===id||inv.order?.reference_id===id);
+    if(existing){
+      const existingUrl=`https://squareup.com/pay-invoice/${existing.id}`;
+      // Save it to Supabase so we don't have to search next time
+      await fetch(`${process.env.SUPABASE_URL}/rest/v1/orders?id=eq.${id}`,{
+        method:"PATCH",
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${process.env.SUPABASE_SERVICE_KEY}`,"apikey":process.env.SUPABASE_SERVICE_KEY!},
+        body:JSON.stringify({square_invoice_url:existingUrl}),
+      });
+      return Response.json({invoice_url:existingUrl,invoice_id:existing.id});
+    }
+  }
+
+  // No existing invoice — create one
   const subtotal=(order.order_items||[]).reduce((s:number,i:any)=>s+i.price,0);
   const preTax=Math.round((subtotal/1.08)*100)/100;
   const taxAmount=Math.round((subtotal-preTax)*100)/100;
@@ -57,6 +87,7 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
       },
     }),
   });
+
   const squareData=await squareRes.json();
   if(!squareRes.ok||squareData.errors)return Response.json({error:squareData.errors?.[0]?.detail||"Square error"},{status:502});
 
