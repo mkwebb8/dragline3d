@@ -184,7 +184,6 @@ export default function QuotePage() {
     setCurrentQuote(quoteFromGeometry(s.volumeMm3, mat, q, inf));
     if (slicerComplete && file) runSlicer(file, mat, q, inf);
   }
-// In app/quote/page.tsx, replace the entire runSlicer function with this:
 
   function runSlicer(f: File, mat: MaterialKey, q: QualityKey, inf: number) {
     setSlicerLoading(true); setSlicerFailed(false); setSlicerComplete(false);
