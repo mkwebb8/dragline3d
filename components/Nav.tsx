@@ -20,7 +20,15 @@ export function Nav() {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="border-b border-ironworks3 bg-ironworks sticky top-0 z-50">
+    <header
+      className="sticky top-0 z-50 border-b"
+      style={{
+        background: "rgba(8,8,10,0.88)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        borderColor: "rgba(255,255,255,0.06)",
+      }}
+    >
       <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3 group">
           <DraglineMark size={38} />
@@ -41,16 +49,31 @@ export function Nav() {
             <Link
               key={item.href}
               href={item.href}
-              className={`transition-colors font-medium ${
-                pathname === item.href ? "text-amber" : "text-bone/70 hover:text-bone"
+              className={`relative pb-px transition-colors duration-150 font-medium ${
+                pathname === item.href
+                  ? "text-amber"
+                  : "text-bone/55 hover:text-bone"
               }`}
             >
               {item.label}
+              {pathname === item.href && (
+                <span
+                  className="absolute -bottom-px left-0 right-0 h-px"
+                  style={{
+                    background: "#ffb547",
+                    boxShadow: "0 0 8px rgba(255,181,71,0.9)",
+                  }}
+                />
+              )}
             </Link>
           ))}
           <Link
             href="/quote"
-            className="font-display font-bold text-sm bg-amber text-ironworks px-4 py-2 rounded-sm hover:bg-amber-dark transition-colors"
+            className="font-display font-bold text-sm text-ironworks px-4 py-2 rounded-xl cursor-pointer transition-opacity duration-150 hover:opacity-90"
+            style={{
+              background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)",
+              boxShadow: "0 0 18px rgba(255,181,71,0.28)",
+            }}
           >
             GET A QUOTE
           </Link>
@@ -58,7 +81,7 @@ export function Nav() {
 
         {/* Mobile toggle */}
         <button
-          className="md:hidden text-bone"
+          className="md:hidden text-bone cursor-pointer"
           onClick={() => setOpen(!open)}
           aria-label="Toggle menu"
         >
@@ -68,14 +91,20 @@ export function Nav() {
 
       {/* Mobile nav */}
       {open && (
-        <nav className="md:hidden border-t border-ironworks3 bg-ironworks2 px-6 py-4 flex flex-col gap-3">
+        <nav
+          className="md:hidden border-t px-6 py-4 flex flex-col gap-3"
+          style={{
+            borderColor: "rgba(255,255,255,0.06)",
+            background: "rgba(8,8,10,0.96)",
+          }}
+        >
           {NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               onClick={() => setOpen(false)}
-              className={`py-2 text-base font-medium ${
-                pathname === item.href ? "text-amber" : "text-bone/80"
+              className={`py-2 text-base font-medium transition-colors duration-150 ${
+                pathname === item.href ? "text-amber" : "text-bone/70"
               }`}
             >
               {item.label}
