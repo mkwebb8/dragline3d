@@ -221,9 +221,9 @@ function SectionLabel({ index, label }: { index: string; label: string }) {
 /* ─── Stat cell ─── */
 function Stat({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <div className="bg-ironworks2 px-6 py-8">
-      <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-steel mb-2">{label}</div>
-      <div className="font-display font-black text-4xl text-amber leading-none mb-1">{value}</div>
+    <div className="bg-ironworks2 px-6 py-10">
+      <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-steel mb-3">{label}</div>
+      <div className="font-display font-black text-5xl md:text-6xl text-amber leading-none mb-2">{value}</div>
       <div className="font-mono text-xs text-bone/40">{detail}</div>
     </div>
   );
@@ -242,15 +242,22 @@ function Step({
   body: string;
 }) {
   return (
-    <div className="bg-ironworks p-8 hover:bg-ironworks2 transition-colors duration-150 group cursor-default">
-      <div className="flex items-center justify-between mb-8">
-        <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-amber">{num}</div>
-        <div className="text-amber/60 group-hover:text-amber transition-colors duration-150">{icon}</div>
+    <div className="bg-ironworks p-8 pb-10 hover:bg-ironworks2 transition-colors duration-150 group cursor-default relative overflow-hidden">
+      {/* Ghost number behind content */}
+      <div
+        aria-hidden="true"
+        className="absolute -right-3 -top-5 font-display font-black leading-none text-ironworks3 select-none pointer-events-none"
+        style={{ fontSize: "clamp(5rem, 9vw, 8rem)" }}
+      >
+        {num}
       </div>
-      <div className="font-display font-black text-2xl mb-3 group-hover:text-amber transition-colors duration-150">
-        {title}
+      <div className="relative">
+        <div className="text-amber mb-6 group-hover:text-amber/80 transition-colors duration-150">{icon}</div>
+        <div className="font-display font-black text-3xl mb-3 group-hover:text-amber transition-colors duration-150">
+          {title}
+        </div>
+        <p className="text-bone/50 text-sm leading-relaxed">{body}</p>
       </div>
-      <p className="text-bone/50 text-sm leading-relaxed">{body}</p>
     </div>
   );
 }
@@ -297,7 +304,7 @@ function Material({ name, desc, specs, swatch }: MaterialProps) {
       className="bg-ironworks p-6 hover:bg-ironworks2 transition-colors duration-150 group cursor-default border-l-2"
       style={{ borderLeftColor: swatch }}
     >
-      <div className="font-display font-black text-2xl mb-3 group-hover:text-amber transition-colors duration-150">
+      <div className="font-display font-black text-3xl mb-3 group-hover:text-amber transition-colors duration-150">
         {name}
       </div>
       <p className="text-bone/50 text-sm leading-relaxed mb-5">{desc}</p>
