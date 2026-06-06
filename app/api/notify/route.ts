@@ -25,7 +25,13 @@ export async function POST(request:Request){
     for(const[key,value] of form.entries()){
       if(key.startsWith("file_")&&value instanceof File){
         const buf=await value.arrayBuffer();
-        const b64=btoa(String.fromCharCode(...new Uint8Array(buf)));
+        const uint8 = new Uint8Array(buf);
+let b64 = "";
+const chunkSize = 8192;
+for (let i = 0; i < uint8.length; i += chunkSize) {
+  b64 += String.fromCharCode(...uint8.subarray(i, i + chunkSize));
+}
+b64 = btoa(b64);
         attachments.push({filename:value.name,content:b64});
         fileEntries.push({name:value.name,file:value});
       }
