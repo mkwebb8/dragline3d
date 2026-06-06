@@ -30,7 +30,7 @@ export async function GET(
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const slicerBase = process.env.SLICER_URL!;
+  const slicerBase = process.env.SLICER_WORKER_URL!;
   const secret = process.env.WORKER_SECRET!;
 
   const fileUrl = `${slicerBase}/get-file?orderId=${encodeURIComponent(id)}&fileName=${encodeURIComponent(fileName)}`;
