@@ -16,7 +16,7 @@
     "lucide-react": "^0.400.0",
     "jszip": "^3.10.1",
     "jspdf": "^2.5.1",
-    "@supabase/supabase-js": "^2.39.0",
+    "@supabase/supabase-js": "^2.39.0"
   },
   "devDependencies": {
     "@types/node": "^20",
