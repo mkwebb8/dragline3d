@@ -214,6 +214,7 @@ export default function QuotePage() {
               <div>
                 <div className="font-display font-extrabold text-2xl mb-1">{cartItems.length > 0 ? "Add another part" : "Drop your file"}</div>
                 <div className="text-bone/50 text-sm">or click to browse · .STL or .3MF</div>
+<div className="text-bone/30 text-xs mt-1">3MF files are priced as a single unit — qty multiplies the entire file</div>
               </div>
               {fileError && <div className="text-sm flex items-center gap-2 text-red-400"><AlertCircle size={14} /> {fileError}</div>}
             </div>
