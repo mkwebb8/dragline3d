@@ -41,6 +41,11 @@ function focusOff(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) {
 }
 
 export default function QuotePage() {
+  const [livePricing, setLivePricing] = useState<Record<string, number>>({});
+
+useEffect(() => {
+  fetch("/api/pricing").then(r => r.json()).then(setLivePricing).catch(() => {});
+}, []);
   const [file, setFile]                     = useState<File | null>(null);
   const [geometry, setGeometry]             = useState<THREE.BufferGeometry | null>(null);
   const [stats, setStats]                   = useState<Stats | null>(null);
@@ -110,6 +115,7 @@ export default function QuotePage() {
     setSlicerLoading(true); setSlicerFailed(false); setSlicerComplete(false);
     const form = new FormData();
     form.append("stl", f); form.append("material", mat); form.append("quality", q); form.append("infill", String(inf));
+if (livePricing[mat]) form.append("costPerKg", String(livePricing[mat]));
     fetch("/api/slice", { method: "POST", body: form })
       .then(r => r.json())
       .then(data => {
