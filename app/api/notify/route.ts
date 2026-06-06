@@ -98,7 +98,7 @@ b64 = btoa(b64);
           <tbody>${itemRows}</tbody>
         </table>
       </div>
-      <div style="text-align:right;font-size:20px;font-weight:bold;color:#f59e0b">Total: $${total}</div>
+      <div style="text-align:right;font-size:20px;font-weight:bold;color:#f59e0b">Total: $${Number(total).toFixed(2)}</div>
     </div>`;
 
     const res=await fetch("https://api.resend.com/emails",{
