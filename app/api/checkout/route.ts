@@ -17,11 +17,11 @@ function computePrice(volumeMm3:number,material:string,quality:string,infill:num
 }
 export async function POST(request:Request){
   const body=await request.json();
-  const{items,shippingCost,shippingLabel,customerEmail,customerName,address,city,state,zip}=body;
+  const{items,shippingCost,shippingLabel,customerEmail,customerName,address,city,state,zip,orderId:passedId}=body;
   const locationId=process.env.SQUARE_LOCATION_ID;
   const accessToken=process.env.SQUARE_ACCESS_TOKEN;
   if(!locationId||!accessToken)return Response.json({error:"Square not configured"},{status:503});
-  const orderId=`DL-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-${Math.random().toString(36).slice(2,6).toUpperCase()}`;
+  const orderId=passedId||`DL-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-${Math.random().toString(36).slice(2,6).toUpperCase()}`;
   const lineItems:any[]=[];
   const dbItems:any[]=[];
   if(items&&Array.isArray(items)){
@@ -29,7 +29,7 @@ export async function POST(request:Request){
       const price=item.price||computePrice(item.volumeMm3,item.material,item.quality,item.infill)||8;
       const qty=item.qty||1;
       lineItems.push({
-        name:`${item.fileName.replace(/\.(stl|3mf)$/i,"")} - ${item.material} ${item.quality} ${item.infill}%`,
+        name:`${item.fileName.replace(/\.(stl|3mf|step|stp)$/i,"")} - ${item.material} ${item.quality} ${item.infill}%`,
         quantity:String(qty),
         base_price_money:{amount:Math.round(price*100),currency:"USD"},
       });
