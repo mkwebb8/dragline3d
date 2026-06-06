@@ -284,6 +284,14 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
                   style={{ borderColor: "rgba(255,255,255,0.07)" }}>
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <Icon size={18} className="flex-shrink-0" style={{ color: cfg.color }} />
+                    {/* Thumbnail */}
+                    <img
+                      src={`/api/admin/orders/${order.id}/thumb?itemId=${item.id}`}
+                      alt=""
+                      className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                      style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+                      onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
                     <div className={item.completed ? "opacity-50" : ""}>
                       <div className={`font-medium text-sm ${item.completed ? "line-through text-steel" : ""}`}>
                         {qty > 1 && <span className="font-mono text-amber font-bold mr-1.5">{qty}×</span>}
