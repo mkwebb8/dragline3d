@@ -12,9 +12,9 @@ const STLViewer = dynamic(() => import("@/components/STLViewer").then(m => ({ de
 
 type Stats = { dims: { x: number; y: number; z: number }; volumeMm3: number };
 type Quote = { grams: number; hours: number; price: number; fromSlicer: boolean; breakdown: { material: number; machine: number; setup: number } };
-type CartItem = { id: string; file: File | null; fileName: string; material: MaterialKey; quality: QualityKey; infill: number; qty: number; color: string; stats: Stats; quote: Quote; geometry: any };
-type ShippingRate = { id: string; provider: string; service: string; amount: number; currency: string; days?: number };
 
+type ShippingRate = { id: string; provider: string; service: string; amount: number; currency: string; days?: number };
+type CartItem = { id: string; file: File | null; fileName: string; material: MaterialKey; quality: QualityKey; infill: number; qty: number; color: string; stats: Stats; quote: Quote; geometry: any; thumbnail?: string };
 function genId() { return Math.random().toString(36).slice(2, 10); }
 function genOrderId() { return `DL-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-${Math.random().toString(36).slice(2,6).toUpperCase()}`; }
 
@@ -80,6 +80,7 @@ export default function QuotePage() {
   const [rateError, setRateError]           = useState<string | null>(null);
   const [checkingOut, setCheckingOut]       = useState(false);
   const [checkoutError, setCheckoutError]   = useState<string | null>(null);
+  const [currentThumbnail, setCurrentThumbnail] = useState<string | null>(null);
 
   const inputRef   = useRef<HTMLInputElement>(null);
   const initializedRef = useRef(false);
@@ -93,9 +94,10 @@ export default function QuotePage() {
   useEffect(() => {
     if (!initializedRef.current) return;
     const serializable = cartItems.map(i => ({
-      id: i.id, fileName: i.fileName, material: i.material, quality: i.quality,
-      infill: i.infill, qty: i.qty, color: i.color, stats: i.stats, quote: i.quote,
-    }));
+  id: i.id, fileName: i.fileName, material: i.material, quality: i.quality,
+  infill: i.infill, qty: i.qty, color: i.color, stats: i.stats, quote: i.quote,
+  thumbnail: i.thumbnail,
+}));
     localStorage.setItem("dragline_cart", JSON.stringify(serializable));
   }, [cartItems]);
 
@@ -220,7 +222,7 @@ export default function QuotePage() {
     if (!f) return;
     if (!/\.(stl|3mf|step|stp)$/i.test(f.name)) { setFileError("STL, 3MF, or STEP files only."); return; }
     setFileError(null); setFile(f); setStats(null); setGeometry(null);
-    setCurrentQuote(null); setSlicerFailed(false); setSlicerComplete(false);
+    setCurrentQuote(null); setCurrentThumbnail(null); setSlicerFailed(false); setSlicerComplete(false);
 
     if (/\.(step|stp)$/i.test(f.name)) {
       setIsStepFile(true); setParsing(false);
@@ -244,7 +246,8 @@ export default function QuotePage() {
   function addToCart() {
     if (!file || !stats || !currentQuote || !currentQuote.fromSlicer) return;
     if (!isStepFile && !geometry) return;
-    setCartItems(prev => [...prev, { id: genId(), file, fileName: file.name, material, quality, infill, qty, color, stats, quote: currentQuote, geometry: geometry || null }]);
+    setCartItems(prev => [...prev, { id: genId(), file, fileName: file.name, material, quality, infill, qty, color, stats, quote: currentQuote, geometry: geometry || null, thumbnail: currentThumbnail || undefined }]);
+    setCurrentThumbnail(null);
     setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null); setIsStepFile(false);
     setMaterial("PLA"); setQuality("standard"); setInfill(15); setQty(1); setColor("Midnight Black");
     setSlicerComplete(false); setSlicerFailed(false);
@@ -403,7 +406,7 @@ export default function QuotePage() {
                         <div className="font-mono text-[10px] tracking-[0.2em] text-steel">PARSING MESH...</div>
                       </div>
                     </div>
-                  ) : <STLViewer geometry={geometry} onStats={() => {}} />}
+                  ) : <STLViewer geometry={geometry} onStats={() => {}} onCapture={(dataUrl) => setCurrentThumbnail(dataUrl)} />
                 </div>
                 <div className="mt-2.5 flex justify-between items-center">
                   <span className="font-mono text-[10px] text-steel tracking-wider">
@@ -534,7 +537,17 @@ export default function QuotePage() {
                         {/* Item row */}
                         <div className="px-5 py-4 flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
-                            <div className="font-medium text-sm text-bone truncate">{item.fileName.replace(/\.(stl|3mf|step|stp)$/i, "")}</div>
+                            <div className="flex items-center gap-2">
+  {item.thumbnail && (
+    <img
+      src={item.thumbnail}
+      alt={item.fileName}
+      className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+      style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+    />
+  )}
+  <div className="font-medium text-sm text-bone truncate">{item.fileName.replace(/\.(stl|3mf|step|stp)$/i, "")}</div>
+</div>
                             <div className="mt-1 flex items-center gap-1.5 flex-wrap font-mono text-[10px] text-steel">
                               {itemColor && <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: itemColor.hex, border: "1px solid rgba(255,255,255,0.15)" }} />}
                               <span>{item.material} · {item.color} · {QUALITIES[item.quality].label}mm · {item.infill}%</span>
