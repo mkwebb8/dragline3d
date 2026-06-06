@@ -4,13 +4,20 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { DraglineMark } from "@/components/DraglineMark";
 import { Mail, ArrowRight, CheckCircle2 } from "lucide-react";
+import type { CSSProperties, FormEvent } from "react";
 
 function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 }
+
+const glass: CSSProperties = {
+  background: "rgba(255,255,255,0.03)",
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
+  border: "1px solid rgba(255,255,255,0.07)",
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
+};
+const inputSt: CSSProperties = { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", outline: "none" };
 
 export default function AccountPage() {
   const [email, setEmail] = useState("");
@@ -26,7 +33,7 @@ export default function AccountPage() {
     });
   }, [router]);
 
-  async function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: FormEvent) {
     e.preventDefault();
     if (!email) return;
     setSending(true); setError(null);
@@ -46,37 +53,40 @@ export default function AccountPage() {
           <DraglineMark size={36} />
           <div>
             <div className="font-display font-extrabold text-xl">My Account</div>
-            <div className="font-mono text-xs text-steel">DRAGLINE 3D</div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-steel">DRAGLINE 3D</div>
           </div>
         </div>
 
         {sent ? (
-          <div className="bg-ironworks2 border border-green-500/30 rounded-sm p-8 text-center">
+          <div className="rounded-2xl p-8 text-center" style={{ ...glass, border: "1px solid rgba(34,197,94,0.30)" }}>
             <CheckCircle2 size={40} className="text-green-400 mx-auto mb-4" />
             <div className="font-display font-bold text-xl mb-2">Check your email</div>
             <div className="font-mono text-xs text-steel">We sent a magic link to <span className="text-amber">{email}</span></div>
             <div className="font-mono text-xs text-steel mt-1">Click the link to sign in — no password needed.</div>
           </div>
         ) : (
-          <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-8">
+          <div className="rounded-2xl p-8" style={glass}>
             <div className="font-display font-bold text-lg mb-2">Sign in to view your orders</div>
             <div className="font-mono text-xs text-steel mb-6">Enter your email and we'll send you a magic link.</div>
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-5">
               <div>
-                <label className="block font-mono text-xs text-steel mb-1.5 tracking-wider">EMAIL ADDRESS</label>
-                <input
-                  type="email" value={email} onChange={e => setEmail(e.target.value)}
+                <label className="block font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-2">Email Address</label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                   placeholder="your@email.com" required
-                  className="w-full px-4 py-3 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm"
+                  className="w-full px-4 py-3 rounded-xl text-bone text-sm transition-colors"
+                  style={inputSt}
+                  onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,181,71,0.50)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(255,181,71,0.08)"; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.boxShadow = "none"; }}
                 />
               </div>
               {error && <div className="text-red-400 text-xs font-mono">{error}</div>}
               <button type="submit" disabled={sending}
-                className="w-full py-3 rounded-sm font-display font-bold flex items-center justify-center gap-2 bg-amber text-ironworks hover:opacity-90 transition-colors disabled:opacity-50">
+                className="w-full py-4 rounded-xl font-display font-bold text-ironworks flex items-center justify-center gap-2 cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)", boxShadow: "0 0 24px rgba(255,181,71,0.28)" }}>
                 {sending ? (
-                  <><span className="inline-block w-4 h-4 border-2 border-ironworks/30 border-t-ironworks rounded-full animate-spin"/> SENDING...</>
+                  <><span className="inline-block w-4 h-4 border-2 border-ironworks/30 border-t-ironworks rounded-full animate-spin" /> SENDING…</>
                 ) : (
-                  <><Mail size={16}/> SEND MAGIC LINK <ArrowRight size={16}/></>
+                  <><Mail size={16} /> SEND MAGIC LINK <ArrowRight size={16} /></>
                 )}
               </button>
             </form>

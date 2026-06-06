@@ -161,12 +161,14 @@ export function STLViewer({
       <div ref={mountRef} className="w-full h-full" />
       <button
         onClick={() => stateRef.current.toggleRotate?.()}
-        className="absolute top-3 right-3 p-2 rounded-sm border border-ironworks3 bg-ironworks/85 text-bone hover:bg-ironworks transition-colors"
+        className="absolute top-3 right-3 p-2 rounded-xl text-bone hover:opacity-80 transition-opacity"
+        style={{ border: "1px solid rgba(255,255,255,0.15)", background: "rgba(15,15,16,0.85)" }}
         title="Toggle auto-rotate"
       >
         <RotateCw size={14} />
       </button>
-      <div className="absolute bottom-3 left-3 font-mono text-xs px-2 py-1 rounded-sm bg-ironworks/85 text-steel">
+      <div className="absolute bottom-3 left-3 font-mono text-xs px-2 py-1 rounded-md text-steel"
+        style={{ background: "rgba(15,15,16,0.85)" }}>
         drag to orbit · scroll to zoom
       </div>
     </div>

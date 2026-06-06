@@ -18,9 +18,9 @@ module.exports = {
         steel: "#5a5a5e",
       },
       fontFamily: {
-        display: ["Archivo", "sans-serif"],
-        sans: ["Inter", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "monospace"],
+        display: ["var(--font-archivo)", "sans-serif"],
+        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        mono: ["var(--font-jetbrains)", "monospace"],
       },
     },
   },
