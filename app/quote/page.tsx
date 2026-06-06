@@ -15,6 +15,7 @@ type CartItem = { id: string; file: File | null; fileName: string; material: Mat
 type ShippingRate = { id: string; provider: string; service: string; amount: number; currency: string; days?: number };
 
 function genId() { return Math.random().toString(36).slice(2, 10); }
+function genOrderId() { return `DL-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-${Math.random().toString(36).slice(2,6).toUpperCase()}`; }
 
 export default function QuotePage() {
   const [file, setFile] = useState<File | null>(null);
@@ -110,17 +111,14 @@ export default function QuotePage() {
     setFileError(null); setFile(f); setStats(null); setGeometry(null);
     setCurrentQuote(null); setSlicerFailed(false); setSlicerComplete(false);
 
-    // STEP files can't be previewed in browser — send directly to slicer
     if (/\.(step|stp)$/i.test(f.name)) {
-      setIsStepFile(true);
-      setParsing(false);
+      setIsStepFile(true); setParsing(false);
       setStats({ dims: { x: 0, y: 0, z: 0 }, volumeMm3: 0 });
       runSlicer(f, material, quality, infill);
       return;
     }
 
-    setIsStepFile(false);
-    setParsing(true);
+    setIsStepFile(false); setParsing(true);
     try {
       const buffer = await f.arrayBuffer();
       const geo = /\.3mf$/i.test(f.name) ? await parse3MF(buffer) : parseSTL(buffer);
@@ -175,8 +173,10 @@ export default function QuotePage() {
     if (!localPickup && (!address || !city || !stateField || !zip)) { setCheckoutError("Please fill in your shipping address or select Local Pickup."); return; }
     if (!selectedRate && !localPickup) { setCheckoutError("Please select a shipping option or Local Pickup."); return; }
     setCheckingOut(true); setCheckoutError(null);
+    const orderId = genOrderId();
     try {
       const notifyForm = new FormData();
+      notifyForm.append("orderId", orderId);
       notifyForm.append("customerName", customerName); notifyForm.append("customerEmail", customerEmail);
       notifyForm.append("address", localPickup ? "Local Pickup" : address);
       notifyForm.append("city", localPickup ? "Louisville" : city);
@@ -191,6 +191,7 @@ export default function QuotePage() {
       const res = await fetch("/api/checkout", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          orderId,
           items: cartItems.map(i => ({ fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, volumeMm3: i.stats.volumeMm3, price: i.quote.price, grams: i.quote.grams, hours: i.quote.hours })),
           shippingCost: localPickup ? 0 : (selectedRate?.amount || 0),
           shippingLabel: localPickup ? "Local Pickup" : (selectedRate?.service || ""),
@@ -414,8 +415,7 @@ export default function QuotePage() {
                   <label className="block font-mono text-xs text-steel mb-1 tracking-wider">EMAIL</label>
                   <input type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="your@email.com" />
                 </div>
-                <button
-                  onClick={() => { setLocalPickup(true); setShippingRates([]); setSelectedRateId(null); setRateError(null); }}
+                <button onClick={() => { setLocalPickup(true); setShippingRates([]); setSelectedRateId(null); setRateError(null); }}
                   className={`w-full py-2.5 rounded-sm border font-display font-bold text-sm transition-colors flex items-center justify-center gap-2 ${localPickup ? "border-amber bg-amber/10 text-amber" : "border-ironworks3 text-bone/60 hover:border-bone"}`}>
                   <MapPin size={14} /> LOCAL PICKUP — Louisville, KY
                 </button>
