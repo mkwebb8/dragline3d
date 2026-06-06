@@ -7,16 +7,18 @@ function sb(path:string,opts:RequestInit={}){
   return fetch(`${url}/rest/v1/${path}`,{...opts,headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json",Prefer:"return=representation",...(opts.headers||{})}});
 }
 
-export async function PATCH(request:Request,{params}:{params:{id:string}}){
+export async function PATCH(request:Request,{params}:{params:Promise<{id:string}>}){
   if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
+  const{id}=await params;
   const body=await request.json();
-  const r=await sb(`filament_inventory?id=eq.${params.id}`,{method:"PATCH",body:JSON.stringify({...body,updated_at:new Date().toISOString()})});
+  const r=await sb(`filament_inventory?id=eq.${id}`,{method:"PATCH",body:JSON.stringify({...body,updated_at:new Date().toISOString()})});
   if(!r.ok)return Response.json({error:"Failed"},{status:500});
   const[row]=await r.json();return Response.json(row);
 }
 
-export async function DELETE(request:Request,{params}:{params:{id:string}}){
+export async function DELETE(request:Request,{params}:{params:Promise<{id:string}>}){
   if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
-  await sb(`filament_inventory?id=eq.${params.id}`,{method:"DELETE"});
+  const{id}=await params;
+  await sb(`filament_inventory?id=eq.${id}`,{method:"DELETE"});
   return Response.json({ok:true});
 }
