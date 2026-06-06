@@ -215,7 +215,8 @@ export default function PartsPage(){
         </div>
         <div className="flex items-center gap-3">
           <button onClick={fetchParts} className="p-2 rounded-sm border border-ironworks3 text-bone/60 hover:text-bone transition-colors"><RefreshCw size={16}/></button>
-          <Link href="/admin/plates" className="flex items-center gap-2 px-3 py-2 rounded-sm border border-ironworks3 text-bone/60 hover:text-bone text-sm transition-colors font-mono text-xs"><Layers size={14}/>PLATE BUILDER</Link>
+          <Link href="/admin/orders" className="flex items-center gap-2 px-3 py-2 rounded-sm border border-ironworks3 text-bone/60 hover:text-bone text-sm transition-colors font-mono text-xs"><List size={14}/>ORDER QUEUE</Link>
+<Link href="/admin/plates" className="flex items-center gap-2 px-3 py-2 rounded-sm border border-ironworks3 text-bone/60 hover:text-bone text-sm transition-colors font-mono text-xs"><Layers size={14}/>PLATE BUILDER</Link>
         </div>
       </div>
 
