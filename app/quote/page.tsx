@@ -176,6 +176,14 @@ export default function QuotePage() {
   const totalHours     = cartItems.reduce((s, i) => s + i.quote.hours * i.qty, 0);
   const totalLbs       = cartItems.reduce((s, i) => s + i.quote.grams * i.qty, 0) / 453.592;
 
+  
+  function recalc(s: Stats, mat: MaterialKey, q: QualityKey, inf: number) {
+    if (slicerLoading) return;
+    setCurrentQuote(quoteFromGeometry(s.volumeMm3, mat, q, inf));
+    if (slicerComplete && file) runSlicer(file, mat, q, inf);
+  }
+// In app/quote/page.tsx, replace the entire runSlicer function with this:
+
   function runSlicer(f: File, mat: MaterialKey, q: QualityKey, inf: number) {
     setSlicerLoading(true); setSlicerFailed(false); setSlicerComplete(false);
     const form = new FormData();
@@ -187,18 +195,27 @@ export default function QuotePage() {
         if (data.price && !data.fallback) {
           setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
           setSlicerFailed(false);
+
+          // If a converted STL came back (STEP file), parse and show preview
+          if (data.convertedStl) {
+            try {
+              const bytes = Uint8Array.from(atob(data.convertedStl), c => c.charCodeAt(0));
+              const geo = parseSTL(bytes.buffer);
+              geo.computeBoundingBox();
+              const size = new THREE.Vector3();
+              geo.boundingBox!.getSize(size);
+              setStats({ dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: computeVolume(geo) });
+              setGeometry(geo);
+              setIsStepFile(false);
+            } catch(e) {
+              console.warn("Could not parse converted STL for preview", e);
+            }
+          }
         } else { setSlicerFailed(true); }
       })
       .catch(() => { setSlicerFailed(true); })
       .finally(() => { setSlicerLoading(false); setSlicerComplete(true); });
   }
-
-  function recalc(s: Stats, mat: MaterialKey, q: QualityKey, inf: number) {
-    if (slicerLoading) return;
-    setCurrentQuote(quoteFromGeometry(s.volumeMm3, mat, q, inf));
-    if (slicerComplete && file) runSlicer(file, mat, q, inf);
-  }
-
   async function handleFile(f: File | undefined) {
     if (!f) return;
     if (!/\.(stl|3mf|step|stp)$/i.test(f.name)) { setFileError("STL, 3MF, or STEP files only."); return; }
