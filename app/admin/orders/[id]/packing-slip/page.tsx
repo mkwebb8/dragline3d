@@ -16,6 +16,30 @@ export default function PackingSlip({params}:{params:{id:string}}){
     fetch(`/api/admin/orders/${id}`,{headers:{Authorization:`Bearer ${token}`}})
       .then(r=>r.json())
       .then(async order=>{
+        setStatus("Fetching thumbnails...");
+
+        // Fetch thumbnails for all items
+        const thumbMap:Record<string,string>={};
+        const items=order.order_items||[];
+        await Promise.allSettled(
+          items.map(async(item:any)=>{
+            try{
+              const res=await fetch(`/api/admin/orders/${id}/thumb?itemId=${item.id}`,{
+                headers:{Authorization:`Bearer ${token}`},
+              });
+              if(res.ok){
+                const blob=await res.blob();
+                const dataUrl=await new Promise<string>((resolve)=>{
+                  const reader=new FileReader();
+                  reader.onload=()=>resolve(reader.result as string);
+                  reader.readAsDataURL(blob);
+                });
+                thumbMap[item.id]=dataUrl;
+              }
+            }catch{}
+          })
+        );
+
         setStatus("Generating PDF...");
         const{jsPDF}=await import("jspdf");
         const doc=new jsPDF({unit:"mm",format:"letter"});
@@ -103,39 +127,52 @@ export default function PackingSlip({params}:{params:{id:string}}){
         doc.setFont("helvetica","bold");
         doc.setFontSize(8);
         doc.setTextColor(100,100,100);
-        doc.text("PART",margin,y);
-        doc.text("MATERIAL",margin+75,y);
-        doc.text("COLOR",margin+105,y);
-        doc.text("QUALITY",margin+135,y);
-        doc.text("INFILL",margin+158,y);
+        // Thumb column is 14mm, then rest of columns shift right
+        doc.text("PART",margin+14,y);
+        doc.text("MATERIAL",margin+80,y);
+        doc.text("COLOR",margin+110,y);
+        doc.text("QUALITY",margin+138,y);
+        doc.text("INFILL",margin+161,y);
         doc.text("QTY",W-margin,y,{align:"right"});
         y+=3;
         doc.line(margin,y,W-margin,y);
-        y+=5;
+        y+=2;
 
-        // Parts
-        const items=order.order_items||[];
+        // Parts rows
+        const rowH=14; // height per row to fit thumbnail
         for(const item of items){
+          // Thumbnail
+          const thumb=thumbMap[item.id];
+          if(thumb){
+            try{
+              doc.addImage(thumb,"JPEG",margin,y,12,12);
+            }catch{}
+          }
+
+          // Text — offset right of thumbnail
+          const tx=margin+14;
           doc.setFont("helvetica","bold");
           doc.setFontSize(9);
           doc.setTextColor(20,20,20);
-          const fname=(item.file_name||"").replace(/\.(stl|3mf)$/i,"");
-          const truncated=fname.length>30?fname.slice(0,28)+"…":fname;
-          doc.text(truncated,margin,y);
+          const fname=(item.file_name||"").replace(/\.(stl|3mf|step|stp)$/i,"");
+          const truncated=fname.length>28?fname.slice(0,26)+"…":fname;
+          doc.text(truncated,tx,y+5);
           doc.setFont("helvetica","normal");
+          doc.setFontSize(8);
           doc.setTextColor(60,60,60);
-          doc.text(item.material||"",margin+75,y);
-          doc.text(item.color||"Midnight Black",margin+105,y);
-          doc.text(item.quality||"",margin+135,y);
-          doc.text(`${item.infill||0}%`,margin+158,y);
+          doc.text(item.material||"",margin+80,y+5);
+          doc.text(item.color||"Midnight Black",margin+110,y+5);
+          doc.text(item.quality||"",margin+138,y+5);
+          doc.text(`${item.infill||0}%`,margin+161,y+5);
           doc.setFont("helvetica","bold");
           doc.setTextColor(20,20,20);
-          doc.text("1",W-margin,y,{align:"right"});
-          y+=5;
+          doc.text(String(item.qty||1),W-margin,y+5,{align:"right"});
+
+          y+=rowH;
           doc.setDrawColor(240,240,240);
           doc.setLineWidth(0.2);
           doc.line(margin,y,W-margin,y);
-          y+=3;
+          y+=2;
         }
 
         y+=6;
