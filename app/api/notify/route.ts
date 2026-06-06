@@ -47,8 +47,11 @@ console.log("[notify] orderId:", orderId, "fileEntries:", fileEntries.length);
           saveForm.append("file",file,name);
         }
         const workerSecret=process.env.WORKER_SECRET||"";
-fetch(`${slicerUrl}/save-files`,{method:"POST",headers:{"x-worker-secret":workerSecret},body:saveForm}).then(r=>console.log("[save-files] status:",r.status)).catch(e=>console.error("[save-files] failed:",e.message));
-      }catch(e:any){console.error("[save-files] error:",e.message);}
+        try{
+  const sfRes=await fetch(`${slicerUrl}/save-files`,{method:"POST",headers:{"x-worker-secret":workerSecret},body:saveForm});
+  console.log("[save-files] status:",sfRes.status);
+}catch(e:any){console.error("[save-files] failed:",e.message);}
+     
     }
 
     const totalQty=items.reduce((s:number,i:any)=>s+(i.qty||1),0);
