@@ -1,9 +1,9 @@
 export const runtime="edge";
 import{verifyAdminToken}from "@/lib/adminAuth";
 import{getOrder}from "@/lib/db";
-export async function POST(request:Request,{params}:{params:{id:string}}){
+export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){
   if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
-  const{id}=params;
+  const{id}=await params;
   const{length,width,height,rateId,recipientName}=await request.json();
   const order=await getOrder(id);
   if(!order)return Response.json({error:"Order not found"},{status:404});

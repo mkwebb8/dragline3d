@@ -7,8 +7,9 @@ function sb(path:string,opts:RequestInit={}){
   return fetch(`${url}/rest/v1/${path}`,{...opts,headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json",Prefer:"return=representation",...(opts.headers||{})}});
 }
 
-export async function PATCH(request:Request,{params}:{params:{id:string,itemId:string}}){
+export async function PATCH(request:Request,{params}:{params:Promise<{id:string,itemId:string}>}){
   if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
+  const{itemId}=await params;
   const body=await request.json();
   const allowed=["completed","part_status","print_hours","printed_qty","grams","runs"];
   const updates:Record<string,any>={};
@@ -19,7 +20,7 @@ export async function PATCH(request:Request,{params}:{params:{id:string,itemId:s
   else if(updates.part_status&&updates.part_status!=="completed")updates.completed=false;
 
   // Update the item
-  const r=await sb(`order_items?id=eq.${params.itemId}`,{method:"PATCH",body:JSON.stringify(updates)});
+  const r=await sb(`order_items?id=eq.${itemId}`,{method:"PATCH",body:JSON.stringify(updates)});
   if(!r.ok)return Response.json({error:"Update failed"},{status:500});
   const[item]=await r.json();
 
