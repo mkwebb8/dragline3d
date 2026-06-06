@@ -43,7 +43,10 @@ export async function GET(
       });
       if (!res.ok) throw new Error(`File not found: ${fileName}`);
       const buffer = await res.arrayBuffer();
-      const base64 = Buffer.from(buffer).toString('base64');
+     const bytes = new Uint8Array(buffer);
+let binary = '';
+for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+const base64 = btoa(binary);
       const ext = fileName.split('.').pop()?.toLowerCase() || 'stl';
       const mimeType = ext === '3mf' ? 'model/3mf' : 'application/octet-stream';
       return { fileName, base64, mimeType };
