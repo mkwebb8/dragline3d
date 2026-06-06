@@ -12,6 +12,7 @@ const NAV = [
   { href: "/gallery", label: "Work" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
+  { href: "/account", label: "My Orders" },
 ];
 
 export function Nav() {
