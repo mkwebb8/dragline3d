@@ -2,6 +2,7 @@ export const runtime="edge";
 export async function POST(request:Request){
   try{
     const form=await request.formData();
+    const orderId=form.get("orderId") as string;
     const customerName=form.get("customerName") as string;
     const customerEmail=form.get("customerEmail") as string;
     const address=form.get("address") as string;
@@ -15,21 +16,36 @@ export async function POST(request:Request){
     const items=JSON.parse(itemsJson||"[]");
     const resendKey=process.env.RESEND_API_KEY;
     const notifyEmail=process.env.NOTIFY_EMAIL||"orders@dragline3d.com";
+    const slicerUrl=process.env.SLICER_URL||"https://slicer.dragline3d.com";
     if(!resendKey)return Response.json({error:"Resend not configured"},{status:503});
 
     // Build attachments from uploaded files
     const attachments:any[]=[];
+    const fileEntries:{name:string;file:File}[]=[];
     for(const[key,value] of form.entries()){
       if(key.startsWith("file_")&&value instanceof File){
         const buf=await value.arrayBuffer();
         const b64=btoa(String.fromCharCode(...new Uint8Array(buf)));
         attachments.push({filename:value.name,content:b64});
+        fileEntries.push({name:value.name,file:value});
       }
+    }
+
+    // Save files to TrueNAS (fire and forget)
+    if(orderId&&customerName&&fileEntries.length>0){
+      try{
+        const saveForm=new FormData();
+        saveForm.append("orderId",orderId);
+        saveForm.append("customerName",customerName);
+        for(const{name,file} of fileEntries){
+          saveForm.append("file",file,name);
+        }
+        fetch(`${slicerUrl}/save-files`,{method:"POST",body:saveForm}).catch(e=>console.error("[save-files] failed:",e.message));
+      }catch(e:any){console.error("[save-files] error:",e.message);}
     }
 
     const totalQty=items.reduce((s:number,i:any)=>s+(i.qty||1),0);
 
-    // Build items table with qty column
     const itemRows=items.map((i:any)=>{
       const qty=i.qty||1;
       return`
@@ -44,18 +60,14 @@ export async function POST(request:Request){
       </tr>`;
     }).join("");
 
-    const shippingDisplay=shippingLabel==="Local Pickup"
-      ?`Local Pickup · $0`
-      :`${shippingLabel} · $${shippingCost}`;
-
-    const addressDisplay=shippingLabel==="Local Pickup"
-      ?`Local Pickup — Louisville, KY`
-      :`${address}, ${city}, ${state} ${zip}`;
+    const shippingDisplay=shippingLabel==="Local Pickup"?`Local Pickup · $0`:`${shippingLabel} · $${shippingCost}`;
+    const addressDisplay=shippingLabel==="Local Pickup"?`Local Pickup — Louisville, KY`:`${address}, ${city}, ${state} ${zip}`;
 
     const html=`
     <div style="background:#111;color:#fff;font-family:monospace;padding:32px;max-width:600px">
       <div style="font-size:20px;font-weight:bold;color:#f59e0b;margin-bottom:4px">DRAGLINE 3D</div>
       <div style="color:#666;font-size:12px;margin-bottom:24px">New Order Received</div>
+      ${orderId?`<div style="color:#666;font-size:11px;margin-bottom:16px;letter-spacing:.05em">ORDER: ${orderId}</div>`:""}
       <div style="background:#1a1a1a;border:1px solid #333;border-radius:4px;padding:16px;margin-bottom:16px">
         <div style="color:#f59e0b;font-size:11px;letter-spacing:.1em;margin-bottom:12px">CUSTOMER</div>
         <div style="color:#fff;margin-bottom:4px">${customerName}</div>
