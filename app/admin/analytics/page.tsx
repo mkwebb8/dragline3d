@@ -3,10 +3,14 @@ export const runtime = "edge";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, RefreshCw, TrendingUp, Package, Zap, DollarSign, Weight, Users, BarChart2 } from "lucide-react";
+import { ArrowLeft, RefreshCw, TrendingUp, Package, Zap, DollarSign, Weight, Users, BarChart2, Download, Calendar } from "lucide-react";
 
 const ELECTRICITY_RATE = 0.12;
 const AVG_PRINTER_WATTS = 300;
+const SQUARE_PCT = 0.029;
+const SQUARE_FIXED = 0.30;
+
+const PROFIT_FIRST = { profit: 0.15, ownerComp: 0.25, taxes: 0.30, opex: 0.30 };
 
 const MATERIAL_COLORS_MAP: Record<string, string> = {
   PLA: "#3b82f6", PETG: "#10b981", TPU: "#f59e0b", ABS: "#ef4444",
@@ -15,11 +19,6 @@ const MATERIAL_COLORS_MAP: Record<string, string> = {
 };
 
 const COST_PER_KG: Record<string, number> = {
-  PLA: 16, PETG: 18, TPU: 24, ABS: 20, ASA: 22, "PET-GF15": 30,
-  "PETG-ESD": 66, PA: 35, "ASA-CF": 40, "PETG-CF": 40, "PA-CF": 80, PCTG: 29.95,
-};
-
-const PRICE_PER_KG: Record<string, number> = {
   PLA: 16, PETG: 18, TPU: 24, ABS: 20, ASA: 22, "PET-GF15": 30,
   "PETG-ESD": 66, PA: 35, "ASA-CF": 40, "PETG-CF": 40, "PA-CF": 80, PCTG: 29.95,
 };
@@ -61,11 +60,24 @@ function StatCard({ label, value, sub, color = "text-amber", icon: Icon }: any) 
   );
 }
 
+function exportCSV(rows: any[], filename: string) {
+  if (!rows.length) return;
+  const headers = Object.keys(rows[0]);
+  const csv = [headers.join(","), ...rows.map(r => headers.map(h => JSON.stringify(r[h] ?? "")).join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function AnalyticsPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [goveeWatts, setGoveeWatts] = useState<number | null>(null);
   const [goveeOn, setGoveeOn] = useState<boolean | null>(null);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [novoBalances, setNovoBalances] = useState({ profit: "", ownerComp: "", taxes: "", opex: "" });
   const router = useRouter();
 
   const fetchData = useCallback(async () => {
@@ -81,31 +93,50 @@ export default function AnalyticsPage() {
       if (data?.watts !== undefined) setGoveeWatts(data.watts);
       if (data?.on !== undefined) setGoveeOn(data.on);
     }).catch(() => {});
+    // Load saved Novo balances
+    const saved = localStorage.getItem("novo_balances");
+    if (saved) setNovoBalances(JSON.parse(saved));
     setLoading(false);
   }, [router]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const completedOrders = orders.filter(o => !["pending", "cancelled"].includes(o.status));
-  const allActiveOrders = orders.filter(o => o.status !== "pending");
+  function saveNovoBalances(balances: typeof novoBalances) {
+    setNovoBalances(balances);
+    localStorage.setItem("novo_balances", JSON.stringify(balances));
+  }
+
+  // Filter orders by date
+  const filteredOrders = orders.filter(o => {
+    if (!o.created_at) return false;
+    const d = o.created_at.slice(0, 10);
+    if (dateFrom && d < dateFrom) return false;
+    if (dateTo && d > dateTo) return false;
+    return true;
+  });
+
+  const completedOrders = filteredOrders.filter(o => !["pending", "cancelled"].includes(o.status));
+  const allActiveOrders = filteredOrders.filter(o => o.status !== "pending");
 
   // Monthly buckets
   const monthlyData: Record<string, {
     revenue: number; materialCost: number; tax: number; printHours: number;
     grams: Record<string, number>; orderCount: number; shipping: number;
-    itemCount: number;
+    itemCount: number; squareFees: number;
   }> = {};
 
   for (const order of completedOrders) {
     const month = order.created_at?.slice(0, 7);
     if (!month) continue;
-    if (!monthlyData[month]) monthlyData[month] = { revenue: 0, materialCost: 0, tax: 0, printHours: 0, grams: {}, orderCount: 0, shipping: 0, itemCount: 0 };
+    if (!monthlyData[month]) monthlyData[month] = { revenue: 0, materialCost: 0, tax: 0, printHours: 0, grams: {}, orderCount: 0, shipping: 0, itemCount: 0, squareFees: 0 };
     const subtotal = order.subtotal || 0;
     const shipping = Number(order.shipping_cost || 0);
     const tax = Math.round(subtotal * 0.06 * 100) / 100;
+    const squareFee = Math.round(((order.total || 0) * SQUARE_PCT + SQUARE_FIXED) * 100) / 100;
     monthlyData[month].revenue += subtotal;
     monthlyData[month].tax += tax;
     monthlyData[month].shipping += shipping;
+    monthlyData[month].squareFees += squareFee;
     monthlyData[month].orderCount += 1;
     for (const item of (order.order_items || [])) {
       const qty = item.qty || 1;
@@ -124,7 +155,7 @@ export default function AnalyticsPage() {
   const mProfit = months.map(m => {
     const d = monthlyData[m];
     const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
-    return { month: m, value: d.revenue - d.materialCost - elec };
+    return { month: m, value: d.revenue - d.materialCost - elec - d.squareFees };
   });
   const mMatCost = months.map(m => ({ month: m, value: monthlyData[m].materialCost }));
   const mElec = months.map(m => ({ month: m, value: (monthlyData[m].printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE }));
@@ -134,19 +165,20 @@ export default function AnalyticsPage() {
   const mMargin = months.map(m => {
     const d = monthlyData[m];
     const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
-    const profit = d.revenue - d.materialCost - elec;
+    const profit = d.revenue - d.materialCost - elec - d.squareFees;
     return { month: m, value: d.revenue > 0 ? (profit / d.revenue) * 100 : 0 };
   });
 
   // Totals
   const totalRevenue = completedOrders.reduce((s, o) => s + (o.subtotal || 0), 0);
   const totalShipping = completedOrders.reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
+  const totalSquareFees = completedOrders.reduce((s, o) => s + Math.round(((o.total || 0) * SQUARE_PCT + SQUARE_FIXED) * 100) / 100, 0);
   const totalMatCost = completedOrders.reduce((s, o) =>
     s + (o.order_items || []).reduce((si: number, i: any) => si + ((i.grams || 0) * (i.qty || 1) / 1000) * (COST_PER_KG[i.material] || 16), 0), 0);
   const totalHours = completedOrders.reduce((s, o) =>
     s + (o.order_items || []).reduce((si: number, i: any) => si + (i.print_hours || i.hours || 0) * (i.qty || 1), 0), 0);
   const totalElecCost = (totalHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
-  const totalProfit = totalRevenue - totalMatCost - totalElecCost;
+  const totalProfit = totalRevenue - totalMatCost - totalElecCost - totalSquareFees;
   const totalTax = completedOrders.reduce((s, o) => s + Math.round((o.subtotal || 0) * 0.06 * 100) / 100, 0);
   const totalGrams = completedOrders.reduce((s, o) =>
     s + (o.order_items || []).reduce((si: number, i: any) => si + (i.grams || 0) * (i.qty || 1), 0), 0);
@@ -154,6 +186,12 @@ export default function AnalyticsPage() {
     s + (o.order_items || []).reduce((si: number, i: any) => si + (i.qty || 1), 0), 0);
   const avgOrderValue = totalRevenue / (completedOrders.length || 1);
   const marginPct = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+
+  // Profit First targets
+  const pfProfit = totalRevenue * PROFIT_FIRST.profit;
+  const pfOwnerComp = totalRevenue * PROFIT_FIRST.ownerComp;
+  const pfTaxes = totalRevenue * PROFIT_FIRST.taxes;
+  const pfOpex = totalRevenue * PROFIT_FIRST.opex;
 
   // Status breakdown
   const statusCounts: Record<string, number> = {};
@@ -171,7 +209,7 @@ export default function AnalyticsPage() {
   }
   const topCustomers = Object.entries(customerRevenue).sort((a, b) => b[1].revenue - a[1].revenue).slice(0, 5);
 
-  // Material usage stats
+  // Material usage
   const materialStats: Record<string, { grams: number; orders: Set<string>; revenue: number; lastUsed: string }> = {};
   for (const o of completedOrders) {
     for (const item of (o.order_items || [])) {
@@ -186,11 +224,50 @@ export default function AnalyticsPage() {
   const materialList = Object.entries(materialStats).sort((a, b) => b[1].grams - a[1].grams);
   const maxMatGrams = Math.max(...materialList.map(([, s]) => s.grams), 1);
 
+  // CSV export data
+  function handleExportMonthly() {
+    const rows = months.map(m => {
+      const d = monthlyData[m];
+      const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
+      const profit = d.revenue - d.materialCost - elec - d.squareFees;
+      return {
+        Month: fMonth(m), Orders: d.orderCount, Parts: d.itemCount,
+        Revenue: d.revenue.toFixed(2), "Material Cost": d.materialCost.toFixed(2),
+        "Electricity": elec.toFixed(2), "Square Fees": d.squareFees.toFixed(2),
+        "Tax Collected": d.tax.toFixed(2), Shipping: d.shipping.toFixed(2),
+        Profit: profit.toFixed(2), "Margin %": d.revenue > 0 ? ((profit/d.revenue)*100).toFixed(0) : "0",
+        "Filament kg": (Object.values(d.grams).reduce((s, g) => s + g, 0)/1000).toFixed(3),
+        "Print Hours": d.printHours.toFixed(1),
+      };
+    });
+    exportCSV(rows, "dragline3d-monthly.csv");
+  }
+
+  function handleExportOrders() {
+    const rows = completedOrders.map(o => ({
+      "Order ID": o.id, Customer: o.customer_name, Email: o.customer_email,
+      Date: o.created_at?.slice(0, 10), Status: o.status,
+      Subtotal: (o.subtotal || 0).toFixed(2), Tax: Math.round((o.subtotal||0)*0.06*100)/100,
+      Shipping: Number(o.shipping_cost||0).toFixed(2), Total: (o.total||0).toFixed(2),
+      "Square Fee": ((o.total||0)*SQUARE_PCT+SQUARE_FIXED).toFixed(2),
+    }));
+    exportCSV(rows, "dragline3d-orders.csv");
+  }
+
+  function handleExportMaterials() {
+    const rows = materialList.map(([mat, s]) => ({
+      Material: mat, "kg Used": (s.grams/1000).toFixed(3),
+      "Orders": s.orders.size, Revenue: s.revenue.toFixed(2),
+      "Last Used": s.lastUsed?.slice(0,10) || "",
+    }));
+    exportCSV(rows, "dragline3d-materials.csv");
+  }
+
   if (loading) return <div className="max-w-6xl mx-auto px-6 py-16 text-center"><div className="inline-block w-8 h-8 border-2 border-ironworks3 border-t-amber rounded-full animate-spin" /></div>;
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Link href="/admin/orders" className="text-bone/50 hover:text-bone transition-colors"><ArrowLeft size={20} /></Link>
           <div>
@@ -198,7 +275,28 @@ export default function AnalyticsPage() {
             <div className="font-mono text-xs text-steel">DRAGLINE 3D · BUSINESS OVERVIEW</div>
           </div>
         </div>
-        <button onClick={fetchData} className="p-2 rounded-sm border border-ironworks3 text-bone/60 hover:text-bone transition-colors"><RefreshCw size={16} /></button>
+        <div className="flex items-center gap-2">
+          <button onClick={fetchData} className="p-2 rounded-sm border border-ironworks3 text-bone/60 hover:text-bone transition-colors"><RefreshCw size={16} /></button>
+        </div>
+      </div>
+
+      {/* Date filter */}
+      <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-4 mb-6 flex items-center gap-4 flex-wrap">
+        <Calendar size={14} className="text-steel" />
+        <div className="flex items-center gap-2">
+          <label className="font-mono text-xs text-steel">FROM</label>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-2 py-1 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono" />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="font-mono text-xs text-steel">TO</label>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-2 py-1 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono" />
+        </div>
+        {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="font-mono text-xs text-steel hover:text-bone underline">Clear</button>}
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={handleExportOrders} className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border border-ironworks3 font-mono text-xs text-bone/60 hover:text-bone transition-colors"><Download size={12}/>Orders</button>
+          <button onClick={handleExportMonthly} className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border border-ironworks3 font-mono text-xs text-bone/60 hover:text-bone transition-colors"><Download size={12}/>Monthly</button>
+          <button onClick={handleExportMaterials} className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border border-ironworks3 font-mono text-xs text-bone/60 hover:text-bone transition-colors"><Download size={12}/>Materials</button>
+        </div>
       </div>
 
       {/* Govee */}
@@ -215,24 +313,58 @@ export default function AnalyticsPage() {
       )}
 
       {/* P&L Summary */}
-      <div className="mb-2 font-mono text-xs text-steel tracking-widest">P&L SUMMARY</div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="mb-2 font-mono text-xs text-steel tracking-widest">P&L SUMMARY {(dateFrom||dateTo)&&<span className="text-amber ml-2">FILTERED</span>}</div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <StatCard label="REVENUE" value={fc(totalRevenue)} sub={`${completedOrders.length} orders`} icon={DollarSign} />
         <StatCard label="COGS (MATERIAL)" value={fc(totalMatCost)} sub={`${(totalMatCost/totalRevenue*100||0).toFixed(0)}% of revenue`} color="text-red-400" icon={Weight} />
+        <StatCard label="SQUARE FEES" value={fc(totalSquareFees)} sub="2.9% + $0.30/order" color="text-orange-400" icon={DollarSign} />
         <StatCard label="ELECTRICITY EST." value={fc(totalElecCost)} sub={`${totalHours.toFixed(0)}h × ${AVG_PRINTER_WATTS}W`} color="text-yellow-400" icon={Zap} />
-        <StatCard label="GROSS PROFIT" value={fc(totalProfit)} sub={`${marginPct.toFixed(0)}% margin`} color={totalProfit > 0 ? "text-green-400" : "text-red-400"} icon={TrendingUp} />
       </div>
-
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        <StatCard label="GROSS PROFIT" value={fc(totalProfit)} sub={`${marginPct.toFixed(0)}% margin`} color={totalProfit > 0 ? "text-green-400" : "text-red-400"} icon={TrendingUp} />
         <StatCard label="SHIPPING COLLECTED" value={fc(totalShipping)} sub="from customers" color="text-blue-400" icon={Package} />
         <StatCard label="KY SALES TAX" value={fc(totalTax)} sub="collected" color="text-purple-400" icon={DollarSign} />
         <StatCard label="AVG ORDER VALUE" value={fc(avgOrderValue)} sub="excl. tax & shipping" icon={BarChart2} />
-        <StatCard label="PARTS PRINTED" value={totalItems.toString()} sub={`${(totalGrams/1000).toFixed(2)} kg filament`} color="text-blue-400" icon={Package} />
+      </div>
+
+      {/* Profit First / Reserves */}
+      <div className="mb-2 font-mono text-xs text-steel tracking-widest">PROFIT FIRST RESERVES</div>
+      <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-5 mb-8">
+        <div className="font-mono text-xs text-steel mb-4">Enter your actual Novo balances to compare against targets</div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { key: "profit", label: "PROFIT", pct: 15, target: pfProfit, color: "text-green-400", border: "border-green-500/30" },
+            { key: "ownerComp", label: "OWNER COMP", pct: 25, target: pfOwnerComp, color: "text-amber", border: "border-amber/30" },
+            { key: "taxes", label: "TAXES", pct: 30, target: pfTaxes, color: "text-red-400", border: "border-red-500/30" },
+            { key: "opex", label: "OP. EXPENSES", pct: 30, target: pfOpex, color: "text-blue-400", border: "border-blue-500/30" },
+          ].map(({ key, label, pct, target, color, border }) => {
+            const actual = parseFloat(novoBalances[key as keyof typeof novoBalances]) || 0;
+            const diff = actual - target;
+            return (
+              <div key={key} className={`rounded-sm border ${border} bg-ironworks p-4`}>
+                <div className="font-mono text-xs text-steel mb-1">{label} ({pct}%)</div>
+                <div className={`font-display font-bold text-lg ${color}`}>{fc(target)}</div>
+                <div className="font-mono text-xs text-steel mb-2">target</div>
+                <input
+                  type="number" step="0.01" placeholder="Actual balance"
+                  value={novoBalances[key as keyof typeof novoBalances]}
+                  onChange={e => saveNovoBalances({ ...novoBalances, [key]: e.target.value })}
+                  className="w-full px-2 py-1.5 rounded-sm bg-ironworks2 border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono mb-1"
+                />
+                {actual > 0 && (
+                  <div className={`font-mono text-xs ${diff >= 0 ? "text-green-400" : "text-red-400"}`}>
+                    {diff >= 0 ? "+" : ""}{fc(diff)} vs target
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Charts row 1 */}
-      <div className="mb-2 font-mono text-xs text-steel tracking-widest">MONTHLY TRENDS</div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="mb-2 font-mono text-xs text-steel tracking-widest">MONTHLY TRENDS (LAST 6 MONTHS)</div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         {[
           { label: "REVENUE", data: mRev, color: "#f59e0b", labelStr: "$" },
           { label: "PROFIT", data: mProfit, color: "#22c55e", labelStr: "$" },
@@ -245,8 +377,6 @@ export default function AnalyticsPage() {
           </div>
         ))}
       </div>
-
-      {/* Charts row 2 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
         {[
           { label: "ORDER COUNT", data: mOrders, color: "#3b82f6", labelStr: "count" },
@@ -261,10 +391,13 @@ export default function AnalyticsPage() {
         ))}
       </div>
 
-      {/* Material usage */}
+      {/* Material + status */}
       <div className="grid md:grid-cols-2 gap-4 mb-6">
         <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-5">
-          <div className="font-mono text-xs text-amber tracking-widest mb-4">FILAMENT USAGE — MOST TO LEAST</div>
+          <div className="font-mono text-xs text-amber tracking-widest mb-4 flex items-center justify-between">
+            FILAMENT USAGE
+            <button onClick={handleExportMaterials} className="flex items-center gap-1 text-steel hover:text-bone"><Download size={10}/> CSV</button>
+          </div>
           <div className="space-y-3">
             {materialList.map(([mat, s]) => (
               <div key={mat} className="flex items-center gap-3">
@@ -284,7 +417,6 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* Order status breakdown */}
         <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-5">
           <div className="font-mono text-xs text-amber tracking-widest mb-4">ORDER STATUS BREAKDOWN</div>
           <div className="space-y-2">
@@ -298,16 +430,15 @@ export default function AnalyticsPage() {
             ))}
             {allActiveOrders.length === 0 && <div className="text-bone/40 text-xs font-mono text-center py-4">No orders yet</div>}
           </div>
-          <div className="mt-4 pt-3 border-t border-ironworks3 font-mono text-xs text-steel">
-            {allActiveOrders.length} total orders
-          </div>
+          <div className="mt-4 pt-3 border-t border-ironworks3 font-mono text-xs text-steel">{allActiveOrders.length} total orders</div>
         </div>
       </div>
 
       {/* Top customers */}
       <div className="bg-ironworks2 border border-ironworks3 rounded-sm mb-6">
-        <div className="px-5 py-4 border-b border-ironworks3">
+        <div className="px-5 py-4 border-b border-ironworks3 flex items-center justify-between">
           <div className="font-mono text-xs text-amber tracking-widest">TOP CUSTOMERS</div>
+          <button onClick={handleExportOrders} className="flex items-center gap-1 font-mono text-xs text-steel hover:text-bone"><Download size={10}/> Export Orders CSV</button>
         </div>
         <div className="divide-y divide-ironworks3">
           {topCustomers.map(([name, data], i) => (
@@ -320,18 +451,9 @@ export default function AnalyticsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-6 flex-shrink-0">
-                <div className="text-right">
-                  <div className="font-mono text-xs text-steel">orders</div>
-                  <div className="font-display font-bold text-sm">{data.orders}</div>
-                </div>
-                <div className="text-right">
-                  <div className="font-mono text-xs text-steel">revenue</div>
-                  <div className="font-display font-bold text-sm text-amber">{fc(data.revenue)}</div>
-                </div>
-                <div className="text-right">
-                  <div className="font-mono text-xs text-steel">avg order</div>
-                  <div className="font-display font-bold text-sm">{fc(data.revenue / data.orders)}</div>
-                </div>
+                <div className="text-right"><div className="font-mono text-xs text-steel">orders</div><div className="font-display font-bold text-sm">{data.orders}</div></div>
+                <div className="text-right"><div className="font-mono text-xs text-steel">revenue</div><div className="font-display font-bold text-sm text-amber">{fc(data.revenue)}</div></div>
+                <div className="text-right"><div className="font-mono text-xs text-steel">avg order</div><div className="font-display font-bold text-sm">{fc(data.revenue / data.orders)}</div></div>
               </div>
             </div>
           ))}
@@ -339,17 +461,18 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Monthly detail table */}
+      {/* Monthly table */}
       {months.length > 0 && (
         <div className="bg-ironworks2 border border-ironworks3 rounded-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-ironworks3">
+          <div className="px-5 py-4 border-b border-ironworks3 flex items-center justify-between">
             <div className="font-mono text-xs text-amber tracking-widest">MONTHLY BREAKDOWN</div>
+            <button onClick={handleExportMonthly} className="flex items-center gap-1 font-mono text-xs text-steel hover:text-bone"><Download size={10}/> CSV</button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-ironworks3">
-                  {["MONTH","ORDERS","PARTS","REVENUE","MAT COST","ELEC","TAX","SHIPPING","PROFIT","MARGIN","FILAMENT","HRS"].map(h => (
+                  {["MONTH","ORDERS","PARTS","REVENUE","MAT COST","ELEC","SQ FEES","TAX","SHIPPING","PROFIT","MARGIN","FILAMENT","HRS"].map(h => (
                     <th key={h} className="px-3 py-3 text-left font-mono text-xs text-steel whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -358,7 +481,7 @@ export default function AnalyticsPage() {
                 {months.map(m => {
                   const d = monthlyData[m];
                   const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
-                  const profit = d.revenue - d.materialCost - elec;
+                  const profit = d.revenue - d.materialCost - elec - d.squareFees;
                   const margin = d.revenue > 0 ? (profit / d.revenue) * 100 : 0;
                   const kg = Object.values(d.grams).reduce((s, g) => s + g, 0) / 1000;
                   return (
@@ -369,6 +492,7 @@ export default function AnalyticsPage() {
                       <td className="px-3 py-2 font-mono text-xs text-amber">{fc(d.revenue)}</td>
                       <td className="px-3 py-2 font-mono text-xs text-red-400">{fc(d.materialCost)}</td>
                       <td className="px-3 py-2 font-mono text-xs text-yellow-400">{fc(elec)}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-orange-400">{fc(d.squareFees)}</td>
                       <td className="px-3 py-2 font-mono text-xs text-purple-400">{fc(d.tax)}</td>
                       <td className="px-3 py-2 font-mono text-xs text-blue-400">{fc(d.shipping)}</td>
                       <td className={`px-3 py-2 font-mono text-xs font-bold ${profit > 0 ? "text-green-400" : "text-red-400"}`}>{fc(profit)}</td>
