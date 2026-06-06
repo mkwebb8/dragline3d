@@ -183,12 +183,15 @@ export default function PartsPage(){
   }
 
   const incompleteParts=parts.filter(p=>!p.completed);
-  // Backlog: hours × runs (plate total × number of runs)
+  // Backlog: hours per piece × qty (total pieces), minus already-completed runs
   const backlogHours=incompleteParts.reduce((s,p)=>{
+    const hoursPerPiece=p.print_hours||p.hours||0;
+    const qty=p.qty||1;
     const runs=p.runs||1;
     const completedRuns=p.printed_qty||0;
+    const piecesPerRun=qty/runs;
     const remainingRuns=Math.max(0,runs-completedRuns);
-    return s+(p.print_hours||p.hours||0)*remainingRuns;
+    return s+hoursPerPiece*piecesPerRun*remainingRuns;
   },0);
 
   const sortedParts=(group:any[])=>[
@@ -243,14 +246,18 @@ export default function PartsPage(){
           </div>
           <div className="space-y-2">
             {group.parts.map(part=>{
-              const effectiveHours=part.print_hours||part.hours||0;
+              const hoursPerPiece=part.print_hours||part.hours||0;
+              const gramsPerPiece=Number(part.grams||0);
               const qty=part.qty||1;
               const runs=part.runs||1;
               const printedRuns=part.printed_qty||0;
+              const piecesPerRun=qty/runs;
+              const hoursPerRun=hoursPerPiece*piecesPerRun;
+              const gramsPerRun=gramsPerPiece*piecesPerRun;
+              const totalHours=hoursPerPiece*qty;
+              const totalGrams=gramsPerPiece*qty;
               const isEditingH=!!editingHours[part.id];
-              const hm=hoursToHM(effectiveHours);
-              const totalGrams=Number(part.grams||0)*runs;
-              const totalHours=effectiveHours*runs;
+              const hm=hoursToHM(hoursPerPiece);
               return(
                 <div key={part.id} className={`bg-ironworks2 border rounded-sm p-4 ${part.part_status==="printing"?"border-orange-500/40":"border-ironworks3"}`}>
                   <div className="flex items-start justify-between gap-4">
@@ -259,14 +266,23 @@ export default function PartsPage(){
                         {qty>1&&<span className="font-mono text-xs font-bold text-amber">{qty}×</span>}
                         <div className="font-medium text-sm truncate">{part.file_name}</div>
                         {part.print_hours&&<span className="font-mono text-xs text-amber bg-amber/10 px-1.5 py-0.5 rounded-sm">custom time</span>}
-                        {runs>1&&<span className="font-mono text-xs text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded-sm">{runs} runs</span>}
                       </div>
                       <div className="font-mono text-xs text-steel mb-1">
                         {part.material} · {part.color||"Midnight Black"} · {part.quality} · {part.infill}%
                       </div>
-                      <div className="font-mono text-xs text-amber/70 mb-2">
-                        {Number(part.grams||0).toFixed(1)}g/run · {formatHours(effectiveHours)}/run
-                        {runs>1&&<span className="text-steel ml-2">→ {totalGrams.toFixed(1)}g total · {formatHours(totalHours)} total</span>}
+                      {/* Per piece */}
+                      <div className="font-mono text-xs text-steel/60 mb-0.5">
+                        per piece: {gramsPerPiece.toFixed(1)}g · {formatHours(hoursPerPiece)}
+                      </div>
+                      {/* Per run (if runs > 1 or qty > 1) */}
+                      {(runs>1||qty>1)&&(
+                        <div className="font-mono text-xs text-amber/70 mb-0.5">
+                          per run ({piecesPerRun.toFixed(piecesPerRun%1===0?0:1)} pcs): {gramsPerRun.toFixed(1)}g · {formatHours(hoursPerRun)}
+                        </div>
+                      )}
+                      {/* Total */}
+                      <div className="font-mono text-xs text-bone/80 mb-2">
+                        total ({runs} run{runs!==1?"s":""}): {totalGrams.toFixed(1)}g · {formatHours(totalHours)}
                       </div>
                       <div className="flex items-center gap-2">
                         <Link href={`/admin/orders/${part.order_id}`} className="font-mono text-xs text-amber hover:underline">{part.order_id}</Link>
@@ -282,25 +298,25 @@ export default function PartsPage(){
                         <span className="font-mono text-xs text-steel">runs:</span>
                         <button onClick={()=>updateRuns(part.id,-1)} disabled={saving[part.id]||runs<=1} className="w-6 h-6 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors disabled:opacity-30"><Minus size={10}/></button>
                         <span className="font-mono text-sm font-bold w-6 text-center text-bone">{runs}</span>
-                        <button onClick={()=>updateRuns(part.id,1)} disabled={saving[part.id]} className="w-6 h-6 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors disabled:opacity-30"><Plus size={10}/></button>
+                        <button onClick={()=>updateRuns(part.id,1)} disabled={saving[part.id]} className="w-6 h-6 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors"><Plus size={10}/></button>
                       </div>
-                      {/* Printed runs counter */}
+                      {/* Completed runs */}
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono text-xs text-steel">done:</span>
                         <button onClick={()=>updatePrintedQty(part.id,-1)} disabled={saving[part.id]||printedRuns<=0} className="w-6 h-6 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors disabled:opacity-30"><Minus size={10}/></button>
                         <span className={`font-mono text-sm font-bold w-8 text-center ${printedRuns>=runs?"text-green-400":"text-amber"}`}>{printedRuns}/{runs}</span>
                         <button onClick={()=>updatePrintedQty(part.id,1)} disabled={saving[part.id]||printedRuns>=runs} className="w-6 h-6 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors disabled:opacity-30"><Plus size={10}/></button>
                       </div>
-                      {/* Grams editor */}
+                      {/* Grams per piece editor */}
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-xs text-steel">g/run:</span>
-                        <input type="number" step="0.1" min="0.1" placeholder={Number(part.grams||0).toFixed(1)} value={editingGrams[part.id]||""} onChange={e=>setEditingGrams(s=>({...s,[part.id]:e.target.value}))} className="w-16 px-2 py-1 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono"/>
+                        <span className="font-mono text-xs text-steel">g/pc:</span>
+                        <input type="number" step="0.1" min="0.1" placeholder={gramsPerPiece.toFixed(1)} value={editingGrams[part.id]||""} onChange={e=>setEditingGrams(s=>({...s,[part.id]:e.target.value}))} className="w-16 px-2 py-1 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono"/>
                         {editingGrams[part.id]&&<button onClick={()=>saveGrams(part.id)} className="px-2 py-1 text-xs font-mono bg-amber text-ironworks rounded-sm">save</button>}
                       </div>
-                      {/* Hours editor */}
+                      {/* Hours per piece editor */}
                       {!isEditingH?(
-                        <button onClick={()=>startEditingHours(part.id,effectiveHours)} className="font-mono text-xs text-steel hover:text-amber transition-colors">
-                          {formatHours(effectiveHours)}/run ✎
+                        <button onClick={()=>startEditingHours(part.id,hoursPerPiece)} className="font-mono text-xs text-steel hover:text-amber transition-colors">
+                          {formatHours(hoursPerPiece)}/pc ✎
                         </button>
                       ):(
                         <div className="flex items-center gap-1">
@@ -348,7 +364,7 @@ export default function PartsPage(){
                     <div className="font-mono text-xs text-steel">{part.material} · {part.quality} · {part.order_id}</div>
                   </div>
                 </div>
-                <button onClick={()=>updatePart(part.id,{part_status:"printing",completed:false,printed_qty:0,runs:part.runs||1})} className="text-xs font-mono text-steel hover:text-bone border border-ironworks3 px-2 py-1 rounded-sm">undo</button>
+                <button onClick={()=>updatePart(part.id,{part_status:"printing",completed:false,printed_qty:0})} className="text-xs font-mono text-steel hover:text-bone border border-ironworks3 px-2 py-1 rounded-sm">undo</button>
               </div>
             ))}
           </div>
