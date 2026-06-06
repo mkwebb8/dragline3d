@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useState, useRef, useEffect } from "react";
 import { Trash2, ShoppingCart, ArrowRight, AlertCircle, Package, Truck, DollarSign, Plus, Minus, MapPin } from "lucide-react";
 import { parseSTL, computeVolume, quoteFromGeometry, MATERIALS, QUALITIES, MATERIAL_COLORS, type MaterialKey, type QualityKey } from "@/lib/stl";
@@ -17,40 +18,62 @@ type ShippingRate = { id: string; provider: string; service: string; amount: num
 function genId() { return Math.random().toString(36).slice(2, 10); }
 function genOrderId() { return `DL-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-${Math.random().toString(36).slice(2,6).toUpperCase()}`; }
 
-export default function QuotePage() {
-  const [file, setFile] = useState<File | null>(null);
-  const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null);
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [material, setMaterial] = useState<MaterialKey>("PLA");
-  const [quality, setQuality] = useState<QualityKey>("standard");
-  const [infill, setInfill] = useState(15);
-  const [qty, setQty] = useState(1);
-  const [color, setColor] = useState("Midnight Black");
-  const [currentQuote, setCurrentQuote] = useState<Quote | null>(null);
-  const [parsing, setParsing] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
-  const [fileError, setFileError] = useState<string | null>(null);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [slicerLoading, setSlicerLoading] = useState(false);
-  const [slicerFailed, setSlicerFailed] = useState(false);
-  const [slicerComplete, setSlicerComplete] = useState(false);
-  const [isStepFile, setIsStepFile] = useState(false);
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [customerEmail, setCustomerEmail] = useState("");
-  const [address, setAddress] = useState("");
-  const [city, setCity] = useState("");
-  const [stateField, setStateField] = useState("");
-  const [zip, setZip] = useState("");
-  const [localPickup, setLocalPickup] = useState(false);
-  const [shippingRates, setShippingRates] = useState<ShippingRate[]>([]);
-  const [selectedRateId, setSelectedRateId] = useState<string | null>(null);
-  const [fetchingRates, setFetchingRates] = useState(false);
-  const [rateError, setRateError] = useState<string | null>(null);
-  const [checkingOut, setCheckingOut] = useState(false);
-  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+const glass: CSSProperties = {
+  background: "rgba(255,255,255,0.03)",
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
+  border: "1px solid rgba(255,255,255,0.07)",
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
+};
+const softBorder: CSSProperties = { borderColor: "rgba(255,255,255,0.07)" };
+const inputBase: CSSProperties = {
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.09)",
+  outline: "none",
+};
+function focusOn(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) {
+  e.currentTarget.style.borderColor = "rgba(255,181,71,0.50)";
+  e.currentTarget.style.boxShadow  = "0 0 0 3px rgba(255,181,71,0.08)";
+}
+function focusOff(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) {
+  e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)";
+  e.currentTarget.style.boxShadow  = "none";
+}
 
-  const inputRef = useRef<HTMLInputElement>(null);
+export default function QuotePage() {
+  const [file, setFile]                     = useState<File | null>(null);
+  const [geometry, setGeometry]             = useState<THREE.BufferGeometry | null>(null);
+  const [stats, setStats]                   = useState<Stats | null>(null);
+  const [material, setMaterial]             = useState<MaterialKey>("PLA");
+  const [quality, setQuality]               = useState<QualityKey>("standard");
+  const [infill, setInfill]                 = useState(15);
+  const [qty, setQty]                       = useState(1);
+  const [color, setColor]                   = useState("Midnight Black");
+  const [currentQuote, setCurrentQuote]     = useState<Quote | null>(null);
+  const [parsing, setParsing]               = useState(false);
+  const [dragOver, setDragOver]             = useState(false);
+  const [fileError, setFileError]           = useState<string | null>(null);
+  const [cartItems, setCartItems]           = useState<CartItem[]>([]);
+  const [slicerLoading, setSlicerLoading]   = useState(false);
+  const [slicerFailed, setSlicerFailed]     = useState(false);
+  const [slicerComplete, setSlicerComplete] = useState(false);
+  const [isStepFile, setIsStepFile]         = useState(false);
+  const [firstName, setFirstName]           = useState("");
+  const [lastName, setLastName]             = useState("");
+  const [customerEmail, setCustomerEmail]   = useState("");
+  const [address, setAddress]               = useState("");
+  const [city, setCity]                     = useState("");
+  const [stateField, setStateField]         = useState("");
+  const [zip, setZip]                       = useState("");
+  const [localPickup, setLocalPickup]       = useState(false);
+  const [shippingRates, setShippingRates]   = useState<ShippingRate[]>([]);
+  const [selectedRateId, setSelectedRateId] = useState<string | null>(null);
+  const [fetchingRates, setFetchingRates]   = useState(false);
+  const [rateError, setRateError]           = useState<string | null>(null);
+  const [checkingOut, setCheckingOut]       = useState(false);
+  const [checkoutError, setCheckoutError]   = useState<string | null>(null);
+
+  const inputRef   = useRef<HTMLInputElement>(null);
   const customerName = `${firstName} ${lastName}`.trim();
 
   useEffect(() => {
@@ -76,12 +99,12 @@ export default function QuotePage() {
     } catch {}
   }, []);
 
-  const selectedRate = shippingRates.find(r => r.id === selectedRateId);
-  const cartSubtotal = cartItems.reduce((sum, i) => sum + i.quote.price * i.qty, 0);
-  const taxAmount = Math.round(cartSubtotal * 0.06 * 100) / 100;
-  const orderTotal = cartSubtotal + taxAmount + (localPickup ? 0 : (selectedRate?.amount || 0));
-  const totalHours = cartItems.reduce((s, i) => s + i.quote.hours * i.qty, 0);
-  const totalLbs = cartItems.reduce((s, i) => s + i.quote.grams * i.qty, 0) / 453.592;
+  const selectedRate   = shippingRates.find(r => r.id === selectedRateId);
+  const cartSubtotal   = cartItems.reduce((sum, i) => sum + i.quote.price * i.qty, 0);
+  const taxAmount      = Math.round(cartSubtotal * 0.06 * 100) / 100;
+  const orderTotal     = cartSubtotal + taxAmount + (localPickup ? 0 : (selectedRate?.amount || 0));
+  const totalHours     = cartItems.reduce((s, i) => s + i.quote.hours * i.qty, 0);
+  const totalLbs       = cartItems.reduce((s, i) => s + i.quote.grams * i.qty, 0) / 453.592;
 
   function runSlicer(f: File, mat: MaterialKey, q: QualityKey, inf: number) {
     setSlicerLoading(true); setSlicerFailed(false); setSlicerComplete(false);
@@ -211,294 +234,538 @@ export default function QuotePage() {
   const availableColors = MATERIAL_COLORS[material];
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-12 md:py-16">
-      <div className="mb-10 max-w-3xl">
-        <div className="font-mono text-xs uppercase tracking-widest text-amber mb-4">Dragline 3D · Quote &amp; Order</div>
-        <h1 className="font-display font-black text-5xl md:text-6xl leading-[0.92] mb-4">Build your order<span className="text-amber">.</span></h1>
-        <p className="text-bone/70 text-lg leading-relaxed max-w-xl">Upload STL or 3MF files, configure each part, add them to your cart, then checkout.</p>
-      </div>
+    <div className="relative overflow-hidden">
+      {/* Ambient orb */}
+      <div className="absolute -top-20 right-0 w-[600px] h-[600px] rounded-full pointer-events-none"
+        style={{ background: "radial-gradient(circle, rgba(255,181,71,0.06) 0%, transparent 65%)", filter: "blur(80px)" }} />
 
-      <div className="grid xl:grid-cols-5 gap-6">
-        <div className="xl:col-span-3 space-y-6">
-          {!file ? (
-            <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }} onClick={() => inputRef.current?.click()}
-              className={`grid-bg cursor-pointer rounded-sm text-center transition-all flex flex-col items-center justify-center gap-4 ${dragOver ? "border-2 border-amber bg-ironworks2" : "border-2 border-dashed border-ironworks3 bg-ironworks2/50"}`}
-              style={{ minHeight: 300, padding: "48px 32px" }}>
-              <input ref={inputRef} type="file" accept=".stl,.3mf,.step,.stp" className="hidden" onChange={e => handleFile(e.target.files?.[0])} />
-              <div className="rounded-full bg-amber grid place-items-center" style={{ width: 64, height: 64 }}><Plus size={28} color="#0f0f10" /></div>
-              <div>
-                <div className="font-display font-extrabold text-2xl mb-1">{cartItems.length > 0 ? "Add another part" : "Drop your file"}</div>
-                <div className="text-bone/50 text-sm">or click to browse · .STL · .3MF · .STEP</div>
-                <div className="text-bone/30 text-xs mt-1">3MF files are priced as a single unit — qty multiplies the entire file</div>
-              </div>
-              {fileError && <div className="text-sm flex items-center gap-2 text-red-400"><AlertCircle size={14} /> {fileError}</div>}
-            </div>
-          ) : (
-            <div>
-              <div className="rounded-sm overflow-hidden border border-ironworks3" style={{ height: 380 }}>
-                {isStepFile ? (
-                  <div className="h-full grid place-items-center bg-ironworks2">
-                    <div className="text-center">
-                      <div className="font-mono text-xs tracking-widest text-steel mb-2">STEP FILE</div>
-                      <div className="font-mono text-xs text-steel/50">No preview available — slicing on server</div>
-                      {slicerLoading && <div className="inline-block w-6 h-6 border-2 border-ironworks3 border-t-amber rounded-full animate-spin mt-3"/>}
-                    </div>
-                  </div>
-                ) : parsing || !geometry ? (
-                  <div className="h-full grid place-items-center bg-ironworks2">
-                    <div className="text-center">
-                      <div className="inline-block w-8 h-8 border-2 border-ironworks3 border-t-amber rounded-full animate-spin mb-3" />
-                      <div className="font-mono text-xs tracking-widest text-steel">PARSING MESH...</div>
-                    </div>
-                  </div>
-                ) : <STLViewer geometry={geometry} onStats={() => {}} />}
-              </div>
-              <div className="mt-2 flex justify-between items-center text-sm">
-                <span className="font-mono text-xs text-steel">{file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                <button onClick={() => { setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null); setSlicerFailed(false); setSlicerComplete(false); setIsStepFile(false); }} className="text-steel hover:text-bone transition-colors underline text-xs">Remove</button>
-              </div>
-            </div>
-          )}
-
-          {stats && (
-            <div className="rounded-sm p-6 bg-ironworks2 border border-ironworks3">
-              <div className="font-mono text-xs uppercase tracking-widest mb-5 flex items-center gap-2 text-amber"><Package size={12} /> Configure this part</div>
-              <div className="mb-5">
-                <div className="font-display font-semibold text-sm mb-3 tracking-wide">MATERIAL</div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[300px] overflow-y-auto pr-1">
-                  {(Object.entries(MATERIALS) as [MaterialKey, typeof MATERIALS[MaterialKey]][]).map(([key, m]) => (
-                    <button key={key} onClick={() => { setMaterial(key); recalc(stats, key, quality, infill); }}
-                      className={`p-3 rounded-sm border text-left transition-all ${material === key ? "border-amber bg-ironworks" : "border-ironworks3 bg-ironworks hover:border-bone/30"}`}>
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="w-3 h-3 rounded-full border border-ironworks3 flex-shrink-0" style={{ background: m.swatch }} />
-                        <span className="font-display font-bold text-sm">{m.label}</span>
-                      </div>
-                      <div className="text-xs text-bone/50 leading-tight">{m.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="mb-5">
-                <div className="font-display font-semibold text-sm mb-3 tracking-wide flex items-center gap-2">
-                  COLOR <span className="font-mono font-normal text-xs text-steel normal-case">{color}</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {availableColors.map(c => (
-                    <button key={c.name} title={c.name} onClick={() => setColor(c.name)}
-                      className={`w-8 h-8 rounded-full border-2 transition-all ${color === c.name ? "border-amber scale-110" : "border-ironworks3 hover:border-bone/40"}`}
-                      style={{ background: c.hex }} />
-                  ))}
-                </div>
-              </div>
-              <div className="mb-5">
-                <div className="font-display font-semibold text-sm mb-3 tracking-wide">LAYER HEIGHT</div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {(Object.entries(QUALITIES) as [QualityKey, typeof QUALITIES[QualityKey]][]).map(([key, q]) => (
-                    <button key={key} onClick={() => { setQuality(key); recalc(stats, material, key, infill); }}
-                      className={`p-3 rounded-sm border text-center transition-all ${quality === key ? "border-amber bg-ironworks" : "border-ironworks3 bg-ironworks hover:border-bone/30"}`}>
-                      <div className="font-mono font-semibold text-base text-amber">{q.label}<span className="text-xs text-steel">mm</span></div>
-                      <div className="text-xs mt-1 text-bone/50">{q.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="mb-5">
-                <div className="flex justify-between items-baseline mb-3">
-                  <div className="font-display font-semibold text-sm tracking-wide">INFILL</div>
-                  <div className="font-mono text-sm font-semibold text-amber">{infill}%</div>
-                </div>
-                <input type="range" min="5" max="100" step="5" value={infill} onChange={e => { const v = +e.target.value; setInfill(v); recalc(stats, material, quality, v); }} className="w-full" />
-                <div className="flex justify-between font-mono text-xs mt-1 text-steel"><span>LIGHT</span><span>SOLID</span></div>
-              </div>
-              <div className="mb-6">
-                <div className="font-display font-semibold text-sm mb-3 tracking-wide">QUANTITY</div>
-                <div className="flex items-center gap-3">
-                  <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-9 h-9 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors"><Minus size={14} /></button>
-                  <div className="font-display font-bold text-xl w-12 text-center">{qty}</div>
-                  <button onClick={() => setQty(q => Math.min(50, q + 1))} className="w-9 h-9 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors"><Plus size={14} /></button>
-                  {qty > 1 && currentQuote?.fromSlicer && !slicerLoading && (
-                    <div className="font-mono text-xs text-steel ml-2">${currentQuote.price.toFixed(2)} × {qty} = <span className="text-amber font-bold">${(currentQuote.price * qty).toFixed(2)}</span></div>
-                  )}
-                </div>
-              </div>
-              {slicerFailed ? (
-                <div className="w-full py-4 rounded-sm border border-red-400/50 text-red-400 font-mono text-xs text-center flex items-center justify-center gap-2">
-                  <AlertCircle size={14} /> SLICER UNAVAILABLE — cannot calculate price. Try again shortly.
-                </div>
-              ) : (
-                <button onClick={addToCart} disabled={slicerLoading || !currentQuote?.fromSlicer}
-                  className="w-full py-4 rounded-sm font-display font-bold flex items-center justify-center gap-3 bg-amber text-ironworks hover:bg-amber-dark transition-colors tracking-wide disabled:opacity-70 disabled:cursor-wait">
-                  {slicerLoading ? (
-                    <><span className="inline-block w-5 h-5 border-2 border-ironworks/30 border-t-ironworks rounded-full animate-spin"/> CALCULATING...</>
-                  ) : currentQuote?.fromSlicer ? (
-                    <><ShoppingCart size={18}/> ADD TO CART — ${(currentQuote.price * qty).toFixed(2)}{qty > 1 ? ` (${qty}×)` : ""}</>
-                  ) : (
-                    <><span className="inline-block w-5 h-5 border-2 border-ironworks/30 border-t-ironworks rounded-full animate-spin"/> CALCULATING...</>
-                  )}
-                </button>
-              )}
-            </div>
-          )}
+      <div className="relative max-w-7xl mx-auto px-6 py-14">
+        {/* Cinematic page header */}
+        <div className="flex items-center justify-between border-b pb-5 mb-16" style={softBorder}>
+          <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-steel">Quote & Order</span>
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-amber" style={{ boxShadow: "0 0 6px rgba(255,181,71,0.9)" }} />
+            <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-steel hidden sm:inline">Dragline 3D</span>
+          </div>
         </div>
 
-        <div className="xl:col-span-2 space-y-4">
-          <div className="rounded-sm border border-ironworks3 bg-ironworks2">
-            <div className="px-5 py-4 border-b border-ironworks3 flex items-center justify-between">
-              <div className="font-display font-bold text-lg flex items-center gap-2">
-                <ShoppingCart size={18} className="text-amber" />
-                Cart {cartItems.length > 0 && <span className="bg-amber text-ironworks text-xs font-mono px-2 py-0.5 rounded-full">{cartItems.length}</span>}
-              </div>
-              {cartItems.length > 0 && <div className="font-mono text-sm text-amber font-bold">${cartSubtotal.toFixed(2)}</div>}
-            </div>
-            {cartItems.length === 0 ? (
-              <div className="px-5 py-10 text-center text-bone/40 text-sm">
-                <ShoppingCart size={28} className="mx-auto mb-3 opacity-30" />
-                No parts yet — upload an STL, 3MF, or STEP file and add it to your cart.
+        <div className="mb-14">
+          <h1 className="font-display font-black leading-[0.82] tracking-tight mb-6"
+            style={{ fontSize: "clamp(3rem, 8vw, 7rem)" }}>
+            <span className="block text-bone">Build your</span>
+            <span className="block"
+              style={{ WebkitTextStroke: "2px #ffb547", color: "transparent", textShadow: "0 0 60px rgba(255,181,71,0.12)" }}>
+              order.
+            </span>
+          </h1>
+          <p className="text-bone/50 text-base leading-relaxed max-w-xl">
+            Upload STL or 3MF files, configure each part, add them to your cart, then checkout.
+          </p>
+        </div>
+
+        <div className="grid xl:grid-cols-5 gap-5">
+          {/* ── Left column: uploader + configurator ── */}
+          <div className="xl:col-span-3 space-y-4">
+
+            {/* Drop zone / Viewer */}
+            {!file ? (
+              <div
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
+                onClick={() => inputRef.current?.click()}
+                className="cursor-pointer rounded-2xl text-center flex flex-col items-center justify-center gap-5 transition-all duration-200"
+                style={{
+                  ...glass,
+                  border: dragOver ? "1px solid rgba(255,181,71,0.55)" : "1px dashed rgba(255,255,255,0.12)",
+                  background: dragOver ? "rgba(255,181,71,0.04)" : "rgba(255,255,255,0.02)",
+                  boxShadow: dragOver ? "0 0 40px rgba(255,181,71,0.10), inset 0 1px 0 rgba(255,255,255,0.05)" : "inset 0 1px 0 rgba(255,255,255,0.04)",
+                  minHeight: 300, padding: "48px 32px",
+                }}
+              >
+                <input ref={inputRef} type="file" accept=".stl,.3mf,.step,.stp" className="hidden" onChange={e => handleFile(e.target.files?.[0])} />
+                <div className="rounded-full grid place-items-center flex-shrink-0"
+                  style={{ width: 64, height: 64, background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)", boxShadow: "0 0 24px rgba(255,181,71,0.35)" }}>
+                  <Plus size={28} color="#08080a" />
+                </div>
+                <div>
+                  <div className="font-display font-black text-2xl mb-2">
+                    {cartItems.length > 0 ? "Add another part" : "Drop your file"}
+                  </div>
+                  <div className="text-bone/45 text-sm">or click to browse · .STL · .3MF · .STEP</div>
+                  <div className="text-bone/25 text-xs mt-1">3MF files are priced as a single unit — qty multiplies the entire file</div>
+                </div>
+                {fileError && (
+                  <div className="text-sm flex items-center gap-2 text-red-400">
+                    <AlertCircle size={14} /> {fileError}
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="divide-y divide-ironworks3">
-                {cartItems.map(item => {
-                  const itemColor = MATERIAL_COLORS[item.material]?.find(c => c.name === item.color);
-                  return (
-                    <div key={item.id} className="px-5 py-4 flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm text-bone truncate">{item.fileName.replace(/\.(stl|3mf|step|stp)$/i, "")}</div>
-                        <div className="mt-1">
-                          <div className="flex items-center gap-1.5 flex-wrap font-mono text-xs text-steel">
-                            {itemColor && <span className="inline-block w-2.5 h-2.5 rounded-full border border-ironworks3 flex-shrink-0" style={{ background: itemColor.hex }} />}
-                            <span>{item.material} · {item.color} · {QUALITIES[item.quality].label}mm · {item.infill}% · {item.quote.grams}g{item.quote.hours > 0 ? ` · ${item.quote.hours}h` : ""}</span>
-                          </div>
-                          <div className="flex gap-1.5 mt-1.5 flex-wrap">
-                            {MATERIAL_COLORS[item.material]?.map(c => (
-                              <button key={c.name} title={c.name}
-                                onClick={() => setCartItems(prev => prev.map(i => i.id === item.id ? { ...i, color: c.name } : i))}
-                                className={`w-5 h-5 rounded-full border transition-all ${item.color === c.name ? "border-amber scale-110" : "border-ironworks3 hover:border-bone/40"}`}
-                                style={{ background: c.hex }} />
-                            ))}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 mt-2">
-                          <button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 rounded-sm border border-ironworks3 flex items-center justify-center hover:border-amber transition-colors"><Minus size={10} /></button>
-                          <span className="font-mono text-xs font-bold w-4 text-center">{item.qty}</span>
-                          <button onClick={() => updateQty(item.id, 1)} className="w-6 h-6 rounded-sm border border-ironworks3 flex items-center justify-center hover:border-amber transition-colors"><Plus size={10} /></button>
-                          {item.qty > 1 && <span className="font-mono text-xs text-steel">${item.quote.price.toFixed(2)} ea</span>}
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-3 flex-shrink-0">
-                        <div className="font-display font-bold text-amber">${(item.quote.price * item.qty).toFixed(2)}</div>
-                        <button onClick={() => removeFromCart(item.id)} className="text-steel hover:text-red-400 transition-colors mt-0.5"><Trash2 size={14} /></button>
+              <div>
+                <div className="rounded-2xl overflow-hidden" style={{ ...glass, height: 380 }}>
+                  {isStepFile ? (
+                    <div className="h-full grid place-items-center">
+                      <div className="text-center">
+                        <div className="font-mono text-[10px] tracking-[0.2em] text-steel mb-2">STEP FILE</div>
+                        <div className="font-mono text-xs text-steel/40">No preview — slicing on server</div>
+                        {slicerLoading && <div className="inline-block w-6 h-6 border-2 border-t-amber rounded-full animate-spin mt-4" style={{ borderColor: "rgba(255,181,71,0.2)", borderTopColor: "#ffb547" }} />}
                       </div>
                     </div>
-                  );
-                })}
+                  ) : parsing || !geometry ? (
+                    <div className="h-full grid place-items-center">
+                      <div className="text-center">
+                        <div className="inline-block w-8 h-8 rounded-full animate-spin mb-4"
+                          style={{ border: "2px solid rgba(255,181,71,0.2)", borderTopColor: "#ffb547" }} />
+                        <div className="font-mono text-[10px] tracking-[0.2em] text-steel">PARSING MESH...</div>
+                      </div>
+                    </div>
+                  ) : <STLViewer geometry={geometry} onStats={() => {}} />}
+                </div>
+                <div className="mt-2.5 flex justify-between items-center">
+                  <span className="font-mono text-[10px] text-steel tracking-wider">
+                    {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
+                  </span>
+                  <button
+                    onClick={() => { setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null); setSlicerFailed(false); setSlicerComplete(false); setIsStepFile(false); }}
+                    className="font-mono text-[10px] text-steel hover:text-bone transition-colors duration-150 underline cursor-pointer">
+                    Remove
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Configurator */}
+            {stats && (
+              <div className="rounded-2xl p-6" style={glass}>
+                <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-amber mb-7 flex items-center gap-2">
+                  <Package size={12} /> Configure this part
+                </div>
+
+                {/* Material */}
+                <div className="mb-6">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-3">Material</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[300px] overflow-y-auto pr-1">
+                    {(Object.entries(MATERIALS) as [MaterialKey, typeof MATERIALS[MaterialKey]][]).map(([key, m]) => (
+                      <button key={key} onClick={() => { setMaterial(key); recalc(stats, key, quality, infill); }}
+                        className="p-3 rounded-xl text-left transition-all duration-150 cursor-pointer"
+                        style={material === key ? {
+                          background: "rgba(255,181,71,0.07)", border: "1px solid rgba(255,181,71,0.40)",
+                          boxShadow: "0 0 16px rgba(255,181,71,0.08)",
+                        } : {
+                          background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)",
+                        }}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: m.swatch, border: "1px solid rgba(255,255,255,0.15)" }} />
+                          <span className="font-display font-bold text-sm">{m.label}</span>
+                        </div>
+                        <div className="text-[10px] text-bone/40 leading-tight">{m.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Color */}
+                <div className="mb-6">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-3 flex items-center gap-2">
+                    Color <span className="text-amber/70 normal-case">{color}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {availableColors.map(c => (
+                      <button key={c.name} title={c.name} onClick={() => setColor(c.name)}
+                        className="w-8 h-8 rounded-full transition-all duration-150 cursor-pointer"
+                        style={{
+                          background: c.hex,
+                          border: color === c.name ? "2px solid #ffb547" : "2px solid rgba(255,255,255,0.12)",
+                          boxShadow: color === c.name ? "0 0 10px rgba(255,181,71,0.40)" : "none",
+                          transform: color === c.name ? "scale(1.12)" : "scale(1)",
+                        }} />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Layer height */}
+                <div className="mb-6">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-3">Layer Height</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {(Object.entries(QUALITIES) as [QualityKey, typeof QUALITIES[QualityKey]][]).map(([key, q]) => (
+                      <button key={key} onClick={() => { setQuality(key); recalc(stats, material, key, infill); }}
+                        className="p-3 rounded-xl text-center transition-all duration-150 cursor-pointer"
+                        style={quality === key ? {
+                          background: "rgba(255,181,71,0.07)", border: "1px solid rgba(255,181,71,0.40)",
+                        } : {
+                          background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)",
+                        }}>
+                        <div className="font-mono font-semibold text-base" style={{ color: "#ffb547" }}>
+                          {q.label}<span className="text-xs text-steel/70">mm</span>
+                        </div>
+                        <div className="text-[10px] mt-1 text-bone/40">{q.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Infill */}
+                <div className="mb-6">
+                  <div className="flex justify-between items-baseline mb-3">
+                    <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel">Infill</div>
+                    <div className="font-mono text-sm font-bold" style={{ color: "#ffb547" }}>{infill}%</div>
+                  </div>
+                  <input type="range" min="5" max="100" step="5" value={infill}
+                    onChange={e => { const v = +e.target.value; setInfill(v); recalc(stats, material, quality, v); }}
+                    className="w-full" />
+                  <div className="flex justify-between font-mono text-[9px] mt-1.5 text-steel">
+                    <span>LIGHT</span><span>SOLID</span>
+                  </div>
+                </div>
+
+                {/* Quantity */}
+                <div className="mb-7">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-3">Quantity</div>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setQty(q => Math.max(1, q - 1))}
+                      className="w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer transition-all duration-150 hover:border-amber/40"
+                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}>
+                      <Minus size={14} />
+                    </button>
+                    <div className="font-display font-black text-xl w-10 text-center">{qty}</div>
+                    <button onClick={() => setQty(q => Math.min(50, q + 1))}
+                      className="w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer transition-all duration-150 hover:border-amber/40"
+                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}>
+                      <Plus size={14} />
+                    </button>
+                    {qty > 1 && currentQuote?.fromSlicer && !slicerLoading && (
+                      <div className="font-mono text-xs text-steel ml-1">
+                        ${currentQuote.price.toFixed(2)} × {qty} = <span className="font-bold" style={{ color: "#ffb547" }}>${(currentQuote.price * qty).toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Add to cart */}
+                {slicerFailed ? (
+                  <div className="w-full py-4 rounded-xl font-mono text-xs text-center flex items-center justify-center gap-2 text-red-400"
+                    style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.25)" }}>
+                    <AlertCircle size={14} /> SLICER UNAVAILABLE — cannot calculate price. Try again shortly.
+                  </div>
+                ) : (
+                  <button onClick={addToCart} disabled={slicerLoading || !currentQuote?.fromSlicer}
+                    className="w-full py-4 rounded-xl font-display font-bold flex items-center justify-center gap-3 text-ironworks transition-opacity duration-150 hover:opacity-90 disabled:opacity-60 disabled:cursor-wait cursor-pointer"
+                    style={{
+                      background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)",
+                      boxShadow: "0 0 32px rgba(255,181,71,0.30)",
+                    }}>
+                    {slicerLoading || !currentQuote?.fromSlicer ? (
+                      <>
+                        <span className="inline-block w-5 h-5 rounded-full animate-spin"
+                          style={{ border: "2px solid rgba(8,8,10,0.3)", borderTopColor: "#08080a" }} />
+                        CALCULATING...
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart size={18} />
+                        ADD TO CART — ${(currentQuote.price * qty).toFixed(2)}{qty > 1 ? ` (${qty}×)` : ""}
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             )}
           </div>
 
-          {cartItems.length > 0 && (
-            <div className="rounded-sm border border-ironworks3 bg-ironworks2">
-              <div className="px-5 py-4 border-b border-ironworks3">
-                <div className="font-display font-bold text-lg flex items-center gap-2"><Truck size={18} className="text-amber" /> Shipping</div>
-              </div>
-              <div className="px-5 py-4 space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-mono text-xs text-steel mb-1 tracking-wider">FIRST NAME</label>
-                    <input value={firstName} onChange={e => setFirstName(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="First name" />
-                  </div>
-                  <div>
-                    <label className="block font-mono text-xs text-steel mb-1 tracking-wider">LAST NAME</label>
-                    <input value={lastName} onChange={e => setLastName(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="Last name" />
-                  </div>
+          {/* ── Right column: cart + shipping + total ── */}
+          <div className="xl:col-span-2 space-y-4">
+
+            {/* Cart */}
+            <div className="rounded-2xl overflow-hidden" style={glass}>
+              <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+                <div className="font-display font-bold text-lg flex items-center gap-2">
+                  <ShoppingCart size={17} style={{ color: "#ffb547" }} />
+                  Cart
+                  {cartItems.length > 0 && (
+                    <span className="text-ironworks text-[10px] font-mono px-2 py-0.5 rounded-full font-bold"
+                      style={{ background: "#ffb547" }}>
+                      {cartItems.length}
+                    </span>
+                  )}
                 </div>
-                <div>
-                  <label className="block font-mono text-xs text-steel mb-1 tracking-wider">EMAIL</label>
-                  <input type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="your@email.com" />
-                </div>
-                <button onClick={() => { setLocalPickup(true); setShippingRates([]); setSelectedRateId(null); setRateError(null); }}
-                  className={`w-full py-2.5 rounded-sm border font-display font-bold text-sm transition-colors flex items-center justify-center gap-2 ${localPickup ? "border-amber bg-amber/10 text-amber" : "border-ironworks3 text-bone/60 hover:border-bone"}`}>
-                  <MapPin size={14} /> LOCAL PICKUP — Louisville, KY
-                </button>
-                {localPickup && (
-                  <div className="bg-amber/10 border border-amber/30 rounded-sm px-4 py-3 text-xs text-amber/80 font-mono">
-                    No shipping charge. After checkout we'll email you to coordinate a pickup time at our Louisville location.
+                {cartItems.length > 0 && (
+                  <div className="font-mono text-sm font-bold" style={{ color: "#ffb547" }}>
+                    ${cartSubtotal.toFixed(2)}
                   </div>
                 )}
-                {!localPickup && (
-                  <>
-                    <div>
-                      <label className="block font-mono text-xs text-steel mb-1 tracking-wider">ADDRESS</label>
-                      <input value={address} onChange={e => setAddress(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="123 Main St" />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="col-span-1">
-                        <label className="block font-mono text-xs text-steel mb-1 tracking-wider">CITY</label>
-                        <input value={city} onChange={e => setCity(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="Louisville" />
-                      </div>
-                      <div>
-                        <label className="block font-mono text-xs text-steel mb-1 tracking-wider">STATE</label>
-                        <input value={stateField} onChange={e => setStateField(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="KY" maxLength={2} />
-                      </div>
-                      <div>
-                        <label className="block font-mono text-xs text-steel mb-1 tracking-wider">ZIP</label>
-                        <input value={zip} onChange={e => setZip(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="40201" />
-                      </div>
-                    </div>
-                    <button onClick={getShippingRates} disabled={fetchingRates}
-                      className="w-full py-2.5 rounded-sm border border-amber text-amber font-display font-bold text-sm hover:bg-amber hover:text-ironworks transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                      {fetchingRates ? (<><span className="inline-block w-4 h-4 border-2 border-amber/30 border-t-amber rounded-full animate-spin" /> Getting rates...</>) : "GET SHIPPING RATES"}
-                    </button>
-                    {rateError && <div className="text-red-400 text-xs">{rateError}</div>}
-                    {shippingRates.length > 0 && (
-                      <div className="space-y-2">
-                        {shippingRates.map(rate => (
-                          <label key={rate.id} className={`flex items-center justify-between p-3 rounded-sm border cursor-pointer transition-all ${selectedRateId === rate.id ? "border-amber bg-ironworks" : "border-ironworks3 hover:border-bone/30"}`}>
-                            <div className="flex items-center gap-3">
-                              <input type="radio" name="shipping" value={rate.id} checked={selectedRateId === rate.id} onChange={() => setSelectedRateId(rate.id)} className="accent-amber" />
-                              <div>
-                                <div className="text-sm font-medium">{rate.service}</div>
-                                <div className="font-mono text-xs text-steel">{rate.provider}{rate.days ? ` · ${rate.days} business days` : ""}</div>
-                              </div>
+              </div>
+
+              {cartItems.length === 0 ? (
+                <div className="px-5 py-12 text-center text-bone/35 text-sm">
+                  <ShoppingCart size={26} className="mx-auto mb-3 opacity-25" />
+                  No parts yet — upload an STL, 3MF, or STEP file and add it to your cart.
+                </div>
+              ) : (
+                <div>
+                  {cartItems.map((item, idx) => {
+                    const itemColor = MATERIAL_COLORS[item.material]?.find(c => c.name === item.color);
+                    return (
+                      <div key={item.id} className="px-5 py-4 flex items-start justify-between gap-3"
+                        style={{ borderBottom: idx < cartItems.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm text-bone truncate">
+                            {item.fileName.replace(/\.(stl|3mf|step|stp)$/i, "")}
+                          </div>
+                          <div className="mt-1">
+                            <div className="flex items-center gap-1.5 flex-wrap font-mono text-[10px] text-steel">
+                              {itemColor && (
+                                <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                  style={{ background: itemColor.hex, border: "1px solid rgba(255,255,255,0.15)" }} />
+                              )}
+                              <span>{item.material} · {item.color} · {QUALITIES[item.quality].label}mm · {item.infill}% · {item.quote.grams}g{item.quote.hours > 0 ? ` · ${item.quote.hours}h` : ""}</span>
                             </div>
-                            <div className="font-mono font-bold text-amber">${rate.amount.toFixed(2)}</div>
-                          </label>
+                            <div className="flex gap-1.5 mt-2 flex-wrap">
+                              {MATERIAL_COLORS[item.material]?.map(c => (
+                                <button key={c.name} title={c.name}
+                                  onClick={() => setCartItems(prev => prev.map(i => i.id === item.id ? { ...i, color: c.name } : i))}
+                                  className="w-5 h-5 rounded-full transition-all duration-150 cursor-pointer"
+                                  style={{
+                                    background: c.hex,
+                                    border: item.color === c.name ? "2px solid #ffb547" : "2px solid rgba(255,255,255,0.12)",
+                                    transform: item.color === c.name ? "scale(1.15)" : "scale(1)",
+                                  }} />
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 mt-2.5">
+                            <button onClick={() => updateQty(item.id, -1)}
+                              className="w-6 h-6 rounded-lg flex items-center justify-center cursor-pointer transition-all duration-150 hover:border-amber/40"
+                              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}>
+                              <Minus size={10} />
+                            </button>
+                            <span className="font-mono text-xs font-bold w-4 text-center">{item.qty}</span>
+                            <button onClick={() => updateQty(item.id, 1)}
+                              className="w-6 h-6 rounded-lg flex items-center justify-center cursor-pointer transition-all duration-150 hover:border-amber/40"
+                              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}>
+                              <Plus size={10} />
+                            </button>
+                            {item.qty > 1 && (
+                              <span className="font-mono text-[10px] text-steel">${item.quote.price.toFixed(2)} ea</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3 flex-shrink-0">
+                          <div className="font-display font-bold" style={{ color: "#ffb547" }}>
+                            ${(item.quote.price * item.qty).toFixed(2)}
+                          </div>
+                          <button onClick={() => removeFromCart(item.id)}
+                            className="text-steel hover:text-red-400 transition-colors duration-150 cursor-pointer mt-0.5">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Shipping */}
+            {cartItems.length > 0 && (
+              <div className="rounded-2xl overflow-hidden" style={glass}>
+                <div className="px-5 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div className="font-display font-bold text-lg flex items-center gap-2">
+                    <Truck size={17} style={{ color: "#ffb547" }} /> Shipping
+                  </div>
+                </div>
+                <div className="px-5 py-5 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { value: firstName, setter: setFirstName, placeholder: "First name", label: "First Name" },
+                      { value: lastName,  setter: setLastName,  placeholder: "Last name",  label: "Last Name" },
+                    ].map(f => (
+                      <div key={f.label}>
+                        <label className="block font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-1.5">{f.label}</label>
+                        <input value={f.value} onChange={e => f.setter(e.target.value)} placeholder={f.placeholder}
+                          className="w-full px-3 py-2.5 rounded-xl text-bone text-sm transition-all duration-150"
+                          style={inputBase} onFocus={focusOn} onBlur={focusOff} />
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <label className="block font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-1.5">Email</label>
+                    <input type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} placeholder="your@email.com"
+                      className="w-full px-3 py-2.5 rounded-xl text-bone text-sm transition-all duration-150"
+                      style={inputBase} onFocus={focusOn} onBlur={focusOff} />
+                  </div>
+
+                  <button onClick={() => { setLocalPickup(true); setShippingRates([]); setSelectedRateId(null); setRateError(null); }}
+                    className="w-full py-2.5 rounded-xl font-display font-bold text-sm transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer"
+                    style={localPickup ? {
+                      background: "rgba(255,181,71,0.08)", border: "1px solid rgba(255,181,71,0.40)", color: "#ffb547",
+                    } : {
+                      background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(232,230,225,0.55)",
+                    }}>
+                    <MapPin size={14} /> LOCAL PICKUP — Louisville, KY
+                  </button>
+
+                  {localPickup && (
+                    <div className="rounded-xl px-4 py-3 text-xs font-mono"
+                      style={{ background: "rgba(255,181,71,0.06)", border: "1px solid rgba(255,181,71,0.20)", color: "rgba(255,181,71,0.75)" }}>
+                      No shipping charge. After checkout we'll email you to coordinate a pickup time.
+                    </div>
+                  )}
+
+                  {!localPickup && (
+                    <>
+                      <div>
+                        <label className="block font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-1.5">Address</label>
+                        <input value={address} onChange={e => setAddress(e.target.value)} placeholder="123 Main St"
+                          className="w-full px-3 py-2.5 rounded-xl text-bone text-sm transition-all duration-150"
+                          style={inputBase} onFocus={focusOn} onBlur={focusOff} />
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { value: city,       setter: setCity,       placeholder: "Louisville", label: "City",  cls: "col-span-1" },
+                          { value: stateField, setter: setStateField, placeholder: "KY",         label: "State", cls: "", max: 2 },
+                          { value: zip,        setter: setZip,        placeholder: "40201",       label: "ZIP",   cls: "" },
+                        ].map(f => (
+                          <div key={f.label} className={f.cls}>
+                            <label className="block font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-1.5">{f.label}</label>
+                            <input value={f.value} onChange={e => f.setter(e.target.value)} placeholder={f.placeholder} maxLength={f.max}
+                              className="w-full px-3 py-2.5 rounded-xl text-bone text-sm transition-all duration-150"
+                              style={inputBase} onFocus={focusOn} onBlur={focusOff} />
+                          </div>
                         ))}
                       </div>
-                    )}
-                  </>
-                )}
-                {localPickup && (
-                  <button onClick={() => setLocalPickup(false)} className="text-xs font-mono text-steel hover:text-bone underline text-center w-full">
-                    Switch to shipping instead
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
+                      <button onClick={getShippingRates} disabled={fetchingRates}
+                        className="w-full py-2.5 rounded-xl font-display font-bold text-sm transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer hover:opacity-90 disabled:opacity-50"
+                        style={{ background: "rgba(255,181,71,0.08)", border: "1px solid rgba(255,181,71,0.35)", color: "#ffb547" }}>
+                        {fetchingRates ? (
+                          <>
+                            <span className="inline-block w-4 h-4 rounded-full animate-spin"
+                              style={{ border: "2px solid rgba(255,181,71,0.2)", borderTopColor: "#ffb547" }} />
+                            Getting rates...
+                          </>
+                        ) : "GET SHIPPING RATES"}
+                      </button>
+                      {rateError && <div className="text-red-400 text-xs font-mono">{rateError}</div>}
+                      {shippingRates.length > 0 && (
+                        <div className="space-y-2">
+                          {shippingRates.map(rate => (
+                            <label key={rate.id} className="flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all duration-150"
+                              style={selectedRateId === rate.id ? {
+                                background: "rgba(255,181,71,0.06)", border: "1px solid rgba(255,181,71,0.35)",
+                              } : {
+                                background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)",
+                              }}>
+                              <div className="flex items-center gap-3">
+                                <input type="radio" name="shipping" value={rate.id} checked={selectedRateId === rate.id}
+                                  onChange={() => setSelectedRateId(rate.id)} className="accent-amber" />
+                                <div>
+                                  <div className="text-sm font-medium">{rate.service}</div>
+                                  <div className="font-mono text-[10px] text-steel">{rate.provider}{rate.days ? ` · ${rate.days} business days` : ""}</div>
+                                </div>
+                              </div>
+                              <div className="font-mono font-bold" style={{ color: "#ffb547" }}>${rate.amount.toFixed(2)}</div>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
 
-          {cartItems.length > 0 && (
-            <div className="rounded-sm bg-amber text-ironworks p-5">
-              <div className="font-mono text-xs uppercase tracking-widest mb-4 flex items-center gap-2 text-ironworks/70"><DollarSign size={12} /> Order Total</div>
-              <div className="space-y-1.5 mb-5 font-mono text-sm">
-                <div className="flex justify-between text-ironworks/70"><span>Parts ({cartItems.reduce((s, i) => s + i.qty, 0)} units)</span><span className="font-bold text-ironworks">${cartSubtotal.toFixed(2)}</span></div>
-                <div className="flex justify-between text-ironworks/70"><span>KY Sales Tax (6%)</span><span className="font-bold text-ironworks">${taxAmount.toFixed(2)}</span></div>
-                {totalHours > 0 && <div className="flex justify-between text-ironworks/70"><span>Est. print time</span><span className="font-bold text-ironworks">{totalHours.toFixed(1)}h</span></div>}
-                <div className="flex justify-between text-ironworks/70"><span>Total weight</span><span className="font-bold text-ironworks">{totalLbs.toFixed(2)} lbs</span></div>
-                {localPickup && <div className="flex justify-between text-ironworks/70"><span>Shipping</span><span className="font-bold text-ironworks">Local Pickup</span></div>}
-                {selectedRate && !localPickup && <div className="flex justify-between text-ironworks/70"><span>Shipping</span><span className="font-bold text-ironworks">${selectedRate.amount.toFixed(2)}</span></div>}
-                {!selectedRate && !localPickup && shippingRates.length === 0 && <div className="text-ironworks/50 text-xs">Select Local Pickup or enter address above</div>}
+                  {localPickup && (
+                    <button onClick={() => setLocalPickup(false)}
+                      className="text-[10px] font-mono text-steel hover:text-bone underline text-center w-full cursor-pointer transition-colors duration-150">
+                      Switch to shipping instead
+                    </button>
+                  )}
+                </div>
               </div>
-              {(selectedRate || localPickup || shippingRates.length === 0) && (
-                <div className="font-display font-black leading-none mb-5" style={{ fontSize: 56, letterSpacing: "-0.04em" }}>${orderTotal.toFixed(2)}</div>
-              )}
-              <button onClick={handleCheckout} disabled={checkingOut || (!selectedRate && !localPickup)}
-                className="w-full py-4 rounded-sm font-display font-bold flex items-center justify-center gap-2 bg-ironworks text-amber hover:bg-black transition-colors tracking-wide disabled:opacity-50 disabled:cursor-not-allowed">
-                {checkingOut ? (<><span className="inline-block w-4 h-4 border-2 border-amber/30 border-t-amber rounded-full animate-spin" /> REDIRECTING...</>) : (<>PAY WITH SQUARE <ArrowRight size={16} /></>)}
-              </button>
-              {checkoutError && <div className="mt-3 text-sm text-center text-red-800 font-medium">{checkoutError}</div>}
-              <div className="mt-3 text-xs text-center text-ironworks/50 font-mono">SECURE · CARD · APPLE PAY · GOOGLE PAY</div>
-            </div>
-          )}
+            )}
+
+            {/* Order total */}
+            {cartItems.length > 0 && (
+              <div className="rounded-2xl p-6"
+                style={{
+                  background: "rgba(255,181,71,0.07)",
+                  border: "1px solid rgba(255,181,71,0.22)",
+                  boxShadow: "0 0 40px rgba(255,181,71,0.07)",
+                }}>
+                <div className="font-mono text-[9px] uppercase tracking-[0.2em] mb-5 flex items-center gap-2"
+                  style={{ color: "rgba(255,181,71,0.55)" }}>
+                  <DollarSign size={12} /> Order Total
+                </div>
+                <div className="space-y-2 mb-5 font-mono text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-bone/50">Parts ({cartItems.reduce((s, i) => s + i.qty, 0)} units)</span>
+                    <span className="font-bold text-bone">${cartSubtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-bone/50">KY Sales Tax (6%)</span>
+                    <span className="font-bold text-bone">${taxAmount.toFixed(2)}</span>
+                  </div>
+                  {totalHours > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-bone/50">Est. print time</span>
+                      <span className="font-bold text-bone">{totalHours.toFixed(1)}h</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-bone/50">Total weight</span>
+                    <span className="font-bold text-bone">{totalLbs.toFixed(2)} lbs</span>
+                  </div>
+                  {localPickup && (
+                    <div className="flex justify-between">
+                      <span className="text-bone/50">Shipping</span>
+                      <span className="font-bold text-bone">Local Pickup</span>
+                    </div>
+                  )}
+                  {selectedRate && !localPickup && (
+                    <div className="flex justify-between">
+                      <span className="text-bone/50">Shipping</span>
+                      <span className="font-bold text-bone">${selectedRate.amount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {!selectedRate && !localPickup && shippingRates.length === 0 && (
+                    <div className="font-mono text-[10px]" style={{ color: "rgba(255,181,71,0.40)" }}>
+                      Select Local Pickup or enter address above
+                    </div>
+                  )}
+                </div>
+
+                {(selectedRate || localPickup || shippingRates.length === 0) && (
+                  <div className="font-display font-black leading-none mb-6"
+                    style={{ fontSize: 52, letterSpacing: "-0.04em", color: "#ffb547",
+                      textShadow: "0 0 30px rgba(255,181,71,0.30)" }}>
+                    ${orderTotal.toFixed(2)}
+                  </div>
+                )}
+
+                <button onClick={handleCheckout} disabled={checkingOut || (!selectedRate && !localPickup)}
+                  className="w-full py-4 rounded-xl font-display font-bold flex items-center justify-center gap-2 text-ironworks transition-opacity duration-150 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  style={{
+                    background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)",
+                    boxShadow: "0 0 28px rgba(255,181,71,0.30)",
+                  }}>
+                  {checkingOut ? (
+                    <>
+                      <span className="inline-block w-4 h-4 rounded-full animate-spin"
+                        style={{ border: "2px solid rgba(8,8,10,0.3)", borderTopColor: "#08080a" }} />
+                      REDIRECTING...
+                    </>
+                  ) : (
+                    <> PAY WITH SQUARE <ArrowRight size={16} /> </>
+                  )}
+                </button>
+
+                {checkoutError && (
+                  <div className="mt-3 text-sm text-center font-medium text-red-400">{checkoutError}</div>
+                )}
+                <div className="mt-3 text-center font-mono text-[9px] uppercase tracking-[0.18em]"
+                  style={{ color: "rgba(255,181,71,0.35)" }}>
+                  SECURE · CARD · APPLE PAY · GOOGLE PAY
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
