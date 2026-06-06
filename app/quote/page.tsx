@@ -86,17 +86,16 @@ useEffect(() => {
     if (!colors.find(c => c.name === color)) setColor(colors[0].name);
   }, [material]);
 
+  const initializedRef = useRef(false);
   useEffect(() => {
+    if (!initializedRef.current) return;
     const serializable = cartItems.map(i => ({
       id: i.id, fileName: i.fileName, material: i.material, quality: i.quality,
       infill: i.infill, qty: i.qty, color: i.color, stats: i.stats, quote: i.quote,
     }));
     localStorage.setItem("dragline_cart", JSON.stringify(serializable));
   }, [cartItems]);
-
-  // ─── ADD THIS inside QuotePage(), replacing the existing localStorage useEffect ───
-// This goes right after the existing `useEffect` that reads dragline_cart
-
+  
 useEffect(() => {
   try {
     const saved = localStorage.getItem("dragline_cart");
@@ -118,7 +117,7 @@ useEffect(() => {
       }
       return { ...i, file, geometry: null };
     });
-
+initializedRef.current = true;
     setCartItems(hydrated);
 
     // Clean up after hydration so a page refresh doesn't re-use stale files
@@ -126,16 +125,7 @@ useEffect(() => {
   } catch {}
 }, []);
 
-// ─── REMOVE the old version of this useEffect that looks like: ───────────────
-// useEffect(() => {
-//   try {
-//     const saved = localStorage.getItem("dragline_cart");
-//     if (saved) {
-//       const items = JSON.parse(saved);
-//       setCartItems(items.map((i: any) => ({ ...i, file: null, geometry: null })));
-//     }
-//   } catch {}
-// }, []);
+
 
   const selectedRate   = shippingRates.find(r => r.id === selectedRateId);
   const cartSubtotal   = cartItems.reduce((sum, i) => sum + i.quote.price * i.qty, 0);
