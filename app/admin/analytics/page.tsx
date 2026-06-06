@@ -3,12 +3,12 @@ export const runtime = "edge";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, RefreshCw, TrendingUp, Package, Zap, DollarSign, Weight } from "lucide-react";
+import { ArrowLeft, RefreshCw, TrendingUp, Package, Zap, DollarSign, Weight, Users, BarChart2 } from "lucide-react";
 
-const ELECTRICITY_RATE = 0.12; // $/kWh
-const AVG_PRINTER_WATTS = 300; // watts
+const ELECTRICITY_RATE = 0.12;
+const AVG_PRINTER_WATTS = 300;
 
-const MATERIAL_COLORS: Record<string, string> = {
+const MATERIAL_COLORS_MAP: Record<string, string> = {
   PLA: "#3b82f6", PETG: "#10b981", TPU: "#f59e0b", ABS: "#ef4444",
   ASA: "#8b5cf6", "PET-GF15": "#06b6d4", "PETG-ESD": "#f97316",
   PA: "#84cc16", "ASA-CF": "#ec4899", "PETG-CF": "#14b8a6", "PA-CF": "#6366f1", PCTG: "#a78bfa",
@@ -19,27 +19,36 @@ const COST_PER_KG: Record<string, number> = {
   "PETG-ESD": 66, PA: 35, "ASA-CF": 40, "PETG-CF": 40, "PA-CF": 80, PCTG: 29.95,
 };
 
-function formatCurrency(n: number) { return `$${n.toFixed(2)}`; }
-function formatMonth(m: string) {
+const PRICE_PER_KG: Record<string, number> = {
+  PLA: 16, PETG: 18, TPU: 24, ABS: 20, ASA: 22, "PET-GF15": 30,
+  "PETG-ESD": 66, PA: 35, "ASA-CF": 40, "PETG-CF": 40, "PA-CF": 80, PCTG: 29.95,
+};
+
+function fc(n: number) { return `$${n.toFixed(2)}`; }
+function fMonth(m: string) {
   const [y, mo] = m.split("-");
   return new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
 }
 
-function BarChart({ data, color = "#f59e0b", label }: { data: { month: string; value: number }[]; color?: string; label: string }) {
+function BarChart({ data, color = "#f59e0b", label, prefix = "" }: { data: { month: string; value: number }[]; color?: string; label: string; prefix?: string }) {
   const max = Math.max(...data.map(d => d.value), 1);
   return (
-    <div className="flex items-end gap-1 h-32">
+    <div className="flex items-end gap-1 h-28">
       {data.map(d => (
         <div key={d.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-          <div className="w-full rounded-sm transition-all" style={{ height: `${Math.max((d.value / max) * 100, 2)}%`, background: color, opacity: d.value > 0 ? 1 : 0.2 }} title={`${formatMonth(d.month)}: ${label === "$" ? formatCurrency(d.value) : d.value.toFixed(1) + label}`} />
-          <div className="font-mono text-[9px] text-steel truncate w-full text-center">{formatMonth(d.month)}</div>
+          <div className="w-full rounded-sm transition-all relative group" style={{ height: `${Math.max((d.value / max) * 100, 2)}%`, background: color, opacity: d.value > 0 ? 1 : 0.15 }}>
+            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-ironworks border border-ironworks3 rounded-sm px-1.5 py-0.5 font-mono text-[9px] text-bone whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10">
+              {prefix}{label === "count" ? d.value : d.value.toFixed(label === "$" ? 2 : 1)}{label !== "$" && label !== "count" ? label : ""}
+            </div>
+          </div>
+          <div className="font-mono text-[9px] text-steel truncate w-full text-center">{fMonth(d.month)}</div>
         </div>
       ))}
     </div>
   );
 }
 
-function StatCard({ label, value, sub, color = "text-amber", icon: Icon }: { label: string; value: string; sub?: string; color?: string; icon: any }) {
+function StatCard({ label, value, sub, color = "text-amber", icon: Icon }: any) {
   return (
     <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-4">
       <div className="flex items-center gap-2 mb-2">
@@ -63,44 +72,41 @@ export default function AnalyticsPage() {
     const token = localStorage.getItem("dragline_admin_token");
     if (!token) { router.push("/admin/login"); return; }
     setLoading(true);
-
-    // Fetch all orders
-    const statuses = ["received", "queued", "printing", "quality_check", "shipped", "delivered", "cancelled"];
+    const statuses = ["received", "queued", "printing", "quality_check", "shipped", "delivered", "cancelled", "pending"];
     const results = await Promise.all(statuses.map(s =>
       fetch(`/api/admin/orders?status=${s}`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : [])
     ));
     setOrders(results.flat());
-
-    // Fetch Govee state
     fetch("/api/admin/govee").then(r => r.ok ? r.json() : null).then(data => {
       if (data?.watts !== undefined) setGoveeWatts(data.watts);
       if (data?.on !== undefined) setGoveeOn(data.on);
     }).catch(() => {});
-
     setLoading(false);
   }, [router]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Process data
   const completedOrders = orders.filter(o => !["pending", "cancelled"].includes(o.status));
-  
+  const allActiveOrders = orders.filter(o => o.status !== "pending");
+
   // Monthly buckets
-  const monthlyData: Record<string, { revenue: number; materialCost: number; tax: number; printHours: number; grams: Record<string, number> }> = {};
-  
+  const monthlyData: Record<string, {
+    revenue: number; materialCost: number; tax: number; printHours: number;
+    grams: Record<string, number>; orderCount: number; shipping: number;
+    itemCount: number;
+  }> = {};
+
   for (const order of completedOrders) {
     const month = order.created_at?.slice(0, 7);
     if (!month) continue;
-    if (!monthlyData[month]) monthlyData[month] = { revenue: 0, materialCost: 0, tax: 0, printHours: 0, grams: {} };
-    
+    if (!monthlyData[month]) monthlyData[month] = { revenue: 0, materialCost: 0, tax: 0, printHours: 0, grams: {}, orderCount: 0, shipping: 0, itemCount: 0 };
     const subtotal = order.subtotal || 0;
-    const total = order.total || 0;
     const shipping = Number(order.shipping_cost || 0);
-    const tax = Math.round((subtotal * 0.06) * 100) / 100;
-    
-    monthlyData[month].revenue += total - tax - shipping;
+    const tax = Math.round(subtotal * 0.06 * 100) / 100;
+    monthlyData[month].revenue += subtotal;
     monthlyData[month].tax += tax;
-    
+    monthlyData[month].shipping += shipping;
+    monthlyData[month].orderCount += 1;
     for (const item of (order.order_items || [])) {
       const qty = item.qty || 1;
       const grams = (item.grams || 0) * qty;
@@ -109,52 +115,76 @@ export default function AnalyticsPage() {
       monthlyData[month].materialCost += (grams / 1000) * (COST_PER_KG[mat] || 16);
       monthlyData[month].printHours += hours;
       monthlyData[month].grams[mat] = (monthlyData[month].grams[mat] || 0) + grams;
+      monthlyData[month].itemCount += qty;
     }
   }
 
   const months = Object.keys(monthlyData).sort().slice(-6);
-  const monthlyRevenue = months.map(m => ({ month: m, value: monthlyData[m].revenue }));
-  const monthlyProfit = months.map(m => {
+  const mRev = months.map(m => ({ month: m, value: monthlyData[m].revenue }));
+  const mProfit = months.map(m => {
     const d = monthlyData[m];
-    const elecCost = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
-    return { month: m, value: d.revenue - d.materialCost - elecCost };
+    const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
+    return { month: m, value: d.revenue - d.materialCost - elec };
   });
-  const monthlyMaterialCost = months.map(m => ({ month: m, value: monthlyData[m].materialCost }));
-  const monthlyElec = months.map(m => ({ month: m, value: (monthlyData[m].printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE }));
+  const mMatCost = months.map(m => ({ month: m, value: monthlyData[m].materialCost }));
+  const mElec = months.map(m => ({ month: m, value: (monthlyData[m].printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE }));
+  const mOrders = months.map(m => ({ month: m, value: monthlyData[m].orderCount }));
+  const mHours = months.map(m => ({ month: m, value: monthlyData[m].printHours }));
+  const mItems = months.map(m => ({ month: m, value: monthlyData[m].itemCount }));
+  const mMargin = months.map(m => {
+    const d = monthlyData[m];
+    const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
+    const profit = d.revenue - d.materialCost - elec;
+    return { month: m, value: d.revenue > 0 ? (profit / d.revenue) * 100 : 0 };
+  });
 
   // Totals
-  const totalRevenue = completedOrders.reduce((s, o) => {
-    const sub = o.subtotal || 0;
-    const ship = Number(o.shipping_cost || 0);
-    const tax = Math.round(sub * 0.06 * 100) / 100;
-    return s + (o.total || 0) - tax - ship;
-  }, 0);
-  const totalMatCost = completedOrders.reduce((s, o) => {
-    return s + (o.order_items || []).reduce((si: number, i: any) => {
-      const qty = i.qty || 1;
-      return si + ((i.grams || 0) * qty / 1000) * (COST_PER_KG[i.material] || 16);
-    }, 0);
-  }, 0);
-  const totalHours = completedOrders.reduce((s, o) => {
-    return s + (o.order_items || []).reduce((si: number, i: any) => si + (i.print_hours || i.hours || 0) * (i.qty || 1), 0);
-  }, 0);
+  const totalRevenue = completedOrders.reduce((s, o) => s + (o.subtotal || 0), 0);
+  const totalShipping = completedOrders.reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
+  const totalMatCost = completedOrders.reduce((s, o) =>
+    s + (o.order_items || []).reduce((si: number, i: any) => si + ((i.grams || 0) * (i.qty || 1) / 1000) * (COST_PER_KG[i.material] || 16), 0), 0);
+  const totalHours = completedOrders.reduce((s, o) =>
+    s + (o.order_items || []).reduce((si: number, i: any) => si + (i.print_hours || i.hours || 0) * (i.qty || 1), 0), 0);
   const totalElecCost = (totalHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
   const totalProfit = totalRevenue - totalMatCost - totalElecCost;
   const totalTax = completedOrders.reduce((s, o) => s + Math.round((o.subtotal || 0) * 0.06 * 100) / 100, 0);
-  const totalGrams = completedOrders.reduce((s, o) => {
-    return s + (o.order_items || []).reduce((si: number, i: any) => si + (i.grams || 0) * (i.qty || 1), 0);
-  }, 0);
+  const totalGrams = completedOrders.reduce((s, o) =>
+    s + (o.order_items || []).reduce((si: number, i: any) => si + (i.grams || 0) * (i.qty || 1), 0), 0);
+  const totalItems = completedOrders.reduce((s, o) =>
+    s + (o.order_items || []).reduce((si: number, i: any) => si + (i.qty || 1), 0), 0);
+  const avgOrderValue = totalRevenue / (completedOrders.length || 1);
+  const marginPct = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
-  // Material breakdown
-  const materialGrams: Record<string, number> = {};
-  for (const order of completedOrders) {
-    for (const item of (order.order_items || [])) {
+  // Status breakdown
+  const statusCounts: Record<string, number> = {};
+  for (const o of allActiveOrders) { statusCounts[o.status] = (statusCounts[o.status] || 0) + 1; }
+  const STATUS_COLORS_MAP: Record<string, string> = { pending: "#6b7280", received: "#3b82f6", queued: "#f59e0b", printing: "#f97316", quality_check: "#a855f7", shipped: "#22c55e", delivered: "#16a34a", cancelled: "#ef4444" };
+  const STATUS_LABELS: Record<string, string> = { pending: "Pending", received: "Received", queued: "Queued", printing: "Printing", quality_check: "QC", shipped: "Shipped", delivered: "Delivered", cancelled: "Cancelled" };
+
+  // Top customers
+  const customerRevenue: Record<string, { revenue: number; orders: number; email: string }> = {};
+  for (const o of completedOrders) {
+    const name = o.customer_name || "Unknown";
+    if (!customerRevenue[name]) customerRevenue[name] = { revenue: 0, orders: 0, email: o.customer_email };
+    customerRevenue[name].revenue += o.subtotal || 0;
+    customerRevenue[name].orders += 1;
+  }
+  const topCustomers = Object.entries(customerRevenue).sort((a, b) => b[1].revenue - a[1].revenue).slice(0, 5);
+
+  // Material usage stats
+  const materialStats: Record<string, { grams: number; orders: Set<string>; revenue: number; lastUsed: string }> = {};
+  for (const o of completedOrders) {
+    for (const item of (o.order_items || [])) {
       const mat = item.material || "PLA";
-      materialGrams[mat] = (materialGrams[mat] || 0) + (item.grams || 0) * (item.qty || 1);
+      if (!materialStats[mat]) materialStats[mat] = { grams: 0, orders: new Set(), revenue: 0, lastUsed: "" };
+      materialStats[mat].grams += (item.grams || 0) * (item.qty || 1);
+      materialStats[mat].orders.add(o.id);
+      materialStats[mat].revenue += (item.price || 0) * (item.qty || 1);
+      if (!materialStats[mat].lastUsed || o.created_at > materialStats[mat].lastUsed) materialStats[mat].lastUsed = o.created_at;
     }
   }
-  const materialBreakdown = Object.entries(materialGrams).sort((a, b) => b[1] - a[1]);
-  const maxGrams = Math.max(...materialBreakdown.map(([, g]) => g), 1);
+  const materialList = Object.entries(materialStats).sort((a, b) => b[1].grams - a[1].grams);
+  const maxMatGrams = Math.max(...materialList.map(([, s]) => s.grams), 1);
 
   if (loading) return <div className="max-w-6xl mx-auto px-6 py-16 text-center"><div className="inline-block w-8 h-8 border-2 border-ironworks3 border-t-amber rounded-full animate-spin" /></div>;
 
@@ -171,72 +201,143 @@ export default function AnalyticsPage() {
         <button onClick={fetchData} className="p-2 rounded-sm border border-ironworks3 text-bone/60 hover:text-bone transition-colors"><RefreshCw size={16} /></button>
       </div>
 
-      {/* Govee live power */}
+      {/* Govee */}
       {(goveeWatts !== null || goveeOn !== null) && (
         <div className={`mb-6 rounded-sm border p-4 flex items-center gap-4 ${goveeOn ? "border-orange-500/40 bg-orange-500/5" : "border-ironworks3 bg-ironworks2"}`}>
           <Zap size={16} className={goveeOn ? "text-orange-400" : "text-steel"} />
-          <div className="flex items-center gap-4 font-mono text-sm">
+          <div className="flex items-center gap-4 font-mono text-sm flex-wrap">
             <span className="text-steel">PRINTER OUTLET</span>
             <span className={`font-bold ${goveeOn ? "text-orange-400" : "text-steel"}`}>{goveeOn ? "ON" : "STANDBY"}</span>
             {goveeWatts !== null && goveeWatts > 0 && <span className="text-amber font-bold">{goveeWatts}W live</span>}
-            {goveeWatts !== null && goveeWatts > 0 && <span className="text-steel">${((goveeWatts / 1000) * ELECTRICITY_RATE).toFixed(4)}/hr</span>}
+            {goveeWatts !== null && goveeWatts > 0 && <span className="text-steel">{fc((goveeWatts / 1000) * ELECTRICITY_RATE)}/hr</span>}
           </div>
         </div>
       )}
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-        <StatCard label="TOTAL REVENUE" value={formatCurrency(totalRevenue)} sub={`${completedOrders.length} orders`} icon={DollarSign} />
-        <StatCard label="TOTAL PROFIT" value={formatCurrency(totalProfit)} sub={`${((totalProfit/totalRevenue)*100||0).toFixed(0)}% margin`} color={totalProfit > 0 ? "text-green-400" : "text-red-400"} icon={TrendingUp} />
-        <StatCard label="MATERIAL COST" value={formatCurrency(totalMatCost)} sub={`${(totalGrams/1000).toFixed(2)} kg used`} color="text-red-400" icon={Weight} />
-        <StatCard label="KY SALES TAX" value={formatCurrency(totalTax)} sub="collected" color="text-blue-400" icon={Package} />
+      {/* P&L Summary */}
+      <div className="mb-2 font-mono text-xs text-steel tracking-widest">P&L SUMMARY</div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <StatCard label="REVENUE" value={fc(totalRevenue)} sub={`${completedOrders.length} orders`} icon={DollarSign} />
+        <StatCard label="COGS (MATERIAL)" value={fc(totalMatCost)} sub={`${(totalMatCost/totalRevenue*100||0).toFixed(0)}% of revenue`} color="text-red-400" icon={Weight} />
+        <StatCard label="ELECTRICITY EST." value={fc(totalElecCost)} sub={`${totalHours.toFixed(0)}h × ${AVG_PRINTER_WATTS}W`} color="text-yellow-400" icon={Zap} />
+        <StatCard label="GROSS PROFIT" value={fc(totalProfit)} sub={`${marginPct.toFixed(0)}% margin`} color={totalProfit > 0 ? "text-green-400" : "text-red-400"} icon={TrendingUp} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-        <StatCard label="ELECTRICITY EST." value={formatCurrency(totalElecCost)} sub={`${totalHours.toFixed(0)}h print time`} color="text-yellow-400" icon={Zap} />
-        <StatCard label="AVG ORDER VALUE" value={formatCurrency(totalRevenue / (completedOrders.length || 1))} sub="per order" icon={DollarSign} />
-        <StatCard label="FILAMENT USED" value={`${(totalGrams/1000).toFixed(2)} kg`} sub={`${(totalGrams/453.592).toFixed(2)} lbs`} color="text-blue-400" icon={Weight} />
-        <StatCard label="PRINT HOURS" value={`${Math.floor(totalHours)}h ${Math.round((totalHours%1)*60)}m`} sub="total machine time" color="text-orange-400" icon={Zap} />
+        <StatCard label="SHIPPING COLLECTED" value={fc(totalShipping)} sub="from customers" color="text-blue-400" icon={Package} />
+        <StatCard label="KY SALES TAX" value={fc(totalTax)} sub="collected" color="text-purple-400" icon={DollarSign} />
+        <StatCard label="AVG ORDER VALUE" value={fc(avgOrderValue)} sub="excl. tax & shipping" icon={BarChart2} />
+        <StatCard label="PARTS PRINTED" value={totalItems.toString()} sub={`${(totalGrams/1000).toFixed(2)} kg filament`} color="text-blue-400" icon={Package} />
       </div>
 
-      {/* Charts */}
+      {/* Charts row 1 */}
+      <div className="mb-2 font-mono text-xs text-steel tracking-widest">MONTHLY TRENDS</div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        {[
+          { label: "REVENUE", data: mRev, color: "#f59e0b", labelStr: "$" },
+          { label: "PROFIT", data: mProfit, color: "#22c55e", labelStr: "$" },
+          { label: "MATERIAL COST", data: mMatCost, color: "#ef4444", labelStr: "$" },
+          { label: "ELEC. COST", data: mElec, color: "#eab308", labelStr: "$" },
+        ].map(({ label, data, color, labelStr }) => (
+          <div key={label} className="bg-ironworks2 border border-ironworks3 rounded-sm p-4">
+            <div className="font-mono text-xs text-steel tracking-widest mb-3">{label}</div>
+            <BarChart data={data} color={color} label={labelStr} prefix="$" />
+          </div>
+        ))}
+      </div>
+
+      {/* Charts row 2 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        {[
+          { label: "ORDER COUNT", data: mOrders, color: "#3b82f6", labelStr: "count" },
+          { label: "PRINT HOURS", data: mHours, color: "#f97316", labelStr: "h" },
+          { label: "PARTS PRINTED", data: mItems, color: "#8b5cf6", labelStr: "pcs" },
+          { label: "PROFIT MARGIN %", data: mMargin, color: "#10b981", labelStr: "%" },
+        ].map(({ label, data, color, labelStr }) => (
+          <div key={label} className="bg-ironworks2 border border-ironworks3 rounded-sm p-4">
+            <div className="font-mono text-xs text-steel tracking-widest mb-3">{label}</div>
+            <BarChart data={data} color={color} label={labelStr} />
+          </div>
+        ))}
+      </div>
+
+      {/* Material usage */}
       <div className="grid md:grid-cols-2 gap-4 mb-6">
         <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-5">
-          <div className="font-mono text-xs text-amber tracking-widest mb-4">MONTHLY REVENUE</div>
-          <BarChart data={monthlyRevenue} color="#f59e0b" label="$" />
+          <div className="font-mono text-xs text-amber tracking-widest mb-4">FILAMENT USAGE — MOST TO LEAST</div>
+          <div className="space-y-3">
+            {materialList.map(([mat, s]) => (
+              <div key={mat} className="flex items-center gap-3">
+                <div className="font-mono text-xs w-16 text-steel flex-shrink-0">{mat}</div>
+                <div className="flex-1 h-3 bg-ironworks rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${(s.grams / maxMatGrams) * 100}%`, background: MATERIAL_COLORS_MAP[mat] || "#6b7280" }} />
+                </div>
+                <div className="font-mono text-xs text-bone w-16 text-right flex-shrink-0">{(s.grams/1000).toFixed(3)}kg</div>
+                <div className="font-mono text-xs text-steel w-8 text-right flex-shrink-0">{s.orders.size}x</div>
+                <div className="font-mono text-xs text-amber w-16 text-right flex-shrink-0">{fc(s.revenue)}</div>
+              </div>
+            ))}
+            {materialList.length === 0 && <div className="text-bone/40 text-xs font-mono text-center py-4">No data yet</div>}
+          </div>
+          <div className="flex justify-end gap-4 mt-3 pt-3 border-t border-ironworks3 font-mono text-xs text-steel">
+            <span>kg used</span><span>orders</span><span>revenue</span>
+          </div>
         </div>
+
+        {/* Order status breakdown */}
         <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-5">
-          <div className="font-mono text-xs text-green-400 tracking-widest mb-4">MONTHLY PROFIT</div>
-          <BarChart data={monthlyProfit} color="#22c55e" label="$" />
-        </div>
-        <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-5">
-          <div className="font-mono text-xs text-red-400 tracking-widest mb-4">MATERIAL COST</div>
-          <BarChart data={monthlyMaterialCost} color="#ef4444" label="$" />
-        </div>
-        <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-5">
-          <div className="font-mono text-xs text-yellow-400 tracking-widest mb-4">ELECTRICITY COST (EST.)</div>
-          <BarChart data={monthlyElec} color="#eab308" label="$" />
+          <div className="font-mono text-xs text-amber tracking-widest mb-4">ORDER STATUS BREAKDOWN</div>
+          <div className="space-y-2">
+            {Object.entries(statusCounts).sort((a,b)=>b[1]-a[1]).map(([status, count]) => (
+              <div key={status} className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: STATUS_COLORS_MAP[status] || "#6b7280" }} />
+                <div className="font-mono text-xs text-steel flex-1">{STATUS_LABELS[status] || status}</div>
+                <div className="font-mono text-xs font-bold" style={{ color: STATUS_COLORS_MAP[status] || "#6b7280" }}>{count}</div>
+                <div className="font-mono text-xs text-steel">{((count / allActiveOrders.length) * 100).toFixed(0)}%</div>
+              </div>
+            ))}
+            {allActiveOrders.length === 0 && <div className="text-bone/40 text-xs font-mono text-center py-4">No orders yet</div>}
+          </div>
+          <div className="mt-4 pt-3 border-t border-ironworks3 font-mono text-xs text-steel">
+            {allActiveOrders.length} total orders
+          </div>
         </div>
       </div>
 
-      {/* Material breakdown */}
-      {materialBreakdown.length > 0 && (
-        <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-5 mb-6">
-          <div className="font-mono text-xs text-amber tracking-widest mb-4">FILAMENT BY MATERIAL</div>
-          <div className="space-y-3">
-            {materialBreakdown.map(([mat, grams]) => (
-              <div key={mat} className="flex items-center gap-3">
-                <div className="font-mono text-xs w-16 text-steel">{mat}</div>
-                <div className="flex-1 h-3 bg-ironworks rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all" style={{ width: `${(grams / maxGrams) * 100}%`, background: MATERIAL_COLORS[mat] || "#6b7280" }} />
-                </div>
-                <div className="font-mono text-xs text-bone w-20 text-right">{(grams / 1000).toFixed(3)} kg</div>
-                <div className="font-mono text-xs text-red-400 w-16 text-right">{formatCurrency((grams / 1000) * (COST_PER_KG[mat] || 16))}</div>
-              </div>
-            ))}
-          </div>
+      {/* Top customers */}
+      <div className="bg-ironworks2 border border-ironworks3 rounded-sm mb-6">
+        <div className="px-5 py-4 border-b border-ironworks3">
+          <div className="font-mono text-xs text-amber tracking-widest">TOP CUSTOMERS</div>
         </div>
-      )}
+        <div className="divide-y divide-ironworks3">
+          {topCustomers.map(([name, data], i) => (
+            <div key={name} className="px-5 py-3 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="font-mono text-xs text-steel w-4">{i + 1}</div>
+                <div>
+                  <div className="font-medium text-sm">{name}</div>
+                  <div className="font-mono text-xs text-steel">{data.email}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-6 flex-shrink-0">
+                <div className="text-right">
+                  <div className="font-mono text-xs text-steel">orders</div>
+                  <div className="font-display font-bold text-sm">{data.orders}</div>
+                </div>
+                <div className="text-right">
+                  <div className="font-mono text-xs text-steel">revenue</div>
+                  <div className="font-display font-bold text-sm text-amber">{fc(data.revenue)}</div>
+                </div>
+                <div className="text-right">
+                  <div className="font-mono text-xs text-steel">avg order</div>
+                  <div className="font-display font-bold text-sm">{fc(data.revenue / data.orders)}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+          {topCustomers.length === 0 && <div className="px-5 py-8 text-center text-bone/40 font-mono text-xs">No customer data yet</div>}
+        </div>
+      </div>
 
       {/* Monthly detail table */}
       {months.length > 0 && (
@@ -248,8 +349,8 @@ export default function AnalyticsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-ironworks3">
-                  {["MONTH","REVENUE","MAT COST","ELEC EST.","TAX","PROFIT","FILAMENT"].map(h => (
-                    <th key={h} className="px-4 py-3 text-left font-mono text-xs text-steel">{h}</th>
+                  {["MONTH","ORDERS","PARTS","REVENUE","MAT COST","ELEC","TAX","SHIPPING","PROFIT","MARGIN","FILAMENT","HRS"].map(h => (
+                    <th key={h} className="px-3 py-3 text-left font-mono text-xs text-steel whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -258,16 +359,22 @@ export default function AnalyticsPage() {
                   const d = monthlyData[m];
                   const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
                   const profit = d.revenue - d.materialCost - elec;
-                  const totalFilamentKg = Object.values(d.grams).reduce((s, g) => s + g, 0) / 1000;
+                  const margin = d.revenue > 0 ? (profit / d.revenue) * 100 : 0;
+                  const kg = Object.values(d.grams).reduce((s, g) => s + g, 0) / 1000;
                   return (
                     <tr key={m} className="border-b border-ironworks3/50 hover:bg-ironworks3/20">
-                      <td className="px-4 py-3 font-mono text-xs text-bone">{formatMonth(m)}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-amber">{formatCurrency(d.revenue)}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-red-400">{formatCurrency(d.materialCost)}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-yellow-400">{formatCurrency(elec)}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-blue-400">{formatCurrency(d.tax)}</td>
-                      <td className={`px-4 py-3 font-mono text-xs font-bold ${profit > 0 ? "text-green-400" : "text-red-400"}`}>{formatCurrency(profit)}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-steel">{totalFilamentKg.toFixed(3)} kg</td>
+                      <td className="px-3 py-2 font-mono text-xs text-bone whitespace-nowrap">{fMonth(m)}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-steel">{d.orderCount}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-steel">{d.itemCount}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-amber">{fc(d.revenue)}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-red-400">{fc(d.materialCost)}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-yellow-400">{fc(elec)}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-purple-400">{fc(d.tax)}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-blue-400">{fc(d.shipping)}</td>
+                      <td className={`px-3 py-2 font-mono text-xs font-bold ${profit > 0 ? "text-green-400" : "text-red-400"}`}>{fc(profit)}</td>
+                      <td className={`px-3 py-2 font-mono text-xs ${margin > 40 ? "text-green-400" : margin > 20 ? "text-amber" : "text-red-400"}`}>{margin.toFixed(0)}%</td>
+                      <td className="px-3 py-2 font-mono text-xs text-steel">{kg.toFixed(3)}kg</td>
+                      <td className="px-3 py-2 font-mono text-xs text-steel">{d.printHours.toFixed(1)}h</td>
                     </tr>
                   );
                 })}
