@@ -39,7 +39,7 @@ export async function POST(request:Request){
 
     console.log("[notify] orderId:",orderId,"fileEntries:",fileEntries.length);
 
-    // Save files to TrueNAS
+    // Save files + thumbnails to TrueNAS
     if(orderId&&customerName&&fileEntries.length>0){
       const saveForm=new FormData();
       saveForm.append("orderId",orderId);
@@ -47,6 +47,11 @@ export async function POST(request:Request){
       for(const{name,file} of fileEntries){
         saveForm.append("file",file,name);
       }
+      // Pass items JSON so TrueNAS can extract and save thumbnails
+      saveForm.append("items",JSON.stringify(items.map((i:any)=>({
+        id:i.id,
+        thumbnail:i.thumbnail||null,
+      }))));
       const workerSecret=process.env.WORKER_SECRET||"";
       try{
         const sfRes=await fetch(`${slicerUrl}/save-files`,{method:"POST",headers:{"x-worker-secret":workerSecret},body:saveForm});
