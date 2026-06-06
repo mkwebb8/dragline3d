@@ -25,33 +25,33 @@ export async function POST(request:Request){
     for(const[key,value] of form.entries()){
       if(key.startsWith("file_")&&value instanceof File){
         const buf=await value.arrayBuffer();
-        const uint8 = new Uint8Array(buf);
-let b64 = "";
-const chunkSize = 8192;
-for (let i = 0; i < uint8.length; i += chunkSize) {
-  b64 += String.fromCharCode(...uint8.subarray(i, i + chunkSize));
-}
-b64 = btoa(b64);
+        const uint8=new Uint8Array(buf);
+        let b64="";
+        const chunkSize=8192;
+        for(let i=0;i<uint8.length;i+=chunkSize){
+          b64+=String.fromCharCode(...uint8.subarray(i,i+chunkSize));
+        }
+        b64=btoa(b64);
         attachments.push({filename:value.name,content:b64});
-fileEntries.push({name:value.name,file:new File([buf],value.name,{type:value.type})});
+        fileEntries.push({name:value.name,file:new File([buf],value.name,{type:value.type})});
       }
     }
-console.log("[notify] orderId:", orderId, "fileEntries:", fileEntries.length);
-    // Save files to TrueNAS (fire and forget)
+
+    console.log("[notify] orderId:",orderId,"fileEntries:",fileEntries.length);
+
+    // Save files to TrueNAS
     if(orderId&&customerName&&fileEntries.length>0){
+      const saveForm=new FormData();
+      saveForm.append("orderId",orderId);
+      saveForm.append("customerName",customerName);
+      for(const{name,file} of fileEntries){
+        saveForm.append("file",file,name);
+      }
+      const workerSecret=process.env.WORKER_SECRET||"";
       try{
-        const saveForm=new FormData();
-        saveForm.append("orderId",orderId);
-        saveForm.append("customerName",customerName);
-        for(const{name,file} of fileEntries){
-          saveForm.append("file",file,name);
-        }
-        const workerSecret=process.env.WORKER_SECRET||"";
-        try{
-  const sfRes=await fetch(`${slicerUrl}/save-files`,{method:"POST",headers:{"x-worker-secret":workerSecret},body:saveForm});
-  console.log("[save-files] status:",sfRes.status);
-}catch(e:any){console.error("[save-files] failed:",e.message);}
-     
+        const sfRes=await fetch(`${slicerUrl}/save-files`,{method:"POST",headers:{"x-worker-secret":workerSecret},body:saveForm});
+        console.log("[save-files] status:",sfRes.status);
+      }catch(e:any){console.error("[save-files] failed:",e.message);}
     }
 
     const totalQty=items.reduce((s:number,i:any)=>s+(i.qty||1),0);
