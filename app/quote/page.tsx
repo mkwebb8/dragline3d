@@ -33,6 +33,7 @@ export default function QuotePage() {
   const [slicerLoading, setSlicerLoading] = useState(false);
   const [slicerFailed, setSlicerFailed] = useState(false);
   const [slicerComplete, setSlicerComplete] = useState(false);
+  const [isStepFile, setIsStepFile] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -106,8 +107,20 @@ export default function QuotePage() {
   async function handleFile(f: File | undefined) {
     if (!f) return;
     if (!/\.(stl|3mf|step|stp)$/i.test(f.name)) { setFileError("STL, 3MF, or STEP files only."); return; }
-    setFileError(null); setFile(f); setParsing(true); setStats(null); setGeometry(null);
+    setFileError(null); setFile(f); setStats(null); setGeometry(null);
     setCurrentQuote(null); setSlicerFailed(false); setSlicerComplete(false);
+
+    // STEP files can't be previewed in browser — send directly to slicer
+    if (/\.(step|stp)$/i.test(f.name)) {
+      setIsStepFile(true);
+      setParsing(false);
+      setStats({ dims: { x: 0, y: 0, z: 0 }, volumeMm3: 0 });
+      runSlicer(f, material, quality, infill);
+      return;
+    }
+
+    setIsStepFile(false);
+    setParsing(true);
     try {
       const buffer = await f.arrayBuffer();
       const geo = /\.3mf$/i.test(f.name) ? await parse3MF(buffer) : parseSTL(buffer);
@@ -120,9 +133,10 @@ export default function QuotePage() {
   }
 
   function addToCart() {
-    if (!file || !stats || !currentQuote || !geometry || !currentQuote.fromSlicer) return;
-    setCartItems(prev => [...prev, { id: genId(), file, fileName: file.name, material, quality, infill, qty, color, stats, quote: currentQuote, geometry }]);
-    setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null);
+    if (!file || !stats || !currentQuote || !currentQuote.fromSlicer) return;
+    if (!isStepFile && !geometry) return;
+    setCartItems(prev => [...prev, { id: genId(), file, fileName: file.name, material, quality, infill, qty, color, stats, quote: currentQuote, geometry: geometry || null }]);
+    setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null); setIsStepFile(false);
     setMaterial("PLA"); setQuality("standard"); setInfill(15); setQty(1); setColor("Midnight Black");
     setSlicerComplete(false); setSlicerFailed(false);
     setShippingRates([]); setSelectedRateId(null);
@@ -214,14 +228,22 @@ export default function QuotePage() {
               <div>
                 <div className="font-display font-extrabold text-2xl mb-1">{cartItems.length > 0 ? "Add another part" : "Drop your file"}</div>
                 <div className="text-bone/50 text-sm">or click to browse · .STL · .3MF · .STEP</div>
-<div className="text-bone/30 text-xs mt-1">3MF files are priced as a single unit — qty multiplies the entire file</div>
+                <div className="text-bone/30 text-xs mt-1">3MF files are priced as a single unit — qty multiplies the entire file</div>
               </div>
               {fileError && <div className="text-sm flex items-center gap-2 text-red-400"><AlertCircle size={14} /> {fileError}</div>}
             </div>
           ) : (
             <div>
               <div className="rounded-sm overflow-hidden border border-ironworks3" style={{ height: 380 }}>
-                {parsing || !geometry ? (
+                {isStepFile ? (
+                  <div className="h-full grid place-items-center bg-ironworks2">
+                    <div className="text-center">
+                      <div className="font-mono text-xs tracking-widest text-steel mb-2">STEP FILE</div>
+                      <div className="font-mono text-xs text-steel/50">No preview available — slicing on server</div>
+                      {slicerLoading && <div className="inline-block w-6 h-6 border-2 border-ironworks3 border-t-amber rounded-full animate-spin mt-3"/>}
+                    </div>
+                  </div>
+                ) : parsing || !geometry ? (
                   <div className="h-full grid place-items-center bg-ironworks2">
                     <div className="text-center">
                       <div className="inline-block w-8 h-8 border-2 border-ironworks3 border-t-amber rounded-full animate-spin mb-3" />
@@ -229,17 +251,10 @@ export default function QuotePage() {
                     </div>
                   </div>
                 ) : <STLViewer geometry={geometry} onStats={() => {}} />}
-                if (/\.(step|stp)$/i.test(f.name)) {
-  // STEP files can't be previewed in browser — send directly to slicer
-  setStats({ dims: { x: 0, y: 0, z: 0 }, volumeMm3: 0 });
-  runSlicer(f, material, quality, infill);
-  setParsing(false);
-  return;
-}
               </div>
               <div className="mt-2 flex justify-between items-center text-sm">
                 <span className="font-mono text-xs text-steel">{file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                <button onClick={() => { setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null); setSlicerFailed(false); setSlicerComplete(false); }} className="text-steel hover:text-bone transition-colors underline text-xs">Remove</button>
+                <button onClick={() => { setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null); setSlicerFailed(false); setSlicerComplete(false); setIsStepFile(false); }} className="text-steel hover:text-bone transition-colors underline text-xs">Remove</button>
               </div>
             </div>
           )}
@@ -337,7 +352,7 @@ export default function QuotePage() {
             {cartItems.length === 0 ? (
               <div className="px-5 py-10 text-center text-bone/40 text-sm">
                 <ShoppingCart size={28} className="mx-auto mb-3 opacity-30" />
-                No parts yet — upload an STL or 3MF and add it to your cart.
+                No parts yet — upload an STL, 3MF, or STEP file and add it to your cart.
               </div>
             ) : (
               <div className="divide-y divide-ironworks3">
@@ -346,7 +361,7 @@ export default function QuotePage() {
                   return (
                     <div key={item.id} className="px-5 py-4 flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm text-bone truncate">{item.fileName.replace(/\.(stl|3mf)$/i, "")}</div>
+                        <div className="font-medium text-sm text-bone truncate">{item.fileName.replace(/\.(stl|3mf|step|stp)$/i, "")}</div>
                         <div className="mt-1">
                           <div className="flex items-center gap-1.5 flex-wrap font-mono text-xs text-steel">
                             {itemColor && <span className="inline-block w-2.5 h-2.5 rounded-full border border-ironworks3 flex-shrink-0" style={{ background: itemColor.hex }} />}
@@ -399,8 +414,6 @@ export default function QuotePage() {
                   <label className="block font-mono text-xs text-steel mb-1 tracking-wider">EMAIL</label>
                   <input type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} className="w-full px-3 py-2 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-sm" placeholder="your@email.com" />
                 </div>
-
-                {/* Local Pickup toggle */}
                 <button
                   onClick={() => { setLocalPickup(true); setShippingRates([]); setSelectedRateId(null); setRateError(null); }}
                   className={`w-full py-2.5 rounded-sm border font-display font-bold text-sm transition-colors flex items-center justify-center gap-2 ${localPickup ? "border-amber bg-amber/10 text-amber" : "border-ironworks3 text-bone/60 hover:border-bone"}`}>
@@ -411,8 +424,6 @@ export default function QuotePage() {
                     No shipping charge. After checkout we'll email you to coordinate a pickup time at our Louisville location.
                   </div>
                 )}
-
-                {/* Address fields — hidden when local pickup selected */}
                 {!localPickup && (
                   <>
                     <div>
@@ -456,7 +467,6 @@ export default function QuotePage() {
                     )}
                   </>
                 )}
-
                 {localPickup && (
                   <button onClick={() => setLocalPickup(false)} className="text-xs font-mono text-steel hover:text-bone underline text-center w-full">
                     Switch to shipping instead
