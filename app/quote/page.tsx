@@ -105,7 +105,7 @@ export default function QuotePage() {
 
   async function handleFile(f: File | undefined) {
     if (!f) return;
-    if (!/\.(stl|3mf)$/i.test(f.name)) { setFileError("STL or 3MF files only."); return; }
+    if (!/\.(stl|3mf|step|stp)$/i.test(f.name)) { setFileError("STL, 3MF, or STEP files only."); return; }
     setFileError(null); setFile(f); setParsing(true); setStats(null); setGeometry(null);
     setCurrentQuote(null); setSlicerFailed(false); setSlicerComplete(false);
     try {
@@ -209,11 +209,11 @@ export default function QuotePage() {
             <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }} onClick={() => inputRef.current?.click()}
               className={`grid-bg cursor-pointer rounded-sm text-center transition-all flex flex-col items-center justify-center gap-4 ${dragOver ? "border-2 border-amber bg-ironworks2" : "border-2 border-dashed border-ironworks3 bg-ironworks2/50"}`}
               style={{ minHeight: 300, padding: "48px 32px" }}>
-              <input ref={inputRef} type="file" accept=".stl,.3mf" className="hidden" onChange={e => handleFile(e.target.files?.[0])} />
+              <input ref={inputRef} type="file" accept=".stl,.3mf,.step,.stp" className="hidden" onChange={e => handleFile(e.target.files?.[0])} />
               <div className="rounded-full bg-amber grid place-items-center" style={{ width: 64, height: 64 }}><Plus size={28} color="#0f0f10" /></div>
               <div>
                 <div className="font-display font-extrabold text-2xl mb-1">{cartItems.length > 0 ? "Add another part" : "Drop your file"}</div>
-                <div className="text-bone/50 text-sm">or click to browse · .STL or .3MF</div>
+                <div className="text-bone/50 text-sm">or click to browse · .STL · .3MF · .STEP</div>
 <div className="text-bone/30 text-xs mt-1">3MF files are priced as a single unit — qty multiplies the entire file</div>
               </div>
               {fileError && <div className="text-sm flex items-center gap-2 text-red-400"><AlertCircle size={14} /> {fileError}</div>}
@@ -229,6 +229,13 @@ export default function QuotePage() {
                     </div>
                   </div>
                 ) : <STLViewer geometry={geometry} onStats={() => {}} />}
+                if (/\.(step|stp)$/i.test(f.name)) {
+  // STEP files can't be previewed in browser — send directly to slicer
+  setStats({ dims: { x: 0, y: 0, z: 0 }, volumeMm3: 0 });
+  runSlicer(f, material, quality, infill);
+  setParsing(false);
+  return;
+}
               </div>
               <div className="mt-2 flex justify-between items-center text-sm">
                 <span className="font-mono text-xs text-steel">{file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB</span>
