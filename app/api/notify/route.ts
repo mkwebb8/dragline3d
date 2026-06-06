@@ -33,7 +33,7 @@ for (let i = 0; i < uint8.length; i += chunkSize) {
 }
 b64 = btoa(b64);
         attachments.push({filename:value.name,content:b64});
-        fileEntries.push({name:value.name,file:value});
+fileEntries.push({name:value.name,file:new File([buf],value.name,{type:value.type})});
       }
     }
 
