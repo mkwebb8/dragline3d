@@ -188,11 +188,11 @@ export default function AnalyticsPage() {
   const marginPct = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
   // Profit First targets
-  const pfProfit = totalRevenue * PROFIT_FIRST.profit;
-  const pfOwnerComp = totalRevenue * PROFIT_FIRST.ownerComp;
-  const pfTaxes = totalRevenue * PROFIT_FIRST.taxes;
-  const pfOpex = totalRevenue * PROFIT_FIRST.opex;
-
+  const realRevenue = totalRevenue - totalSquareFees;
+const pfProfit = realRevenue * PROFIT_FIRST.profit;
+const pfOwnerComp = realRevenue * PROFIT_FIRST.ownerComp;
+const pfTaxes = realRevenue * PROFIT_FIRST.taxes;
+const pfOpex = realRevenue * PROFIT_FIRST.opex;
   // Status breakdown
   const statusCounts: Record<string, number> = {};
   for (const o of allActiveOrders) { statusCounts[o.status] = (statusCounts[o.status] || 0) + 1; }
@@ -330,7 +330,7 @@ export default function AnalyticsPage() {
       {/* Profit First / Reserves */}
       <div className="mb-2 font-mono text-xs text-steel tracking-widest">PROFIT FIRST RESERVES</div>
       <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-5 mb-8">
-        <div className="font-mono text-xs text-steel mb-4">Enter your actual Novo balances to compare against targets</div>
+        <div className="font-mono text-xs text-steel mb-4">Rolling totals based on real revenue (subtotal minus Square fees). Enter actual Novo balances to see if you're caught up.</div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { key: "profit", label: "PROFIT", pct: 15, target: pfProfit, color: "text-green-400", border: "border-green-500/30" },
