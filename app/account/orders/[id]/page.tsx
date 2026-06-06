@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
-import { ArrowLeft, Package, Truck, RotateCcw, ExternalLink } from "lucide-react";
+import { ArrowLeft, Package, Truck, RotateCcw, ExternalLink, Loader2 } from "lucide-react";
 import { QUALITIES } from "@/lib/stl";
 import type { CSSProperties } from "react";
 
@@ -27,6 +27,9 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
   const { id } = params;
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [reorderLoading, setReorderLoading] = useState(false);
+  const [reorderStep, setReorderStep] = useState<string>("");
+  const [reorderError, setReorderError] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -40,23 +43,144 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
     });
   }, [id, router]);
 
-  function handleReorder() {
+  async function handleReorder() {
     if (!order?.order_items?.length) return;
-    const cartItems = order.order_items.map((item: any) => ({
-      id: Math.random().toString(36).slice(2, 10),
-      fileName: item.file_name,
-      material: item.material,
-      quality: item.quality,
-      infill: item.infill,
-      qty: item.qty || 1,
-      color: item.color || "Midnight Black",
-      stats: { dims: { x: 0, y: 0, z: 0 }, volumeMm3: 0 },
-      quote: { grams: item.grams || 0, hours: item.hours || 0, price: item.price, fromSlicer: false, breakdown: { material: 0, machine: 0, setup: 0 } },
-      geometry: null,
-      file: null,
-    }));
-    localStorage.setItem("dragline_cart", JSON.stringify(cartItems));
-    router.push("/quote");
+    setReorderLoading(true);
+    setReorderError(null);
+
+    try {
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.push("/account"); return; }
+      const email = session.user.email || "";
+
+      // Step 1: Fetch files from TrueNAS via our API
+      setReorderStep("Retrieving your files…");
+      const filesRes = await fetch(`/api/account/orders/${id}/files?email=${encodeURIComponent(email)}`);
+      if (!filesRes.ok) throw new Error("Could not retrieve order files.");
+      const { files, missingFiles, orderItems } = await filesRes.json();
+
+      if (!files.length) {
+        throw new Error("No files found for this order. Please upload your files manually.");
+      }
+
+      if (missingFiles?.length) {
+        console.warn("Some files could not be retrieved:", missingFiles);
+      }
+
+      // Build a map from fileName → File object (reconstructed from base64)
+      const fileMap: Record<string, File> = {};
+      for (const { fileName, base64, mimeType } of files) {
+        const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+        fileMap[fileName] = new File([bytes], fileName, { type: mimeType });
+      }
+
+      // Step 2: Re-slice each item
+      setReorderStep(`Slicing ${orderItems.length} part${orderItems.length > 1 ? "s" : ""}…`);
+
+      // Fetch live pricing once
+      const pricingRes = await fetch("/api/pricing");
+      const livePricing: Record<string, number> = pricingRes.ok ? await pricingRes.json() : {};
+
+      const cartItems = await Promise.all(
+        orderItems.map(async (item: any, idx: number) => {
+          setReorderStep(`Slicing part ${idx + 1} of ${orderItems.length}…`);
+          const file = fileMap[item.file_name];
+
+          const itemId = Math.random().toString(36).slice(2, 10);
+
+          // If we have the file, re-slice it for a fresh quote
+          if (file) {
+            try {
+              const form = new FormData();
+              form.append("stl", file);
+              form.append("material", item.material);
+              form.append("quality", item.quality);
+              form.append("infill", String(item.infill));
+              if (livePricing[item.material]) form.append("costPerKg", String(livePricing[item.material]));
+
+              const sliceRes = await fetch("/api/slice", { method: "POST", body: form });
+              const sliceData = await sliceRes.json();
+
+              if (sliceData.price && !sliceData.fallback) {
+                return {
+                  id: itemId,
+                  file,
+                  fileName: item.file_name,
+                  material: item.material,
+                  quality: item.quality,
+                  infill: item.infill,
+                  qty: item.qty || 1,
+                  color: item.color || "Midnight Black",
+                  stats: { dims: { x: 0, y: 0, z: 0 }, volumeMm3: 0 },
+                  quote: {
+                    grams: sliceData.grams,
+                    hours: sliceData.hours,
+                    price: sliceData.price,
+                    fromSlicer: true,
+                    breakdown: sliceData.breakdown,
+                  },
+                  geometry: null,
+                };
+              }
+            } catch (e) {
+              console.warn(`Slicer failed for ${item.file_name}, using stored price`);
+            }
+          }
+
+          // Fallback: use stored price from original order
+          return {
+            id: itemId,
+            file: file || null,
+            fileName: item.file_name,
+            material: item.material,
+            quality: item.quality,
+            infill: item.infill,
+            qty: item.qty || 1,
+            color: item.color || "Midnight Black",
+            stats: { dims: { x: 0, y: 0, z: 0 }, volumeMm3: 0 },
+            quote: {
+              grams: item.grams || 0,
+              hours: item.hours || 0,
+              price: item.price,
+              fromSlicer: true, // treat stored price as valid so cart accepts it
+              breakdown: { material: 0, machine: 0, setup: 0 },
+            },
+            geometry: null,
+          };
+        })
+      );
+
+      // Step 3: Save cart and navigate
+      setReorderStep("Loading your cart…");
+      const serializable = cartItems.map((i: any) => ({
+        id: i.id,
+        fileName: i.fileName,
+        material: i.material,
+        quality: i.quality,
+        infill: i.infill,
+        qty: i.qty,
+        color: i.color,
+        stats: i.stats,
+        quote: i.quote,
+      }));
+      localStorage.setItem("dragline_cart", JSON.stringify(serializable));
+
+      // Also stash the File objects in sessionStorage keys so quote page can use them
+      // (Files can't go in localStorage — we store base64 blobs keyed by fileName)
+      const fileCache: Record<string, { base64: string; mimeType: string }> = {};
+      for (const { fileName, base64, mimeType } of files) {
+        fileCache[fileName] = { base64, mimeType };
+      }
+      sessionStorage.setItem("dragline_reorder_files", JSON.stringify(fileCache));
+
+      router.push("/quote");
+    } catch (e: any) {
+      setReorderError(e.message || "Something went wrong. Please try again.");
+    } finally {
+      setReorderLoading(false);
+      setReorderStep("");
+    }
   }
 
   if (loading) return (
@@ -165,13 +289,32 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
         </div>
       )}
 
-      <button onClick={handleReorder}
-        className="w-full py-4 rounded-xl font-display font-bold text-ironworks flex items-center justify-center gap-2 cursor-pointer transition-opacity hover:opacity-90"
+      {/* Reorder error */}
+      {reorderError && (
+        <div className="mb-4 rounded-xl px-4 py-3 text-sm font-mono text-red-400"
+          style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.25)" }}>
+          {reorderError}
+        </div>
+      )}
+
+      <button
+        onClick={handleReorder}
+        disabled={reorderLoading}
+        className="w-full py-4 rounded-xl font-display font-bold text-ironworks flex items-center justify-center gap-2 cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-70 disabled:cursor-wait"
         style={{ background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)", boxShadow: "0 0 24px rgba(255,181,71,0.28)" }}>
-        <RotateCcw size={16} /> RE-ORDER THESE PARTS
+        {reorderLoading ? (
+          <>
+            <Loader2 size={16} className="animate-spin" />
+            {reorderStep || "LOADING…"}
+          </>
+        ) : (
+          <>
+            <RotateCcw size={16} /> RE-ORDER THESE PARTS
+          </>
+        )}
       </button>
       <div className="mt-2 font-mono text-xs text-steel/50 text-center">
-        Parts will be added to your cart — you'll need to re-upload your files to get a fresh quote
+        Your files will be retrieved automatically — no re-upload needed
       </div>
     </div>
   );
