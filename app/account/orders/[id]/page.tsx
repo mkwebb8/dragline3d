@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
-import { ArrowLeft, Package, Truck, RotateCcw, ExternalLink, Loader2 } from "lucide-react";
-import { QUALITIES } from "@/lib/stl";
+import { ArrowLeft, Truck, RotateCcw, ExternalLink, Loader2 } from "lucide-react";
 import type { CSSProperties } from "react";
 
 function getSupabase() {
@@ -54,31 +53,35 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
       if (!session) { router.push("/account"); return; }
       const email = session.user.email || "";
 
-      // Step 1: Fetch files from TrueNAS via our API
-      setReorderStep("Retrieving your files…");
+      // Step 1: Get order items
+      setReorderStep("Loading order…");
       const filesRes = await fetch(`/api/account/orders/${id}/files?email=${encodeURIComponent(email)}`);
-      if (!filesRes.ok) throw new Error("Could not retrieve order files.");
-      const { files, missingFiles, orderItems } = await filesRes.json();
+      if (!filesRes.ok) throw new Error("Could not load order details.");
+      const { orderItems } = await filesRes.json();
 
-      if (!files.length) {
-        throw new Error("No files found for this order. Please upload your files manually.");
-      }
-
-      if (missingFiles?.length) {
-        console.warn("Some files could not be retrieved:", missingFiles);
-      }
-
-      // Build a map from fileName → File object (reconstructed from base64)
+      // Step 2: Fetch each unique file via proxy (browser → Cloudflare Pages → TrueNAS)
+      const uniqueFileNames = [...new Set((orderItems as any[]).map((i: any) => i.file_name))] as string[];
       const fileMap: Record<string, File> = {};
-      for (const { fileName, base64, mimeType } of files) {
-        const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-        fileMap[fileName] = new File([bytes], fileName, { type: mimeType });
+
+      for (let i = 0; i < uniqueFileNames.length; i++) {
+        const fileName = uniqueFileNames[i];
+        setReorderStep(`Retrieving file ${i + 1} of ${uniqueFileNames.length}…`);
+        try {
+          const res = await fetch(
+            `/api/account/orders/${id}/file?email=${encodeURIComponent(email)}&fileName=${encodeURIComponent(fileName)}`
+          );
+          if (res.ok) {
+            const blob = await res.blob();
+            const ext = fileName.split('.').pop()?.toLowerCase() || 'stl';
+            const mimeType = ext === '3mf' ? 'model/3mf' : 'application/octet-stream';
+            fileMap[fileName] = new File([blob], fileName, { type: mimeType });
+          }
+        } catch {
+          console.warn(`Could not retrieve file: ${fileName}`);
+        }
       }
 
-      // Step 2: Re-slice each item
-      setReorderStep(`Slicing ${orderItems.length} part${orderItems.length > 1 ? "s" : ""}…`);
-
-      // Fetch live pricing once
+      // Step 3: Re-slice each item
       const pricingRes = await fetch("/api/pricing");
       const livePricing: Record<string, number> = pricingRes.ok ? await pricingRes.json() : {};
 
@@ -86,10 +89,8 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
         orderItems.map(async (item: any, idx: number) => {
           setReorderStep(`Slicing part ${idx + 1} of ${orderItems.length}…`);
           const file = fileMap[item.file_name];
-
           const itemId = Math.random().toString(36).slice(2, 10);
 
-          // If we have the file, re-slice it for a fresh quote
           if (file) {
             try {
               const form = new FormData();
@@ -123,12 +124,12 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
                   geometry: null,
                 };
               }
-            } catch (e) {
+            } catch {
               console.warn(`Slicer failed for ${item.file_name}, using stored price`);
             }
           }
 
-          // Fallback: use stored price from original order
+          // Fallback: use stored price
           return {
             id: itemId,
             file: file || null,
@@ -143,7 +144,7 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
               grams: item.grams || 0,
               hours: item.hours || 0,
               price: item.price,
-              fromSlicer: true, // treat stored price as valid so cart accepts it
+              fromSlicer: true,
               breakdown: { material: 0, machine: 0, setup: 0 },
             },
             geometry: null,
@@ -151,7 +152,7 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
         })
       );
 
-      // Step 3: Save cart and navigate
+      // Step 4: Save to localStorage and navigate
       setReorderStep("Loading your cart…");
       const serializable = cartItems.map((i: any) => ({
         id: i.id,
@@ -166,11 +167,14 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
       }));
       localStorage.setItem("dragline_cart", JSON.stringify(serializable));
 
-      // Also stash the File objects in sessionStorage keys so quote page can use them
-      // (Files can't go in localStorage — we store base64 blobs keyed by fileName)
+      // Stash files in sessionStorage for quote page
       const fileCache: Record<string, { base64: string; mimeType: string }> = {};
-      for (const { fileName, base64, mimeType } of files) {
-        fileCache[fileName] = { base64, mimeType };
+      for (const [fileName, file] of Object.entries(fileMap)) {
+        const buffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+        fileCache[fileName] = { base64: btoa(binary), mimeType: file.type };
       }
       sessionStorage.setItem("dragline_reorder_files", JSON.stringify(fileCache));
 
