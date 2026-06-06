@@ -30,6 +30,9 @@ export const metadata: Metadata = {
   description:
     "Industrial-grade FDM 3D printing out of Louisville, Kentucky. Quoted in minutes. Layer by layer.",
   metadataBase: new URL("https://dragline3d.com"),
+  icons: {
+    icon: '/favicon.svg',
+  },
   openGraph: {
     title: "Dragline 3D · Layer by layer.",
     description: "Industrial-grade FDM 3D printing out of Louisville, Kentucky.",
