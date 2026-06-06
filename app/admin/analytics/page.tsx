@@ -4,6 +4,17 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, RefreshCw, TrendingUp, Package, Zap, DollarSign, Weight, Users, BarChart2, Download, Calendar } from "lucide-react";
+import type { CSSProperties } from "react";
+
+const glass: CSSProperties = {
+  background: "rgba(255,255,255,0.03)",
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
+  border: "1px solid rgba(255,255,255,0.07)",
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
+};
+const innerCell: CSSProperties = { background: "rgba(255,255,255,0.04)", borderRadius: 12 };
+const inputSt: CSSProperties = { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", outline: "none" };
 
 const ELECTRICITY_RATE = 0.12;
 const AVG_PRINTER_WATTS = 300;
@@ -35,8 +46,9 @@ function BarChart({ data, color = "#f59e0b", label, prefix = "" }: { data: { mon
     <div className="flex items-end gap-1 h-28">
       {data.map(d => (
         <div key={d.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-          <div className="w-full rounded-sm transition-all relative group" style={{ height: `${Math.max((d.value / max) * 100, 2)}%`, background: color, opacity: d.value > 0 ? 1 : 0.15 }}>
-            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-ironworks border border-ironworks3 rounded-sm px-1.5 py-0.5 font-mono text-[9px] text-bone whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10">
+          <div className="w-full rounded-md transition-all relative group" style={{ height: `${Math.max((d.value / max) * 100, 2)}%`, background: color, opacity: d.value > 0 ? 1 : 0.15 }}>
+            <div className="absolute -top-6 left-1/2 -translate-x-1/2 rounded-lg px-1.5 py-0.5 font-mono text-[9px] text-bone whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10"
+              style={glass}>
               {prefix}{label === "count" ? d.value : d.value.toFixed(label === "$" ? 2 : 1)}{label !== "$" && label !== "count" ? label : ""}
             </div>
           </div>
@@ -49,7 +61,7 @@ function BarChart({ data, color = "#f59e0b", label, prefix = "" }: { data: { mon
 
 function StatCard({ label, value, sub, color = "text-amber", icon: Icon }: any) {
   return (
-    <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-4">
+    <div className="rounded-xl p-4" style={glass}>
       <div className="flex items-center gap-2 mb-2">
         <Icon size={14} className="text-steel" />
         <div className="font-mono text-xs text-steel tracking-wider">{label}</div>
@@ -93,7 +105,6 @@ export default function AnalyticsPage() {
       if (data?.watts !== undefined) setGoveeWatts(data.watts);
       if (data?.on !== undefined) setGoveeOn(data.on);
     }).catch(() => {});
-    // Load saved Novo balances
     const saved = localStorage.getItem("novo_balances");
     if (saved) setNovoBalances(JSON.parse(saved));
     setLoading(false);
@@ -106,7 +117,6 @@ export default function AnalyticsPage() {
     localStorage.setItem("novo_balances", JSON.stringify(balances));
   }
 
-  // Filter orders by date
   const filteredOrders = orders.filter(o => {
     if (!o.created_at) return false;
     const d = o.created_at.slice(0, 10);
@@ -118,7 +128,6 @@ export default function AnalyticsPage() {
   const completedOrders = filteredOrders.filter(o => !["pending", "cancelled"].includes(o.status));
   const allActiveOrders = filteredOrders.filter(o => o.status !== "pending");
 
-  // Monthly buckets
   const monthlyData: Record<string, {
     revenue: number; materialCost: number; tax: number; printHours: number;
     grams: Record<string, number>; orderCount: number; shipping: number;
@@ -169,7 +178,6 @@ export default function AnalyticsPage() {
     return { month: m, value: d.revenue > 0 ? (profit / d.revenue) * 100 : 0 };
   });
 
-  // Totals
   const totalRevenue = completedOrders.reduce((s, o) => s + (o.subtotal || 0), 0);
   const totalShipping = completedOrders.reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
   const totalSquareFees = completedOrders.reduce((s, o) => s + Math.round(((o.total || 0) * SQUARE_PCT + SQUARE_FIXED) * 100) / 100, 0);
@@ -187,19 +195,17 @@ export default function AnalyticsPage() {
   const avgOrderValue = totalRevenue / (completedOrders.length || 1);
   const marginPct = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
-  // Profit First targets
   const realRevenue = totalRevenue - totalSquareFees;
-const pfProfit = realRevenue * PROFIT_FIRST.profit;
-const pfOwnerComp = realRevenue * PROFIT_FIRST.ownerComp;
-const pfTaxes = realRevenue * PROFIT_FIRST.taxes;
-const pfOpex = realRevenue * PROFIT_FIRST.opex;
-  // Status breakdown
+  const pfProfit = realRevenue * PROFIT_FIRST.profit;
+  const pfOwnerComp = realRevenue * PROFIT_FIRST.ownerComp;
+  const pfTaxes = realRevenue * PROFIT_FIRST.taxes;
+  const pfOpex = realRevenue * PROFIT_FIRST.opex;
+
   const statusCounts: Record<string, number> = {};
   for (const o of allActiveOrders) { statusCounts[o.status] = (statusCounts[o.status] || 0) + 1; }
   const STATUS_COLORS_MAP: Record<string, string> = { pending: "#6b7280", received: "#3b82f6", queued: "#f59e0b", printing: "#f97316", quality_check: "#a855f7", shipped: "#22c55e", delivered: "#16a34a", cancelled: "#ef4444" };
   const STATUS_LABELS: Record<string, string> = { pending: "Pending", received: "Received", queued: "Queued", printing: "Printing", quality_check: "QC", shipped: "Shipped", delivered: "Delivered", cancelled: "Cancelled" };
 
-  // Top customers
   const customerRevenue: Record<string, { revenue: number; orders: number; email: string }> = {};
   for (const o of completedOrders) {
     const name = o.customer_name || "Unknown";
@@ -209,7 +215,6 @@ const pfOpex = realRevenue * PROFIT_FIRST.opex;
   }
   const topCustomers = Object.entries(customerRevenue).sort((a, b) => b[1].revenue - a[1].revenue).slice(0, 5);
 
-  // Material usage
   const materialStats: Record<string, { grams: number; orders: Set<string>; revenue: number; lastUsed: string }> = {};
   for (const o of completedOrders) {
     for (const item of (o.order_items || [])) {
@@ -224,7 +229,6 @@ const pfOpex = realRevenue * PROFIT_FIRST.opex;
   const materialList = Object.entries(materialStats).sort((a, b) => b[1].grams - a[1].grams);
   const maxMatGrams = Math.max(...materialList.map(([, s]) => s.grams), 1);
 
-  // CSV export data
   function handleExportMonthly() {
     const rows = months.map(m => {
       const d = monthlyData[m];
@@ -235,8 +239,8 @@ const pfOpex = realRevenue * PROFIT_FIRST.opex;
         Revenue: d.revenue.toFixed(2), "Material Cost": d.materialCost.toFixed(2),
         "Electricity": elec.toFixed(2), "Square Fees": d.squareFees.toFixed(2),
         "Tax Collected": d.tax.toFixed(2), Shipping: d.shipping.toFixed(2),
-        Profit: profit.toFixed(2), "Margin %": d.revenue > 0 ? ((profit/d.revenue)*100).toFixed(0) : "0",
-        "Filament kg": (Object.values(d.grams).reduce((s, g) => s + g, 0)/1000).toFixed(3),
+        Profit: profit.toFixed(2), "Margin %": d.revenue > 0 ? ((profit / d.revenue) * 100).toFixed(0) : "0",
+        "Filament kg": (Object.values(d.grams).reduce((s, g) => s + g, 0) / 1000).toFixed(3),
         "Print Hours": d.printHours.toFixed(1),
       };
     });
@@ -247,61 +251,86 @@ const pfOpex = realRevenue * PROFIT_FIRST.opex;
     const rows = completedOrders.map(o => ({
       "Order ID": o.id, Customer: o.customer_name, Email: o.customer_email,
       Date: o.created_at?.slice(0, 10), Status: o.status,
-      Subtotal: (o.subtotal || 0).toFixed(2), Tax: Math.round((o.subtotal||0)*0.06*100)/100,
-      Shipping: Number(o.shipping_cost||0).toFixed(2), Total: (o.total||0).toFixed(2),
-      "Square Fee": ((o.total||0)*SQUARE_PCT+SQUARE_FIXED).toFixed(2),
+      Subtotal: (o.subtotal || 0).toFixed(2), Tax: Math.round((o.subtotal || 0) * 0.06 * 100) / 100,
+      Shipping: Number(o.shipping_cost || 0).toFixed(2), Total: (o.total || 0).toFixed(2),
+      "Square Fee": ((o.total || 0) * SQUARE_PCT + SQUARE_FIXED).toFixed(2),
     }));
     exportCSV(rows, "dragline3d-orders.csv");
   }
 
   function handleExportMaterials() {
     const rows = materialList.map(([mat, s]) => ({
-      Material: mat, "kg Used": (s.grams/1000).toFixed(3),
+      Material: mat, "kg Used": (s.grams / 1000).toFixed(3),
       "Orders": s.orders.size, Revenue: s.revenue.toFixed(2),
-      "Last Used": s.lastUsed?.slice(0,10) || "",
+      "Last Used": s.lastUsed?.slice(0, 10) || "",
     }));
     exportCSV(rows, "dragline3d-materials.csv");
   }
 
-  if (loading) return <div className="max-w-6xl mx-auto px-6 py-16 text-center"><div className="inline-block w-8 h-8 border-2 border-ironworks3 border-t-amber rounded-full animate-spin" /></div>;
+  if (loading) return (
+    <div className="max-w-6xl mx-auto px-6 py-16 text-center">
+      <div className="inline-block w-8 h-8 border-2 border-white/10 border-t-amber rounded-full animate-spin" />
+    </div>
+  );
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Link href="/admin/orders" className="text-bone/50 hover:text-bone transition-colors"><ArrowLeft size={20} /></Link>
+          <Link href="/admin/orders" className="text-bone/50 hover:text-bone transition-colors cursor-pointer"><ArrowLeft size={20} /></Link>
           <div>
             <div className="font-display font-extrabold text-xl">Analytics</div>
             <div className="font-mono text-xs text-steel">DRAGLINE 3D · BUSINESS OVERVIEW</div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={fetchData} className="p-2 rounded-sm border border-ironworks3 text-bone/60 hover:text-bone transition-colors"><RefreshCw size={16} /></button>
-        </div>
+        <button onClick={fetchData} className="p-2 rounded-xl text-bone/60 hover:text-bone transition-colors cursor-pointer" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+          <RefreshCw size={16} />
+        </button>
       </div>
 
       {/* Date filter */}
-      <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-4 mb-6 flex items-center gap-4 flex-wrap">
+      <div className="rounded-xl p-4 mb-6 flex items-center gap-4 flex-wrap" style={glass}>
         <Calendar size={14} className="text-steel" />
         <div className="flex items-center gap-2">
           <label className="font-mono text-xs text-steel">FROM</label>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-2 py-1 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono" />
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="px-2 py-1 rounded-lg text-bone text-xs font-mono transition-colors"
+            style={inputSt}
+            onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,181,71,0.50)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(255,181,71,0.08)"; }}
+            onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.boxShadow = "none"; }} />
         </div>
         <div className="flex items-center gap-2">
           <label className="font-mono text-xs text-steel">TO</label>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-2 py-1 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono" />
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="px-2 py-1 rounded-lg text-bone text-xs font-mono transition-colors"
+            style={inputSt}
+            onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,181,71,0.50)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(255,181,71,0.08)"; }}
+            onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.boxShadow = "none"; }} />
         </div>
-        {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="font-mono text-xs text-steel hover:text-bone underline">Clear</button>}
+        {(dateFrom || dateTo) && (
+          <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="font-mono text-xs text-steel hover:text-bone underline cursor-pointer">Clear</button>
+        )}
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={handleExportOrders} className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border border-ironworks3 font-mono text-xs text-bone/60 hover:text-bone transition-colors"><Download size={12}/>Orders</button>
-          <button onClick={handleExportMonthly} className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border border-ironworks3 font-mono text-xs text-bone/60 hover:text-bone transition-colors"><Download size={12}/>Monthly</button>
-          <button onClick={handleExportMaterials} className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border border-ironworks3 font-mono text-xs text-bone/60 hover:text-bone transition-colors"><Download size={12}/>Materials</button>
+          {[
+            { label: "Orders", handler: handleExportOrders },
+            { label: "Monthly", handler: handleExportMonthly },
+            { label: "Materials", handler: handleExportMaterials },
+          ].map(({ label, handler }) => (
+            <button key={label} onClick={handler}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono text-xs text-bone/60 hover:text-bone transition-colors cursor-pointer"
+              style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+              <Download size={12} />{label}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Govee */}
       {(goveeWatts !== null || goveeOn !== null) && (
-        <div className={`mb-6 rounded-sm border p-4 flex items-center gap-4 ${goveeOn ? "border-orange-500/40 bg-orange-500/5" : "border-ironworks3 bg-ironworks2"}`}>
+        <div className={`mb-6 rounded-xl p-4 flex items-center gap-4`}
+          style={goveeOn
+            ? { ...glass, border: "1px solid rgba(249,115,22,0.40)", background: "rgba(249,115,22,0.05)" }
+            : glass}>
           <Zap size={16} className={goveeOn ? "text-orange-400" : "text-steel"} />
           <div className="flex items-center gap-4 font-mono text-sm flex-wrap">
             <span className="text-steel">PRINTER OUTLET</span>
@@ -313,10 +342,12 @@ const pfOpex = realRevenue * PROFIT_FIRST.opex;
       )}
 
       {/* P&L Summary */}
-      <div className="mb-2 font-mono text-xs text-steel tracking-widest">P&L SUMMARY {(dateFrom||dateTo)&&<span className="text-amber ml-2">FILTERED</span>}</div>
+      <div className="mb-2 font-mono text-xs text-steel tracking-widest">
+        P&L SUMMARY {(dateFrom || dateTo) && <span className="text-amber ml-2">FILTERED</span>}
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <StatCard label="REVENUE" value={fc(totalRevenue)} sub={`${completedOrders.length} orders`} icon={DollarSign} />
-        <StatCard label="COGS (MATERIAL)" value={fc(totalMatCost)} sub={`${(totalMatCost/totalRevenue*100||0).toFixed(0)}% of revenue`} color="text-red-400" icon={Weight} />
+        <StatCard label="COGS (MATERIAL)" value={fc(totalMatCost)} sub={`${(totalMatCost / totalRevenue * 100 || 0).toFixed(0)}% of revenue`} color="text-red-400" icon={Weight} />
         <StatCard label="SQUARE FEES" value={fc(totalSquareFees)} sub="2.9% + $0.30/order" color="text-orange-400" icon={DollarSign} />
         <StatCard label="ELECTRICITY EST." value={fc(totalElecCost)} sub={`${totalHours.toFixed(0)}h × ${AVG_PRINTER_WATTS}W`} color="text-yellow-400" icon={Zap} />
       </div>
@@ -329,19 +360,19 @@ const pfOpex = realRevenue * PROFIT_FIRST.opex;
 
       {/* Profit First / Reserves */}
       <div className="mb-2 font-mono text-xs text-steel tracking-widest">PROFIT FIRST RESERVES</div>
-      <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-5 mb-8">
-        <div className="font-mono text-xs text-steel mb-4">Rolling totals based on real revenue (subtotal minus Square fees). Enter actual Novo balances to see if you're caught up.</div>
+      <div className="rounded-xl p-5 mb-8" style={glass}>
+        <div className="font-mono text-xs text-steel mb-4">Rolling totals based on real revenue (subtotal minus Square fees). Enter actual Novo balances to see if you&apos;re caught up.</div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { key: "profit", label: "PROFIT", pct: 15, target: pfProfit, color: "text-green-400", border: "border-green-500/30" },
-            { key: "ownerComp", label: "OWNER COMP", pct: 25, target: pfOwnerComp, color: "text-amber", border: "border-amber/30" },
-            { key: "taxes", label: "TAXES", pct: 30, target: pfTaxes, color: "text-red-400", border: "border-red-500/30" },
-            { key: "opex", label: "OP. EXPENSES", pct: 30, target: pfOpex, color: "text-blue-400", border: "border-blue-500/30" },
-          ].map(({ key, label, pct, target, color, border }) => {
+            { key: "profit", label: "PROFIT", pct: 15, target: pfProfit, color: "text-green-400", borderColor: "rgba(34,197,94,0.30)" },
+            { key: "ownerComp", label: "OWNER COMP", pct: 25, target: pfOwnerComp, color: "text-amber", borderColor: "rgba(255,181,71,0.30)" },
+            { key: "taxes", label: "TAXES", pct: 30, target: pfTaxes, color: "text-red-400", borderColor: "rgba(239,68,68,0.30)" },
+            { key: "opex", label: "OP. EXPENSES", pct: 30, target: pfOpex, color: "text-blue-400", borderColor: "rgba(59,130,246,0.30)" },
+          ].map(({ key, label, pct, target, color, borderColor }) => {
             const actual = parseFloat(novoBalances[key as keyof typeof novoBalances]) || 0;
             const diff = actual - target;
             return (
-              <div key={key} className={`rounded-sm border ${border} bg-ironworks p-4`}>
+              <div key={key} className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${borderColor}` }}>
                 <div className="font-mono text-xs text-steel mb-1">{label} ({pct}%)</div>
                 <div className={`font-display font-bold text-lg ${color}`}>{fc(target)}</div>
                 <div className="font-mono text-xs text-steel mb-2">target</div>
@@ -349,8 +380,10 @@ const pfOpex = realRevenue * PROFIT_FIRST.opex;
                   type="number" step="0.01" placeholder="Actual balance"
                   value={novoBalances[key as keyof typeof novoBalances]}
                   onChange={e => saveNovoBalances({ ...novoBalances, [key]: e.target.value })}
-                  className="w-full px-2 py-1.5 rounded-sm bg-ironworks2 border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono mb-1"
-                />
+                  className="w-full px-2 py-1.5 rounded-lg text-bone text-xs font-mono mb-1 transition-colors"
+                  style={inputSt}
+                  onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,181,71,0.50)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(255,181,71,0.08)"; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.boxShadow = "none"; }} />
                 {actual > 0 && (
                   <div className={`font-mono text-xs ${diff >= 0 ? "text-green-400" : "text-red-400"}`}>
                     {diff >= 0 ? "+" : ""}{fc(diff)} vs target
@@ -371,7 +404,7 @@ const pfOpex = realRevenue * PROFIT_FIRST.opex;
           { label: "MATERIAL COST", data: mMatCost, color: "#ef4444", labelStr: "$" },
           { label: "ELEC. COST", data: mElec, color: "#eab308", labelStr: "$" },
         ].map(({ label, data, color, labelStr }) => (
-          <div key={label} className="bg-ironworks2 border border-ironworks3 rounded-sm p-4">
+          <div key={label} className="rounded-xl p-4" style={glass}>
             <div className="font-mono text-xs text-steel tracking-widest mb-3">{label}</div>
             <BarChart data={data} color={color} label={labelStr} prefix="$" />
           </div>
@@ -384,7 +417,7 @@ const pfOpex = realRevenue * PROFIT_FIRST.opex;
           { label: "PARTS PRINTED", data: mItems, color: "#8b5cf6", labelStr: "pcs" },
           { label: "PROFIT MARGIN %", data: mMargin, color: "#10b981", labelStr: "%" },
         ].map(({ label, data, color, labelStr }) => (
-          <div key={label} className="bg-ironworks2 border border-ironworks3 rounded-sm p-4">
+          <div key={label} className="rounded-xl p-4" style={glass}>
             <div className="font-mono text-xs text-steel tracking-widest mb-3">{label}</div>
             <BarChart data={data} color={color} label={labelStr} />
           </div>
@@ -393,34 +426,36 @@ const pfOpex = realRevenue * PROFIT_FIRST.opex;
 
       {/* Material + status */}
       <div className="grid md:grid-cols-2 gap-4 mb-6">
-        <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-5">
+        <div className="rounded-xl p-5" style={glass}>
           <div className="font-mono text-xs text-amber tracking-widest mb-4 flex items-center justify-between">
             FILAMENT USAGE
-            <button onClick={handleExportMaterials} className="flex items-center gap-1 text-steel hover:text-bone"><Download size={10}/> CSV</button>
+            <button onClick={handleExportMaterials} className="flex items-center gap-1 text-steel hover:text-bone transition-colors cursor-pointer">
+              <Download size={10} /> CSV
+            </button>
           </div>
           <div className="space-y-3">
             {materialList.map(([mat, s]) => (
               <div key={mat} className="flex items-center gap-3">
                 <div className="font-mono text-xs w-16 text-steel flex-shrink-0">{mat}</div>
-                <div className="flex-1 h-3 bg-ironworks rounded-full overflow-hidden">
+                <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.07)" }}>
                   <div className="h-full rounded-full" style={{ width: `${(s.grams / maxMatGrams) * 100}%`, background: MATERIAL_COLORS_MAP[mat] || "#6b7280" }} />
                 </div>
-                <div className="font-mono text-xs text-bone w-16 text-right flex-shrink-0">{(s.grams/1000).toFixed(3)}kg</div>
+                <div className="font-mono text-xs text-bone w-16 text-right flex-shrink-0">{(s.grams / 1000).toFixed(3)}kg</div>
                 <div className="font-mono text-xs text-steel w-8 text-right flex-shrink-0">{s.orders.size}x</div>
                 <div className="font-mono text-xs text-amber w-16 text-right flex-shrink-0">{fc(s.revenue)}</div>
               </div>
             ))}
             {materialList.length === 0 && <div className="text-bone/40 text-xs font-mono text-center py-4">No data yet</div>}
           </div>
-          <div className="flex justify-end gap-4 mt-3 pt-3 border-t border-ironworks3 font-mono text-xs text-steel">
+          <div className="flex justify-end gap-4 mt-3 pt-3 border-t font-mono text-xs text-steel" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
             <span>kg used</span><span>orders</span><span>revenue</span>
           </div>
         </div>
 
-        <div className="bg-ironworks2 border border-ironworks3 rounded-sm p-5">
+        <div className="rounded-xl p-5" style={glass}>
           <div className="font-mono text-xs text-amber tracking-widest mb-4">ORDER STATUS BREAKDOWN</div>
           <div className="space-y-2">
-            {Object.entries(statusCounts).sort((a,b)=>b[1]-a[1]).map(([status, count]) => (
+            {Object.entries(statusCounts).sort((a, b) => b[1] - a[1]).map(([status, count]) => (
               <div key={status} className="flex items-center gap-3">
                 <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: STATUS_COLORS_MAP[status] || "#6b7280" }} />
                 <div className="font-mono text-xs text-steel flex-1">{STATUS_LABELS[status] || status}</div>
@@ -430,19 +465,21 @@ const pfOpex = realRevenue * PROFIT_FIRST.opex;
             ))}
             {allActiveOrders.length === 0 && <div className="text-bone/40 text-xs font-mono text-center py-4">No orders yet</div>}
           </div>
-          <div className="mt-4 pt-3 border-t border-ironworks3 font-mono text-xs text-steel">{allActiveOrders.length} total orders</div>
+          <div className="mt-4 pt-3 border-t font-mono text-xs text-steel" style={{ borderColor: "rgba(255,255,255,0.07)" }}>{allActiveOrders.length} total orders</div>
         </div>
       </div>
 
       {/* Top customers */}
-      <div className="bg-ironworks2 border border-ironworks3 rounded-sm mb-6">
-        <div className="px-5 py-4 border-b border-ironworks3 flex items-center justify-between">
+      <div className="rounded-xl overflow-hidden mb-6" style={glass}>
+        <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
           <div className="font-mono text-xs text-amber tracking-widest">TOP CUSTOMERS</div>
-          <button onClick={handleExportOrders} className="flex items-center gap-1 font-mono text-xs text-steel hover:text-bone"><Download size={10}/> Export Orders CSV</button>
+          <button onClick={handleExportOrders} className="flex items-center gap-1 font-mono text-xs text-steel hover:text-bone transition-colors cursor-pointer">
+            <Download size={10} /> Export Orders CSV
+          </button>
         </div>
-        <div className="divide-y divide-ironworks3">
+        <div>
           {topCustomers.map(([name, data], i) => (
-            <div key={name} className="px-5 py-3 flex items-center justify-between gap-4">
+            <div key={name} className="px-5 py-3 flex items-center justify-between gap-4 border-b last:border-b-0" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
               <div className="flex items-center gap-3">
                 <div className="font-mono text-xs text-steel w-4">{i + 1}</div>
                 <div>
@@ -463,16 +500,18 @@ const pfOpex = realRevenue * PROFIT_FIRST.opex;
 
       {/* Monthly table */}
       {months.length > 0 && (
-        <div className="bg-ironworks2 border border-ironworks3 rounded-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-ironworks3 flex items-center justify-between">
+        <div className="rounded-xl overflow-hidden" style={glass}>
+          <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
             <div className="font-mono text-xs text-amber tracking-widest">MONTHLY BREAKDOWN</div>
-            <button onClick={handleExportMonthly} className="flex items-center gap-1 font-mono text-xs text-steel hover:text-bone"><Download size={10}/> CSV</button>
+            <button onClick={handleExportMonthly} className="flex items-center gap-1 font-mono text-xs text-steel hover:text-bone transition-colors cursor-pointer">
+              <Download size={10} /> CSV
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-ironworks3">
-                  {["MONTH","ORDERS","PARTS","REVENUE","MAT COST","ELEC","SQ FEES","TAX","SHIPPING","PROFIT","MARGIN","FILAMENT","HRS"].map(h => (
+                <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+                  {["MONTH", "ORDERS", "PARTS", "REVENUE", "MAT COST", "ELEC", "SQ FEES", "TAX", "SHIPPING", "PROFIT", "MARGIN", "FILAMENT", "HRS"].map(h => (
                     <th key={h} className="px-3 py-3 text-left font-mono text-xs text-steel whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -485,7 +524,7 @@ const pfOpex = realRevenue * PROFIT_FIRST.opex;
                   const margin = d.revenue > 0 ? (profit / d.revenue) * 100 : 0;
                   const kg = Object.values(d.grams).reduce((s, g) => s + g, 0) / 1000;
                   return (
-                    <tr key={m} className="border-b border-ironworks3/50 hover:bg-ironworks3/20">
+                    <tr key={m} className="border-b hover:bg-white/[0.02] transition-colors" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
                       <td className="px-3 py-2 font-mono text-xs text-bone whitespace-nowrap">{fMonth(m)}</td>
                       <td className="px-3 py-2 font-mono text-xs text-steel">{d.orderCount}</td>
                       <td className="px-3 py-2 font-mono text-xs text-steel">{d.itemCount}</td>
