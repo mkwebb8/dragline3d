@@ -46,7 +46,7 @@ b64 = btoa(b64);
         for(const{name,file} of fileEntries){
           saveForm.append("file",file,name);
         }
-        fetch(`${slicerUrl}/save-files`,{method:"POST",body:saveForm}).catch(e=>console.error("[save-files] failed:",e.message));
+        fetch(`${slicerUrl}/save-files`,{method:"POST",body:saveForm}).then(r=>console.log("[save-files] status:",r.status)).catch(e=>console.error("[save-files] failed:",e.message));
       }catch(e:any){console.error("[save-files] error:",e.message);}
     }
 
