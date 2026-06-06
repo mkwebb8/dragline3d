@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
-import { ArrowLeft, Truck, RotateCcw, ExternalLink, Loader2 } from "lucide-react";
+import { ArrowLeft, Truck, RotateCcw, ExternalLink, Loader2, Minus, Plus } from "lucide-react";
 import type { CSSProperties } from "react";
 
 function getSupabase() {
@@ -29,6 +29,8 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
   const [reorderLoading, setReorderLoading] = useState(false);
   const [reorderStep, setReorderStep] = useState<string>("");
   const [reorderError, setReorderError] = useState<string | null>(null);
+  const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>({});
+  const [selectedQtys, setSelectedQtys] = useState<Record<string, number>>({});
   const router = useRouter();
 
   useEffect(() => {
@@ -37,13 +39,36 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
       if (!data.session) { router.push("/account"); return; }
       const email = data.session.user.email || "";
       const res = await fetch(`/api/account/orders/${id}?email=${encodeURIComponent(email)}`);
-      if (res.ok) setOrder(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setOrder(data);
+        // Default: all items selected at original qty
+        const sel: Record<string, boolean> = {};
+        const qtys: Record<string, number> = {};
+        (data.order_items || []).forEach((item: any) => {
+          sel[item.id] = true;
+          qtys[item.id] = item.qty || 1;
+        });
+        setSelectedItems(sel);
+        setSelectedQtys(qtys);
+      }
       setLoading(false);
     });
   }, [id, router]);
 
+  function toggleItem(itemId: string) {
+    setSelectedItems(prev => ({ ...prev, [itemId]: !prev[itemId] }));
+  }
+
+  function updateQty(itemId: string, delta: number, max: number) {
+    setSelectedQtys(prev => ({ ...prev, [itemId]: Math.max(1, Math.min(max, (prev[itemId] || 1) + delta)) }));
+  }
+
+  const selectedCount = Object.values(selectedItems).filter(Boolean).length;
+
   async function handleReorder() {
-    if (!order?.order_items?.length) return;
+    const activeItems = (order?.order_items || []).filter((i: any) => selectedItems[i.id]);
+    if (!activeItems.length) return;
     setReorderLoading(true);
     setReorderError(null);
 
@@ -53,19 +78,19 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
       if (!session) { router.push("/account"); return; }
       const email = session.user.email || "";
 
-      // Step 1: Get order items
+      // Step 1: Get order items from API
       setReorderStep("Loading order…");
       const filesRes = await fetch(`/api/account/orders/${id}/files?email=${encodeURIComponent(email)}`);
       if (!filesRes.ok) throw new Error("Could not load order details.");
       const { orderItems } = await filesRes.json();
 
-      // Step 2: Fetch each unique file via proxy (browser → Cloudflare Pages → TrueNAS)
-      const uniqueFileNames = [...new Set((orderItems as any[]).map((i: any) => i.file_name))] as string[];
+      // Step 2: Fetch each unique file for selected items only
+      const selectedFileNames = [...new Set(activeItems.map((i: any) => i.file_name))] as string[];
       const fileMap: Record<string, File> = {};
 
-      for (let i = 0; i < uniqueFileNames.length; i++) {
-        const fileName = uniqueFileNames[i];
-        setReorderStep(`Retrieving file ${i + 1} of ${uniqueFileNames.length}…`);
+      for (let i = 0; i < selectedFileNames.length; i++) {
+        const fileName = selectedFileNames[i];
+        setReorderStep(`Retrieving file ${i + 1} of ${selectedFileNames.length}…`);
         try {
           const res = await fetch(
             `/api/account/orders/${id}/file?email=${encodeURIComponent(email)}&fileName=${encodeURIComponent(fileName)}`
@@ -81,15 +106,16 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
         }
       }
 
-      // Step 3: Re-slice each item
+      // Step 3: Re-slice selected items
       const pricingRes = await fetch("/api/pricing");
       const livePricing: Record<string, number> = pricingRes.ok ? await pricingRes.json() : {};
 
       const cartItems = await Promise.all(
-        orderItems.map(async (item: any, idx: number) => {
-          setReorderStep(`Slicing part ${idx + 1} of ${orderItems.length}…`);
+        activeItems.map(async (item: any, idx: number) => {
+          setReorderStep(`Slicing part ${idx + 1} of ${activeItems.length}…`);
           const file = fileMap[item.file_name];
           const itemId = Math.random().toString(36).slice(2, 10);
+          const qty = selectedQtys[item.id] || item.qty || 1;
 
           if (file) {
             try {
@@ -105,22 +131,15 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
 
               if (sliceData.price && !sliceData.fallback) {
                 return {
-                  id: itemId,
-                  file,
+                  id: itemId, file,
                   fileName: item.file_name,
                   material: item.material,
                   quality: item.quality,
                   infill: item.infill,
-                  qty: item.qty || 1,
+                  qty,
                   color: item.color || "Midnight Black",
                   stats: { dims: { x: 0, y: 0, z: 0 }, volumeMm3: 0 },
-                  quote: {
-                    grams: sliceData.grams,
-                    hours: sliceData.hours,
-                    price: sliceData.price,
-                    fromSlicer: true,
-                    breakdown: sliceData.breakdown,
-                  },
+                  quote: { grams: sliceData.grams, hours: sliceData.hours, price: sliceData.price, fromSlicer: true, breakdown: sliceData.breakdown },
                   geometry: null,
                 };
               }
@@ -129,45 +148,30 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
             }
           }
 
-          // Fallback: use stored price
+          // Fallback: stored price
           return {
-            id: itemId,
-            file: file || null,
+            id: itemId, file: file || null,
             fileName: item.file_name,
             material: item.material,
             quality: item.quality,
             infill: item.infill,
-            qty: item.qty || 1,
+            qty,
             color: item.color || "Midnight Black",
             stats: { dims: { x: 0, y: 0, z: 0 }, volumeMm3: 0 },
-            quote: {
-              grams: item.grams || 0,
-              hours: item.hours || 0,
-              price: item.price,
-              fromSlicer: true,
-              breakdown: { material: 0, machine: 0, setup: 0 },
-            },
+            quote: { grams: item.grams || 0, hours: item.hours || 0, price: item.price, fromSlicer: true, breakdown: { material: 0, machine: 0, setup: 0 } },
             geometry: null,
           };
         })
       );
 
-      // Step 4: Save to localStorage and navigate
+      // Step 4: Save and navigate
       setReorderStep("Loading your cart…");
       const serializable = cartItems.map((i: any) => ({
-        id: i.id,
-        fileName: i.fileName,
-        material: i.material,
-        quality: i.quality,
-        infill: i.infill,
-        qty: i.qty,
-        color: i.color,
-        stats: i.stats,
-        quote: i.quote,
+        id: i.id, fileName: i.fileName, material: i.material, quality: i.quality,
+        infill: i.infill, qty: i.qty, color: i.color, stats: i.stats, quote: i.quote,
       }));
       localStorage.setItem("dragline_cart", JSON.stringify(serializable));
 
-      // Stash files in sessionStorage for quote page
       const fileCache: Record<string, { base64: string; mimeType: string }> = {};
       for (const [fileName, file] of Object.entries(fileMap)) {
         const buffer = await file.arrayBuffer();
@@ -263,27 +267,76 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
         </div>
       </div>
 
-      {/* Parts */}
+      {/* Parts with selection */}
       {order.order_items?.length > 0 && (
         <div className="rounded-xl overflow-hidden mb-6" style={glass}>
-          <div className="px-5 py-4 border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-            <div className="font-mono text-xs text-amber tracking-widest">PARTS ({order.order_items.reduce((s: number, i: any) => s + (i.qty || 1), 0)} pcs)</div>
+          <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+            <div className="font-mono text-xs text-amber tracking-widest">
+              PARTS ({order.order_items.reduce((s: number, i: any) => s + (i.qty || 1), 0)} pcs)
+            </div>
+            <button
+              onClick={() => {
+                const allSelected = order.order_items.every((i: any) => selectedItems[i.id]);
+                const next: Record<string, boolean> = {};
+                order.order_items.forEach((i: any) => { next[i.id] = !allSelected; });
+                setSelectedItems(next);
+              }}
+              className="font-mono text-[10px] text-steel hover:text-bone transition-colors cursor-pointer underline">
+              {order.order_items.every((i: any) => selectedItems[i.id]) ? "Deselect all" : "Select all"}
+            </button>
           </div>
           <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
             {order.order_items.map((item: any) => {
               const qty = item.qty || 1;
+              const isSelected = !!selectedItems[item.id];
+              const reorderQty = selectedQtys[item.id] || qty;
               return (
-                <div key={item.id} className="px-5 py-4 flex items-center justify-between gap-4">
+                <div key={item.id}
+                  className="px-5 py-4 flex items-center gap-4 transition-all duration-150 cursor-pointer"
+                  style={{ background: isSelected ? "rgba(255,181,71,0.03)" : "transparent" }}
+                  onClick={() => toggleItem(item.id)}>
+                  {/* Checkbox */}
+                  <div className="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-all duration-150"
+                    style={{
+                      background: isSelected ? "#ffb547" : "rgba(255,255,255,0.05)",
+                      border: isSelected ? "1px solid #ffb547" : "1px solid rgba(255,255,255,0.15)",
+                    }}>
+                    {isSelected && (
+                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                        <path d="M1 4L3.5 6.5L9 1" stroke="#08080a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </div>
+
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm flex items-center gap-2">
                       {qty > 1 && <span className="font-mono text-xs text-amber font-bold">{qty}×</span>}
-                      <span className="truncate">{item.file_name}</span>
+                      <span className="truncate" style={{ color: isSelected ? "#e8e6e1" : "rgba(232,230,225,0.45)" }}>{item.file_name}</span>
                     </div>
                     <div className="font-mono text-xs text-steel mt-0.5">
                       {item.material} · {item.color} · {item.quality} · {item.infill}%
                     </div>
                   </div>
-                  <div className="font-display font-bold text-amber flex-shrink-0">
+
+                  {/* Qty adjuster (only when selected) */}
+                  {isSelected && (
+                    <div className="flex items-center gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                      <button onClick={() => updateQty(item.id, -1, 50)}
+                        className="w-6 h-6 rounded-lg flex items-center justify-center cursor-pointer hover:border-amber/40 transition-all"
+                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}>
+                        <Minus size={10} />
+                      </button>
+                      <span className="font-mono text-xs font-bold w-4 text-center">{reorderQty}</span>
+                      <button onClick={() => updateQty(item.id, 1, 50)}
+                        className="w-6 h-6 rounded-lg flex items-center justify-center cursor-pointer hover:border-amber/40 transition-all"
+                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}>
+                        <Plus size={10} />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="font-display font-bold text-amber flex-shrink-0"
+                    style={{ color: isSelected ? "#ffb547" : "rgba(255,181,71,0.35)" }}>
                     ${(item.price * qty).toFixed(2)}
                   </div>
                 </div>
@@ -303,8 +356,8 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
 
       <button
         onClick={handleReorder}
-        disabled={reorderLoading}
-        className="w-full py-4 rounded-xl font-display font-bold text-ironworks flex items-center justify-center gap-2 cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-70 disabled:cursor-wait"
+        disabled={reorderLoading || selectedCount === 0}
+        className="w-full py-4 rounded-xl font-display font-bold text-ironworks flex items-center justify-center gap-2 cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
         style={{ background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)", boxShadow: "0 0 24px rgba(255,181,71,0.28)" }}>
         {reorderLoading ? (
           <>
@@ -313,7 +366,10 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
           </>
         ) : (
           <>
-            <RotateCcw size={16} /> RE-ORDER THESE PARTS
+            <RotateCcw size={16} />
+            {selectedCount === 0
+              ? "SELECT PARTS TO RE-ORDER"
+              : `RE-ORDER ${selectedCount} PART${selectedCount > 1 ? "S" : ""}`}
           </>
         )}
       </button>
