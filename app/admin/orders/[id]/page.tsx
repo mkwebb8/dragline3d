@@ -147,7 +147,7 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
           <button onClick={handleCreateInvoice} disabled={invoicing}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-display font-bold text-sm text-ironworks cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-50"
             style={{ background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)" }}>
-            <Receipt size={15} />{invoicing ? "CREATING…" : "CREATE SQUARE INVOICE"}
+            <Receipt size={15} />{invoicing ? "CREATING…" : order.square_invoice_url ? "GO TO SQUARE INVOICE" : "CREATE SQUARE INVOICE"}
           </button>
         )}
         <button onClick={() => window.open(`/admin/orders/${id}/packing-slip`, "_blank")}
