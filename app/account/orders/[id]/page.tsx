@@ -180,6 +180,17 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
         for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
         fileCache[fileName] = { base64: btoa(binary), mimeType: file.type };
       }
+      
+sessionStorage.setItem("dragline_reorder_shipping", JSON.stringify({
+  firstName: order.customer_name?.split(" ")[0] || "",
+  lastName: order.customer_name?.split(" ").slice(1).join(" ") || "",
+  email: order.customer_email || "",
+  localPickup: order.shipping_service === "Local Pickup",
+  address: order.address || "",
+  city: order.city || "",
+  state: order.state || "",
+  zip: order.zip || "",
+}));
       sessionStorage.setItem("dragline_reorder_files", JSON.stringify(fileCache));
 
       router.push("/quote");
