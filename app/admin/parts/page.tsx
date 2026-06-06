@@ -140,8 +140,9 @@ export default function PartsPage(){
   async function updateRuns(itemId:string,delta:number){
     const part=parts.find(p=>p.id===itemId);
     if(!part)return;
+    const qty=part.qty||1;
     const current=part.runs||1;
-    const next=Math.max(1,current+delta);
+    const next=Math.max(1,Math.min(qty,current+delta));
     if(next===current)return;
     await updatePart(itemId,{runs:next});
   }
@@ -183,7 +184,6 @@ export default function PartsPage(){
   }
 
   const incompleteParts=parts.filter(p=>!p.completed);
-  // Backlog: hours per piece × qty (total pieces), minus already-completed runs
   const backlogHours=incompleteParts.reduce((s,p)=>{
     const hoursPerPiece=p.print_hours||p.hours||0;
     const qty=p.qty||1;
@@ -270,17 +270,14 @@ export default function PartsPage(){
                       <div className="font-mono text-xs text-steel mb-1">
                         {part.material} · {part.color||"Midnight Black"} · {part.quality} · {part.infill}%
                       </div>
-                      {/* Per piece */}
                       <div className="font-mono text-xs text-steel/60 mb-0.5">
                         per piece: {gramsPerPiece.toFixed(1)}g · {formatHours(hoursPerPiece)}
                       </div>
-                      {/* Per run (if runs > 1 or qty > 1) */}
                       {(runs>1||qty>1)&&(
                         <div className="font-mono text-xs text-amber/70 mb-0.5">
-                          per run ({piecesPerRun.toFixed(piecesPerRun%1===0?0:1)} pcs): {gramsPerRun.toFixed(1)}g · {formatHours(hoursPerRun)}
+                          per run ({piecesPerRun%1===0?piecesPerRun:piecesPerRun.toFixed(1)} pcs): {gramsPerRun.toFixed(1)}g · {formatHours(hoursPerRun)}
                         </div>
                       )}
-                      {/* Total */}
                       <div className="font-mono text-xs text-bone/80 mb-2">
                         total ({runs} run{runs!==1?"s":""}): {totalGrams.toFixed(1)}g · {formatHours(totalHours)}
                       </div>
@@ -293,27 +290,23 @@ export default function PartsPage(){
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                      {/* Runs counter */}
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono text-xs text-steel">runs:</span>
                         <button onClick={()=>updateRuns(part.id,-1)} disabled={saving[part.id]||runs<=1} className="w-6 h-6 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors disabled:opacity-30"><Minus size={10}/></button>
                         <span className="font-mono text-sm font-bold w-6 text-center text-bone">{runs}</span>
-                        <button onClick={()=>updateRuns(part.id,1)} disabled={saving[part.id]} className="w-6 h-6 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors"><Plus size={10}/></button>
+                        <button onClick={()=>updateRuns(part.id,1)} disabled={saving[part.id]||runs>=qty} className="w-6 h-6 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors disabled:opacity-30"><Plus size={10}/></button>
                       </div>
-                      {/* Completed runs */}
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono text-xs text-steel">done:</span>
                         <button onClick={()=>updatePrintedQty(part.id,-1)} disabled={saving[part.id]||printedRuns<=0} className="w-6 h-6 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors disabled:opacity-30"><Minus size={10}/></button>
                         <span className={`font-mono text-sm font-bold w-8 text-center ${printedRuns>=runs?"text-green-400":"text-amber"}`}>{printedRuns}/{runs}</span>
                         <button onClick={()=>updatePrintedQty(part.id,1)} disabled={saving[part.id]||printedRuns>=runs} className="w-6 h-6 rounded-sm border border-ironworks3 bg-ironworks flex items-center justify-center hover:border-amber transition-colors disabled:opacity-30"><Plus size={10}/></button>
                       </div>
-                      {/* Grams per piece editor */}
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono text-xs text-steel">g/pc:</span>
                         <input type="number" step="0.1" min="0.1" placeholder={gramsPerPiece.toFixed(1)} value={editingGrams[part.id]||""} onChange={e=>setEditingGrams(s=>({...s,[part.id]:e.target.value}))} className="w-16 px-2 py-1 rounded-sm bg-ironworks border border-ironworks3 focus:border-amber focus:outline-none text-bone text-xs font-mono"/>
                         {editingGrams[part.id]&&<button onClick={()=>saveGrams(part.id)} className="px-2 py-1 text-xs font-mono bg-amber text-ironworks rounded-sm">save</button>}
                       </div>
-                      {/* Hours per piece editor */}
                       {!isEditingH?(
                         <button onClick={()=>startEditingHours(part.id,hoursPerPiece)} className="font-mono text-xs text-steel hover:text-amber transition-colors">
                           {formatHours(hoursPerPiece)}/pc ✎
