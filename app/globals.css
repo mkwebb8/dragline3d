@@ -27,9 +27,16 @@ body {
 
 .grid-bg {
   background-image:
-    linear-gradient(rgba(232, 230, 225, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(232, 230, 225, 0.04) 1px, transparent 1px);
-  background-size: 24px 24px;
+    linear-gradient(rgba(232, 230, 225, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232, 230, 225, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
 }
 
 /* range slider amber thumb */
