@@ -13,9 +13,11 @@ type Stats = {
 export function STLViewer({
   geometry,
   onStats,
+  onCapture,
 }: {
   geometry: THREE.BufferGeometry;
   onStats: (s: Stats) => void;
+  onCapture?: (dataUrl: string) => void;
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<{ toggleRotate?: () => void }>({});
@@ -30,7 +32,7 @@ export function STLViewer({
     scene.background = new THREE.Color(0x18181a);
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 5000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
     mount.appendChild(renderer.domElement);
@@ -79,6 +81,7 @@ export function STLViewer({
     let phi = Math.PI / 3;
     let radius = maxDim * 2;
     let autoRotate = true;
+    let captured = false;
 
     function updateCamera() {
       camera.position.x = radius * Math.sin(phi) * Math.cos(theta);
@@ -101,15 +104,10 @@ export function STLViewer({
       prevY = e.clientY;
       updateCamera();
     };
-    const onUp = () => {
-      isDragging = false;
-    };
+    const onUp = () => { isDragging = false; };
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      radius = Math.max(
-        maxDim * 0.5,
-        Math.min(maxDim * 5, radius + e.deltaY * maxDim * 0.002)
-      );
+      radius = Math.max(maxDim * 0.5, Math.min(maxDim * 5, radius + e.deltaY * maxDim * 0.002));
       updateCamera();
     };
     renderer.domElement.addEventListener("mousedown", onDown);
@@ -117,9 +115,7 @@ export function STLViewer({
     window.addEventListener("mouseup", onUp);
     renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
 
-    stateRef.current.toggleRotate = () => {
-      autoRotate = !autoRotate;
-    };
+    stateRef.current.toggleRotate = () => { autoRotate = !autoRotate; };
 
     let animId: number;
     function animate() {
@@ -129,6 +125,20 @@ export function STLViewer({
         updateCamera();
       }
       renderer.render(scene, camera);
+
+      // Capture thumbnail after 3rd frame (model is fully rendered)
+      if (!captured && onCapture) {
+        captured = true;
+        // Wait a few frames to ensure the model is rendered at a good angle
+        setTimeout(() => {
+          try {
+            const dataUrl = renderer.domElement.toDataURL("image/jpeg", 0.75);
+            onCapture(dataUrl);
+          } catch (e) {
+            console.warn("Thumbnail capture failed", e);
+          }
+        }, 500);
+      }
     }
     animate();
 
