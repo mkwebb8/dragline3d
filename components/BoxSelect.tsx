@@ -19,6 +19,7 @@ interface Props {
   orderId: string;
   currentBoxId?: string | null;
   token: string;
+  onSave?: (newBoxId: string | null) => void;
 }
 
 const glass: React.CSSProperties = {
@@ -34,7 +35,7 @@ const inputSt: React.CSSProperties = {
   outline: "none",
 };
 
-export default function BoxSelect({ orderId, currentBoxId, token }: Props) {
+export default function BoxSelect({ orderId, currentBoxId, token, onSave }: Props) {
   const [boxes, setBoxes] = useState<Box[]>([]);
   // savedBoxId = what's actually on the order in the DB
   const [savedBoxId, setSavedBoxId] = useState<string>(currentBoxId || "");
@@ -118,6 +119,7 @@ export default function BoxSelect({ orderId, currentBoxId, token }: Props) {
     }
 
     setSavedBoxId(selected);
+    onSave?.(selected || null);
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
