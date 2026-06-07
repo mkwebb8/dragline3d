@@ -114,6 +114,7 @@ export default function AnalyticsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [novoBalances, setNovoBalances] = useState({ profit: "", ownerComp: "", taxes: "", opex: "" });
+  const [pfPcts, setPfPcts] = useState({ profit: 15, ownerComp: 25, taxes: 30, opex: 30 });
   const [spools, setSpools] = useState<any[]>([]);
   const [boxes, setBoxes] = useState<any[]>([]);
   const router = useRouter();
@@ -141,6 +142,8 @@ export default function AnalyticsPage() {
     }).catch(() => {});
     const saved = localStorage.getItem("novo_balances");
     if (saved) setNovoBalances(JSON.parse(saved));
+    const savedPf = localStorage.getItem("pf_pcts");
+    if (savedPf) setPfPcts(JSON.parse(savedPf));
     setLoading(false);
   }, [router]);
 
@@ -150,6 +153,20 @@ export default function AnalyticsPage() {
     setNovoBalances(balances);
     localStorage.setItem("novo_balances", JSON.stringify(balances));
   }
+
+  function savePfPcts(pcts: typeof pfPcts) {
+    setPfPcts(pcts);
+    localStorage.setItem("pf_pcts", JSON.stringify(pcts));
+  }
+
+  // Live Profit First ratios (reactive — updated whenever pfPcts changes)
+  const PF = {
+    profit:   pfPcts.profit   / 100,
+    ownerComp: pfPcts.ownerComp / 100,
+    taxes:    pfPcts.taxes    / 100,
+    opex:     pfPcts.opex     / 100,
+  };
+  const pfPctSum = pfPcts.profit + pfPcts.ownerComp + pfPcts.taxes + pfPcts.opex;
 
   const filteredOrders = orders.filter(o => {
     if (!o.created_at) return false;
@@ -209,7 +226,7 @@ export default function AnalyticsPage() {
   const mNetProfit = months.map(m => {
     const d = monthlyData[m];
     const realRev = d.revenue - d.squareFees;
-    return { month: m, value: realRev * PROFIT_FIRST.profit };
+    return { month: m, value: realRev * PF.profit };
   });
   const mFilamentCost = months.map(m => ({ month: m, value: monthlyData[m].filamentCost }));
   const mBoxCost = months.map(m => ({ month: m, value: monthlyData[m].boxCost }));
@@ -219,7 +236,7 @@ export default function AnalyticsPage() {
     return {
       month: m,
       actual: d.filamentCost + d.boxCost + d.squareFees + elec,
-      budget: (d.revenue - d.squareFees) * PROFIT_FIRST.opex,
+      budget: (d.revenue - d.squareFees) * PF.opex,
     };
   });
   const mOrders = months.map(m => ({ month: m, value: monthlyData[m].orderCount }));
@@ -252,10 +269,10 @@ export default function AnalyticsPage() {
 
   // Profit First
   const realRevenue = totalRevenue - totalSquareFees;
-  const pfProfit = realRevenue * PROFIT_FIRST.profit;
-  const pfOwnerComp = realRevenue * PROFIT_FIRST.ownerComp;
-  const pfTaxes = realRevenue * PROFIT_FIRST.taxes;
-  const pfOpex = realRevenue * PROFIT_FIRST.opex;
+  const pfProfit = realRevenue * PF.profit;
+  const pfOwnerComp = realRevenue * PF.ownerComp;
+  const pfTaxes = realRevenue * PF.taxes;
+  const pfOpex = realRevenue * PF.opex;
 
   // Net profit
   const netProfit = pfProfit;
@@ -275,12 +292,12 @@ export default function AnalyticsPage() {
   const opexEfficiencyScore = pfOpex > 0 ? Math.max(0, Math.round(((pfOpex - actualOpex) / pfOpex) * 100)) : 0;
   // If under: how much slack can shift to profit
   const suggestedProfitPct = realRevenue > 0
-    ? Math.round((PROFIT_FIRST.profit + opexVariance / realRevenue) * 100)
-    : Math.round(PROFIT_FIRST.profit * 100);
+    ? Math.round((PF.profit + opexVariance / realRevenue) * 100)
+    : pfPcts.profit;
   // If over: minimum opex % needed to cover actual production costs
   const suggestedOpexPct = realRevenue > 0
     ? Math.ceil((actualOpex / realRevenue) * 100)
-    : Math.round(PROFIT_FIRST.opex * 100);
+    : pfPcts.opex;
 
   const statusCounts: Record<string, number> = {};
   for (const o of allActiveOrders) { statusCounts[o.status] = (statusCounts[o.status] || 0) + 1; }
@@ -316,7 +333,7 @@ export default function AnalyticsPage() {
       const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
       const profit = d.revenue - d.filamentCost - d.boxCost - elec - d.squareFees;
       const realRev = d.revenue - d.squareFees;
-      const netP = realRev * PROFIT_FIRST.profit;
+      const netP = realRev * PF.profit;
       return {
         Month: fMonth(m), Orders: d.orderCount, Parts: d.itemCount,
         Revenue: d.revenue.toFixed(2), "Filament Cost": d.filamentCost.toFixed(2),
@@ -325,7 +342,7 @@ export default function AnalyticsPage() {
         "Tax Collected": d.tax.toFixed(2), Shipping: d.shipping.toFixed(2),
         "Gross Profit": profit.toFixed(2),
         "Gross Margin %": d.revenue > 0 ? ((profit / d.revenue) * 100).toFixed(0) : "0",
-        "Net Profit (PF 15%)": netP.toFixed(2),
+        [`Net Profit (PF ${pfPcts.profit}%)`]: netP.toFixed(2),
         "Net Margin %": realRev > 0 ? ((netP / realRev) * 100).toFixed(0) : "0",
         "Filament kg": (Object.values(d.grams).reduce((s, g) => s + g, 0) / 1000).toFixed(3),
         "Print Hours": d.printHours.toFixed(1),
@@ -440,7 +457,7 @@ export default function AnalyticsPage() {
       </div>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <StatCard label="GROSS PROFIT" value={fc(totalProfit)} sub={`${marginPct.toFixed(0)}% gross margin`} color={totalProfit > 0 ? "text-green-400" : "text-red-400"} icon={TrendingUp} />
-        <StatCard label="NET PROFIT (PF 15%)" value={fc(netProfit)} sub={`${netMarginPct.toFixed(0)}% of real revenue`} color={netProfit > 0 ? "text-emerald-400" : "text-red-400"} icon={Target} />
+        <StatCard label={`NET PROFIT (PF ${pfPcts.profit}%)`} value={fc(netProfit)} sub={`${netMarginPct.toFixed(0)}% of real revenue`} color={netProfit > 0 ? "text-emerald-400" : "text-red-400"} icon={Target} />
         <StatCard label="SHIPPING COLLECTED" value={fc(totalShipping)} sub="from customers" color="text-blue-400" icon={Package} />
         <StatCard label="AVG ORDER VALUE" value={fc(avgOrderValue)} sub="excl. tax & shipping" icon={BarChart2} />
         <StatCard label="INVENTORY VALUE" value={fc(inventoryValue)} sub={`${spools.length} spools on hand`} color="text-cyan-400" icon={Package} />
@@ -454,7 +471,7 @@ export default function AnalyticsPage() {
           <div className="md:col-span-2 space-y-5">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <div className="font-mono text-xs text-steel">PRODUCTION COSTS vs. OPEX BUDGET (30%)</div>
+                <div className="font-mono text-xs text-steel">PRODUCTION COSTS vs. OPEX BUDGET ({pfPcts.opex}%)</div>
                 <div className="font-mono text-xs text-amber">{fc(pfOpex)} budget</div>
               </div>
               {/* Cost breakdown equation */}
@@ -487,9 +504,9 @@ export default function AnalyticsPage() {
             {/* Allocation breakdown */}
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: "OWNER COMP", pct: 25, val: pfOwnerComp, color: "#f59e0b" },
-                { label: "TAXES", pct: 30, val: pfTaxes, color: "#ef4444" },
-                { label: "OP. EXPENSES", pct: 30, val: pfOpex, color: "#3b82f6" },
+                { label: "OWNER COMP", pct: pfPcts.ownerComp, val: pfOwnerComp, color: "#f59e0b" },
+                { label: "TAXES", pct: pfPcts.taxes, val: pfTaxes, color: "#ef4444" },
+                { label: "OP. EXPENSES", pct: pfPcts.opex, val: pfOpex, color: "#3b82f6" },
               ].map(({ label, pct, val, color }) => (
                 <div key={label} className="rounded-lg p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                   <div className="font-mono text-[9px] text-steel mb-1">{label}</div>
@@ -527,12 +544,38 @@ export default function AnalyticsPage() {
       <div className="mb-2 font-mono text-xs text-steel tracking-widest">PROFIT FIRST RESERVES</div>
       <div className="rounded-xl p-5 mb-8" style={glass}>
         <div className="font-mono text-xs text-steel mb-4">Rolling totals based on real revenue (subtotal minus Square fees). Enter actual Novo balances to see if you&apos;re caught up.</div>
+
+        {/* Editable % inputs */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          {(["profit", "ownerComp", "taxes", "opex"] as const).map(key => {
+            const labels: Record<string, string> = { profit: "PROFIT %", ownerComp: "OWNER COMP %", taxes: "TAXES %", opex: "OPEX %" };
+            return (
+              <div key={key}>
+                <label className="font-mono text-[10px] text-steel/70 block mb-1">{labels[key]}</label>
+                <input
+                  type="number" min="0" max="100" step="1"
+                  value={pfPcts[key]}
+                  onChange={e => savePfPcts({ ...pfPcts, [key]: Number(e.target.value) || 0 })}
+                  className="w-full px-2 py-1.5 rounded-lg text-bone text-xs font-mono transition-colors"
+                  style={inputSt}
+                  onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,181,71,0.50)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(255,181,71,0.08)"; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.boxShadow = "none"; }} />
+              </div>
+            );
+          })}
+        </div>
+        {pfPctSum !== 100 && (
+          <div className="mb-4 px-3 py-2 rounded-lg font-mono text-xs text-amber" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)" }}>
+            ⚠ Percentages sum to {pfPctSum}% — must equal 100% for accurate allocations
+          </div>
+        )}
+
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { key: "profit", label: "PROFIT", pct: 15, target: pfProfit, color: "text-green-400", borderColor: "rgba(34,197,94,0.30)" },
-            { key: "ownerComp", label: "OWNER COMP", pct: 25, target: pfOwnerComp, color: "text-amber", borderColor: "rgba(255,181,71,0.30)" },
-            { key: "taxes", label: "TAXES", pct: 30, target: pfTaxes, color: "text-red-400", borderColor: "rgba(239,68,68,0.30)" },
-            { key: "opex", label: "OP. EXPENSES", pct: 30, target: pfOpex, color: "text-blue-400", borderColor: "rgba(59,130,246,0.30)" },
+            { key: "profit", label: "PROFIT", pct: pfPcts.profit, target: pfProfit, color: "text-green-400", borderColor: "rgba(34,197,94,0.30)" },
+            { key: "ownerComp", label: "OWNER COMP", pct: pfPcts.ownerComp, target: pfOwnerComp, color: "text-amber", borderColor: "rgba(255,181,71,0.30)" },
+            { key: "taxes", label: "TAXES", pct: pfPcts.taxes, target: pfTaxes, color: "text-red-400", borderColor: "rgba(239,68,68,0.30)" },
+            { key: "opex", label: "OP. EXPENSES", pct: pfPcts.opex, target: pfOpex, color: "text-blue-400", borderColor: "rgba(59,130,246,0.30)" },
           ].map(({ key, label, pct, target, color, borderColor }) => {
             const actual = parseFloat(novoBalances[key as keyof typeof novoBalances]) || 0;
             const diff = actual - target;
@@ -552,8 +595,8 @@ export default function AnalyticsPage() {
                 {actual > 0 && (
                   <div className={`font-mono text-xs ${
                     key === "opex"
-                      ? diff <= 0 ? "text-green-400" : "text-red-400"   // opex: under budget = good
-                      : diff >= 0 ? "text-green-400" : "text-red-400"   // savings buckets: more = good
+                      ? diff <= 0 ? "text-green-400" : "text-red-400"
+                      : diff >= 0 ? "text-green-400" : "text-red-400"
                   }`}>
                     {diff >= 0 ? "+" : ""}{fc(diff)} vs target
                   </div>
@@ -566,7 +609,7 @@ export default function AnalyticsPage() {
         <div className="mt-4 rounded-xl p-4 flex items-center justify-between" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.20)" }}>
           <div>
             <div className="font-mono text-xs text-steel mb-0.5">NET PROFIT — what you actually keep after all obligations</div>
-            <div className="font-mono text-xs text-steel/50">Revenue − Square fees = {fc(realRevenue)} real revenue × 15% profit</div>
+            <div className="font-mono text-xs text-steel/50">Revenue − Square fees = {fc(realRevenue)} real revenue × {pfPcts.profit}% profit</div>
           </div>
           <div className="text-right flex-shrink-0 ml-4">
             <div className="font-display font-black text-2xl text-green-400">{fc(netProfit)}</div>
@@ -581,7 +624,7 @@ export default function AnalyticsPage() {
         {[
           { label: "REVENUE", data: mRev, color: "#f59e0b", labelStr: "$" },
           { label: "GROSS PROFIT", data: mProfit, color: "#22c55e", labelStr: "$" },
-          { label: "NET PROFIT (PF)", data: mNetProfit, color: "#10b981", labelStr: "$" },
+          { label: `NET PROFIT (${pfPcts.profit}%)`, data: mNetProfit, color: "#10b981", labelStr: "$" },
           { label: "FILAMENT COST", data: mFilamentCost, color: "#ef4444", labelStr: "$" },
           { label: "PACKAGING COST", data: mBoxCost, color: "#ec4899", labelStr: "$" },
         ].map(({ label, data, color, labelStr }) => (
@@ -625,7 +668,7 @@ export default function AnalyticsPage() {
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-2 rounded-sm" style={{ background: "rgba(255,255,255,0.15)" }} />
-                <span>Budget (30% of real revenue)</span>
+                <span>Budget ({pfPcts.opex}% of real revenue)</span>
               </div>
             </div>
           </div>
@@ -730,7 +773,7 @@ export default function AnalyticsPage() {
                   const grossProfit = d.revenue - d.filamentCost - d.boxCost - elec - d.squareFees;
                   const grossMargin = d.revenue > 0 ? (grossProfit / d.revenue) * 100 : 0;
                   const realRev = d.revenue - d.squareFees;
-                  const netP = realRev * PROFIT_FIRST.profit;
+                  const netP = realRev * PF.profit;
                   const netM = realRev > 0 ? (netP / realRev) * 100 : 0;
                   const kg = Object.values(d.grams).reduce((s, g) => s + g, 0) / 1000;
                   return (
