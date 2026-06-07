@@ -1,24 +1,57 @@
 // app/api/admin/inventory/route.ts
-export const runtime="edge";
-import{verifyAdminToken}from "@/lib/adminAuth";
+export const runtime = "edge";
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
-function sb(path:string,opts:RequestInit={}){
-  const url=process.env.SUPABASE_URL;const key=process.env.SUPABASE_SERVICE_KEY;
-  if(!url||!key)throw new Error("Supabase not configured");
-  return fetch(`${url}/rest/v1/${path}`,{...opts,headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json",Prefer:"return=representation",...(opts.headers||{})}});
+function supabase() {
+  return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
 }
 
-export async function GET(request:Request){
-  if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
-  const r=await sb("filament_inventory?select=*&order=material.asc,brand.asc");
-  if(!r.ok)return Response.json({error:"Failed"},{status:500});
-  return Response.json(await r.json());
+function auth(req: NextRequest) {
+  return req.headers.get("Authorization")?.replace("Bearer ", "") === process.env.ADMIN_TOKEN;
 }
 
-export async function POST(request:Request){
-  if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
-  const body=await request.json();
-  const r=await sb("filament_inventory",{method:"POST",body:JSON.stringify(body)});
-  if(!r.ok)return Response.json({error:"Failed"},{status:500});
-  const[row]=await r.json();return Response.json(row);
+export async function GET(req: NextRequest) {
+  if (!auth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { data, error } = await supabase()
+    .from("filament_inventory")
+    .select("*")
+    .order("material")
+    .order("brand");
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data || []);
+}
+
+export async function POST(req: NextRequest) {
+  if (!auth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const body = await req.json();
+
+  const insert: Record<string, any> = {
+    brand:                 body.brand                 || "Unknown",
+    material:              body.material              || "PLA",
+    color:                 body.color                 || "Unknown",
+    color_hex:             body.color_hex             || "#ffffff",
+    weight_full_g:         Number(body.weight_full_g) || 1000,
+    weight_remaining_g:    Number(body.weight_remaining_g) || 1000,
+    cost_per_kg:           Number(body.cost_per_kg)   || 16,
+    // Optional numeric — only include when provided (not null/undefined)
+    ...(body.empty_spool_weight_g  != null && { empty_spool_weight_g:  Number(body.empty_spool_weight_g) }),
+    ...(body.total_measured_weight_g != null && { total_measured_weight_g: Number(body.total_measured_weight_g) }),
+    ...(body.purchase_price         != null && { purchase_price:        Number(body.purchase_price) }),
+    // Optional text
+    barcode:      body.barcode      || null,
+    notes:        body.notes        || null,
+    // New fields
+    sheen:        body.sheen        || "Standard",
+    glow_in_dark: body.glow_in_dark === true,
+  };
+
+  const { data, error } = await supabase()
+    .from("filament_inventory")
+    .insert(insert)
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
 }
