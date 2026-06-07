@@ -115,6 +115,7 @@ export default function AnalyticsPage() {
   const [dateTo, setDateTo] = useState("");
   const [novoBalances, setNovoBalances] = useState({ profit: "", ownerComp: "", taxes: "", opex: "" });
   const [spools, setSpools] = useState<any[]>([]);
+  const [boxes, setBoxes] = useState<any[]>([]);
   const router = useRouter();
 
   const fetchData = useCallback(async () => {
@@ -129,6 +130,10 @@ export default function AnalyticsPage() {
     fetch("/api/admin/inventory", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : [])
       .then(data => setSpools(data))
+      .catch(() => {});
+    fetch("/api/admin/inventory/boxes", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setBoxes(data))
       .catch(() => {});
     fetch("/api/admin/govee").then(r => r.ok ? r.json() : null).then(data => {
       if (data?.watts !== undefined) setGoveeWatts(data.watts);
@@ -157,6 +162,10 @@ export default function AnalyticsPage() {
   const completedOrders = filteredOrders.filter(o => !["pending", "cancelled"].includes(o.status));
   const allActiveOrders = filteredOrders.filter(o => o.status !== "pending");
 
+  // id → cost_each lookup for boxes
+  const boxCostMap: Record<string, number> = {};
+  for (const b of boxes) boxCostMap[b.id] = Number(b.cost_each) || 0;
+
   const monthlyData: Record<string, {
     revenue: number; materialCost: number; tax: number; printHours: number;
     grams: Record<string, number>; orderCount: number; shipping: number;
@@ -171,10 +180,12 @@ export default function AnalyticsPage() {
     const shipping = Number(order.shipping_cost || 0);
     const tax = Math.round(subtotal * 0.06 * 100) / 100;
     const squareFee = Math.round(((order.total || 0) * SQUARE_PCT + SQUARE_FIXED) * 100) / 100;
+    const boxCost = order.box_id ? (boxCostMap[order.box_id] || 0) : 0;
     monthlyData[month].revenue += subtotal;
     monthlyData[month].tax += tax;
     monthlyData[month].shipping += shipping;
     monthlyData[month].squareFees += squareFee;
+    monthlyData[month].materialCost += boxCost; // box is part of COGS
     monthlyData[month].orderCount += 1;
     for (const item of (order.order_items || [])) {
       const qty = item.qty || 1;
@@ -223,8 +234,11 @@ export default function AnalyticsPage() {
   const totalRevenue = completedOrders.reduce((s, o) => s + (o.subtotal || 0), 0);
   const totalShipping = completedOrders.reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
   const totalSquareFees = completedOrders.reduce((s, o) => s + Math.round(((o.total || 0) * SQUARE_PCT + SQUARE_FIXED) * 100) / 100, 0);
-  const totalMatCost = completedOrders.reduce((s, o) =>
-    s + (o.order_items || []).reduce((si: number, i: any) => si + ((i.grams || 0) * (i.qty || 1) / 1000) * (COST_PER_KG[i.material] || 16), 0), 0);
+  const totalMatCost = completedOrders.reduce((s, o) => {
+    const filamentCost = (o.order_items || []).reduce((si: number, i: any) => si + ((i.grams || 0) * (i.qty || 1) / 1000) * (COST_PER_KG[i.material] || 16), 0);
+    const boxCost = o.box_id ? (boxCostMap[o.box_id] || 0) : 0;
+    return s + filamentCost + boxCost;
+  }, 0);
   const totalHours = completedOrders.reduce((s, o) =>
     s + (o.order_items || []).reduce((si: number, i: any) => si + (i.print_hours || i.hours || 0) * (i.qty || 1), 0), 0);
   const totalElecCost = (totalHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
@@ -409,7 +423,7 @@ export default function AnalyticsPage() {
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <StatCard label="REVENUE" value={fc(totalRevenue)} sub={`${completedOrders.length} orders`} icon={DollarSign} />
-        <StatCard label="COGS (MATERIAL)" value={fc(totalMatCost)} sub={`${(totalMatCost / (totalRevenue || 1) * 100).toFixed(0)}% of revenue`} color="text-red-400" icon={Weight} />
+        <StatCard label="COGS (MAT + BOX)" value={fc(totalMatCost)} sub={`${(totalMatCost / (totalRevenue || 1) * 100).toFixed(0)}% of revenue`} color="text-red-400" icon={Weight} />
         <StatCard label="SQUARE FEES" value={fc(totalSquareFees)} sub="2.9% + $0.30/order" color="text-orange-400" icon={DollarSign} />
         <StatCard label="ELECTRICITY EST." value={fc(totalElecCost)} sub={`${totalHours.toFixed(0)}h × ${AVG_PRINTER_WATTS}W`} color="text-yellow-400" icon={Zap} />
       </div>
