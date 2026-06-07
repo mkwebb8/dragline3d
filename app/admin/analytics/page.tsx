@@ -55,6 +55,34 @@ function BarChart({ data, color = "#f59e0b", label, prefix = "" }: { data: { mon
   );
 }
 
+// Dual bar: grey = budget, green/red = actual (under/over)
+function DualBarChart({ data }: { data: { month: string; actual: number; budget: number }[] }) {
+  const max = Math.max(...data.flatMap(d => [d.actual, d.budget]), 1);
+  return (
+    <div className="flex items-end gap-2 h-32">
+      {data.map(d => {
+        const under = d.actual <= d.budget;
+        const actualH = Math.max((d.actual / max) * 100, 2);
+        const budgetH = Math.max((d.budget / max) * 100, 2);
+        return (
+          <div key={d.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+            <div className="w-full flex items-end gap-0.5" style={{ height: 112 }}>
+              <div className="flex-1 rounded-t-sm" style={{ height: `${budgetH}%`, background: "rgba(255,255,255,0.15)" }} />
+              <div className="flex-1 rounded-t-sm relative group transition-all"
+                style={{ height: `${actualH}%`, background: under ? "#22c55e" : "#ef4444" }}>
+                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 rounded-lg px-1.5 py-0.5 font-mono text-[9px] text-bone whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none" style={glass}>
+                  {fc(d.actual)} / {fc(d.budget)}
+                </div>
+              </div>
+            </div>
+            <div className="font-mono text-[9px] text-steel truncate w-full text-center">{fMonth(d.month)}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function StatCard({ label, value, sub, color = "text-amber", icon: Icon }: any) {
   return (
     <div className="rounded-xl p-4" style={glass}>
@@ -173,6 +201,15 @@ export default function AnalyticsPage() {
     return { month: m, value: realRev * PROFIT_FIRST.profit };
   });
   const mMatCost = months.map(m => ({ month: m, value: monthlyData[m].materialCost }));
+  const mProductionCosts = months.map(m => {
+    const d = monthlyData[m];
+    const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
+    return {
+      month: m,
+      actual: d.materialCost + d.squareFees + elec,
+      budget: (d.revenue - d.squareFees) * PROFIT_FIRST.opex,
+    };
+  });
   const mOrders = months.map(m => ({ month: m, value: monthlyData[m].orderCount }));
   const mHours = months.map(m => ({ month: m, value: monthlyData[m].printHours }));
   const mItems = months.map(m => ({ month: m, value: monthlyData[m].itemCount }));
@@ -213,16 +250,14 @@ export default function AnalyticsPage() {
   const inventoryValue = spools.reduce((sum, s) =>
     sum + (Number(s.weight_remaining_g) / 1000) * (Number(s.cost_per_kg) || COST_PER_KG[s.material] || 16), 0);
 
-  // Op expenses tracking (Novo)
-  const actualOpex = parseFloat(novoBalances.opex) || 0;
+  // "Actual spent" = auto-calculated production costs (COGS + Square + Electricity)
+  // The Novo opex balance manual entry stays in PF Reserves for account-level check
+  const totalProductionCost = totalMatCost + totalSquareFees + totalElecCost;
+  const actualOpex = totalProductionCost;
+  const novoOpex = parseFloat(novoBalances.opex) || 0;
   const opexVariance = pfOpex - actualOpex;
   const opexUsedPct = pfOpex > 0 ? Math.min((actualOpex / pfOpex) * 100, 100) : 0;
   const opexEfficiencyScore = pfOpex > 0 ? Math.max(0, Math.round(((pfOpex - actualOpex) / pfOpex) * 100)) : 0;
-
-  // Production cost vs opex budget (COGS + Square + Electricity)
-  const totalProductionCost = totalMatCost + totalSquareFees + totalElecCost;
-  const productionVsOpex = pfOpex - totalProductionCost;
-  const productionOpexPct = pfOpex > 0 ? Math.min((totalProductionCost / pfOpex) * 100, 100) : 0;
 
   const statusCounts: Record<string, number> = {};
   for (const o of allActiveOrders) { statusCounts[o.status] = (statusCounts[o.status] || 0) + 1; }
@@ -390,50 +425,34 @@ export default function AnalyticsPage() {
       <div className="mb-2 font-mono text-xs text-steel tracking-widest">OPERATING EXPENSES TRACKER</div>
       <div className="rounded-xl p-5 mb-6" style={glass}>
         <div className="grid md:grid-cols-3 gap-6">
-          {/* Budget vs Actual + Production breakdown */}
+          {/* Budget vs Actual (auto-calculated from orders) */}
           <div className="md:col-span-2 space-y-5">
-            {/* Novo opex balance vs budget */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="font-mono text-xs text-steel">NOVO OPEX BALANCE vs. BUDGET (30%)</div>
-                <div className="font-mono text-xs text-amber">{fc(pfOpex)} target</div>
+              <div className="flex items-center justify-between mb-1">
+                <div className="font-mono text-xs text-steel">PRODUCTION COSTS vs. OPEX BUDGET (30%)</div>
+                <div className="font-mono text-xs text-amber">{fc(pfOpex)} budget</div>
+              </div>
+              {/* Cost breakdown equation */}
+              <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                <span className="font-mono text-xs text-red-400">{fc(totalMatCost)}</span>
+                <span className="font-mono text-[10px] text-steel/40">COGS +</span>
+                <span className="font-mono text-xs text-orange-400">{fc(totalSquareFees)}</span>
+                <span className="font-mono text-[10px] text-steel/40">fees +</span>
+                <span className="font-mono text-xs text-yellow-400">{fc(totalElecCost)}</span>
+                <span className="font-mono text-[10px] text-steel/40">elec =</span>
+                <span className="font-mono text-xs text-bone font-bold">{fc(totalProductionCost)}</span>
+                <span className="font-mono text-[10px] text-steel/40">actual spent</span>
               </div>
               <div className="h-3 rounded-full overflow-hidden mb-2" style={{ background: "rgba(255,255,255,0.07)" }}>
                 <div className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${opexUsedPct}%`, background: opexUsedPct > 90 ? "#ef4444" : opexUsedPct > 70 ? "#f59e0b" : "#22c55e" }} />
+                  style={{ width: `${opexUsedPct}%`, background: opexUsedPct > 100 ? "#ef4444" : opexUsedPct > 80 ? "#f59e0b" : "#22c55e" }} />
               </div>
               <div className="flex items-center justify-between font-mono text-xs">
-                <span className="text-steel">Actual spent: <span className={actualOpex > 0 ? (actualOpex > pfOpex ? "text-red-400" : "text-green-400") : "text-steel"}>{actualOpex > 0 ? fc(actualOpex) : "Enter in Novo fields →"}</span></span>
-                <span className={opexUsedPct > 0 ? (opexVariance >= 0 ? "text-green-400" : "text-red-400") : "text-steel"}>
-                  {actualOpex > 0 ? (opexVariance >= 0 ? `${fc(opexVariance)} under budget` : `${fc(Math.abs(opexVariance))} OVER budget`) : ""}
-                </span>
-              </div>
-            </div>
-
-            {/* Production cost vs opex budget */}
-            <div className="pt-4 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="font-mono text-xs text-steel">PRODUCTION COSTS vs. OPEX BUDGET</div>
-                <div className="font-mono text-xs text-steel flex items-center gap-1.5 flex-wrap justify-end">
-                  <span className="text-red-400">{fc(totalMatCost)}</span>
-                  <span className="text-steel/40">COGS +</span>
-                  <span className="text-orange-400">{fc(totalSquareFees)}</span>
-                  <span className="text-steel/40">fees +</span>
-                  <span className="text-yellow-400">{fc(totalElecCost)}</span>
-                  <span className="text-steel/40">elec =</span>
-                  <span className="text-bone font-bold">{fc(totalProductionCost)}</span>
-                </div>
-              </div>
-              <div className="h-3 rounded-full overflow-hidden mb-2" style={{ background: "rgba(255,255,255,0.07)" }}>
-                <div className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${productionOpexPct}%`, background: productionOpexPct > 90 ? "#ef4444" : productionOpexPct > 70 ? "#f59e0b" : "#22c55e" }} />
-              </div>
-              <div className="flex items-center justify-between font-mono text-xs">
-                <span className="text-steel">{productionOpexPct.toFixed(0)}% of your 30% opex bucket used by production</span>
-                <span className={productionVsOpex >= 0 ? "text-green-400" : "text-red-400"}>
-                  {productionVsOpex >= 0
-                    ? `${fc(productionVsOpex)} left — consider bumping profit %`
-                    : `${fc(Math.abs(productionVsOpex))} over — tighten or raise prices`}
+                <span className="text-steel">{opexUsedPct.toFixed(0)}% of opex budget</span>
+                <span className={opexVariance >= 0 ? "text-green-400" : "text-red-400"}>
+                  {opexVariance >= 0
+                    ? `${fc(opexVariance)} under — consider bumping profit %`
+                    : `${fc(Math.abs(opexVariance))} OVER budget — raise prices or cut`}
                 </span>
               </div>
             </div>
@@ -458,22 +477,20 @@ export default function AnalyticsPage() {
           <div className="flex flex-col items-center justify-center rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <div className="font-mono text-xs text-steel mb-2 tracking-widest">LEAN SCORE</div>
             <div className={`font-display font-black text-5xl mb-1 ${
-              actualOpex === 0 ? "text-steel" :
               opexEfficiencyScore >= 50 ? "text-green-400" :
               opexEfficiencyScore >= 20 ? "text-amber" : "text-red-400"
             }`}>
-              {actualOpex > 0 ? `${opexEfficiencyScore}%` : "—"}
+              {`${opexEfficiencyScore}%`}
             </div>
             <div className="font-mono text-[9px] text-steel text-center">
-              {actualOpex === 0 ? "Enter Novo opex balance" :
-               opexEfficiencyScore >= 50 ? "Lean & profitable" :
+              {opexEfficiencyScore >= 50 ? "Lean & profitable" :
                opexEfficiencyScore >= 20 ? "Room to tighten" : "Trim expenses"}
             </div>
-            {actualOpex > 0 && opexVariance > 0 && (
+            {opexVariance > 0 && (
               <div className="mt-2 font-mono text-xs text-green-400 text-center font-bold">{fc(opexVariance)} saved</div>
             )}
             <div className="mt-3 font-mono text-[9px] text-steel text-center">
-              Higher score = more room<br />to boost profit or owner comp
+              % of opex budget<br />NOT consumed by production
             </div>
           </div>
         </div>
@@ -506,7 +523,11 @@ export default function AnalyticsPage() {
                   onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,181,71,0.50)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(255,181,71,0.08)"; }}
                   onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.boxShadow = "none"; }} />
                 {actual > 0 && (
-                  <div className={`font-mono text-xs ${diff >= 0 ? "text-green-400" : "text-red-400"}`}>
+                  <div className={`font-mono text-xs ${
+                    key === "opex"
+                      ? diff <= 0 ? "text-green-400" : "text-red-400"   // opex: under budget = good
+                      : diff >= 0 ? "text-green-400" : "text-red-400"   // savings buckets: more = good
+                  }`}>
                     {diff >= 0 ? "+" : ""}{fc(diff)} vs target
                   </div>
                 )}
@@ -555,6 +576,33 @@ export default function AnalyticsPage() {
           </div>
         ))}
       </div>
+
+      {/* OPEX Trend: production cost vs budget per month */}
+      {months.length > 1 && (
+        <div className="mb-8">
+          <div className="mb-2 font-mono text-xs text-steel tracking-widest">PRODUCTION COST vs. OPEX BUDGET — MONTHLY TREND</div>
+          <div className="rounded-xl p-5" style={glass}>
+            <div className="font-mono text-[10px] text-steel/60 mb-4">
+              Use this to calibrate your Profit First %. If actual is consistently well under budget, consider shifting some opex % to profit or owner comp.
+            </div>
+            <DualBarChart data={mProductionCosts} />
+            <div className="flex items-center gap-5 mt-3 pt-3 border-t font-mono text-[10px] text-steel" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-2 rounded-sm bg-green-400" />
+                <span>Actual (under budget)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-2 rounded-sm bg-red-400" />
+                <span>Actual (over budget)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-2 rounded-sm" style={{ background: "rgba(255,255,255,0.15)" }} />
+                <span>Budget (30% of real revenue)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Material + status */}
       <div className="grid md:grid-cols-2 gap-4 mb-6">
