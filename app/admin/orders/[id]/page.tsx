@@ -151,6 +151,11 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
             <Receipt size={15} />{invoicing ? "CREATING…" : order.square_invoice_url ? "GO TO SQUARE INVOICE" : "CREATE SQUARE INVOICE"}
           </button>
         )}
+        <button onClick={() => window.open(`/admin/orders/${id}/invoice`, "_blank")}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-display font-bold text-sm text-ironworks cursor-pointer transition-opacity hover:opacity-90"
+          style={{ background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)" }}>
+          <FileText size={15} />INVOICE PDF
+        </button>
         <button onClick={() => window.open(`/admin/orders/${id}/packing-slip`, "_blank")}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-display font-bold text-sm text-bone cursor-pointer transition-opacity hover:opacity-80"
           style={{ border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.03)" }}>
