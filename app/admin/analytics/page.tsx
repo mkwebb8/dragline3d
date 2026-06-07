@@ -20,15 +20,12 @@ const ELECTRICITY_RATE = 0.12;
 const AVG_PRINTER_WATTS = 300;
 const SQUARE_PCT = 0.029;
 const SQUARE_FIXED = 0.30;
-
 const PROFIT_FIRST = { profit: 0.15, ownerComp: 0.25, taxes: 0.30, opex: 0.30 };
-
 const MATERIAL_COLORS_MAP: Record<string, string> = {
   PLA: "#3b82f6", PETG: "#10b981", TPU: "#f59e0b", ABS: "#ef4444",
   ASA: "#8b5cf6", "PET-GF15": "#06b6d4", "PETG-ESD": "#f97316",
   PA: "#84cc16", "ASA-CF": "#ec4899", "PETG-CF": "#14b8a6", "PA-CF": "#6366f1", PCTG: "#a78bfa",
 };
-
 const COST_PER_KG: Record<string, number> = {
   PLA: 16, PETG: 18, TPU: 24, ABS: 20, ASA: 22, "PET-GF15": 30,
   "PETG-ESD": 66, PA: 35, "ASA-CF": 40, "PETG-CF": 40, "PA-CF": 80, PCTG: 29.95,
@@ -47,8 +44,7 @@ function BarChart({ data, color = "#f59e0b", label, prefix = "" }: { data: { mon
       {data.map(d => (
         <div key={d.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
           <div className="w-full rounded-md transition-all relative group" style={{ height: `${Math.max((d.value / max) * 100, 2)}%`, background: color, opacity: d.value > 0 ? 1 : 0.15 }}>
-            <div className="absolute -top-6 left-1/2 -translate-x-1/2 rounded-lg px-1.5 py-0.5 font-mono text-[9px] text-bone whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10"
-              style={glass}>
+            <div className="absolute -top-6 left-1/2 -translate-x-1/2 rounded-lg px-1.5 py-0.5 font-mono text-[9px] text-bone whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10" style={glass}>
               {prefix}{label === "count" ? d.value : d.value.toFixed(label === "$" ? 2 : 1)}{label !== "$" && label !== "count" ? label : ""}
             </div>
           </div>
@@ -103,9 +99,9 @@ export default function AnalyticsPage() {
     ));
     setOrders(results.flat());
     fetch("/api/admin/inventory", { headers: { Authorization: `Bearer ${token}` } })
-  .then(r => r.ok ? r.json() : [])
-  .then(data => setSpools(data))
-  .catch(() => {});
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setSpools(data))
+      .catch(() => {});
     fetch("/api/admin/govee").then(r => r.ok ? r.json() : null).then(data => {
       if (data?.watts !== undefined) setGoveeWatts(data.watts);
       if (data?.on !== undefined) setGoveeOn(data.on);
@@ -177,7 +173,6 @@ export default function AnalyticsPage() {
     return { month: m, value: realRev * PROFIT_FIRST.profit };
   });
   const mMatCost = months.map(m => ({ month: m, value: monthlyData[m].materialCost }));
-  const mElec = months.map(m => ({ month: m, value: (monthlyData[m].printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE }));
   const mOrders = months.map(m => ({ month: m, value: monthlyData[m].orderCount }));
   const mHours = months.map(m => ({ month: m, value: monthlyData[m].printHours }));
   const mItems = months.map(m => ({ month: m, value: monthlyData[m].itemCount }));
@@ -198,8 +193,6 @@ export default function AnalyticsPage() {
   const totalElecCost = (totalHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
   const totalProfit = totalRevenue - totalMatCost - totalElecCost - totalSquareFees;
   const totalTax = completedOrders.reduce((s, o) => s + Math.round((o.subtotal || 0) * 0.06 * 100) / 100, 0);
-  const totalGrams = completedOrders.reduce((s, o) =>
-    s + (o.order_items || []).reduce((si: number, i: any) => si + (i.grams || 0) * (i.qty || 1), 0), 0);
   const totalItems = completedOrders.reduce((s, o) =>
     s + (o.order_items || []).reduce((si: number, i: any) => si + (i.qty || 1), 0), 0);
   const avgOrderValue = totalRevenue / (completedOrders.length || 1);
@@ -208,25 +201,28 @@ export default function AnalyticsPage() {
   // Profit First
   const realRevenue = totalRevenue - totalSquareFees;
   const pfProfit = realRevenue * PROFIT_FIRST.profit;
-  const inventoryValue = spools.reduce((sum, s) =>
-  sum + (Number(s.weight_remaining_g) / 1000) * (Number(s.cost_per_kg) || COST_PER_KG[s.material] || 16), 0);
   const pfOwnerComp = realRevenue * PROFIT_FIRST.ownerComp;
   const pfTaxes = realRevenue * PROFIT_FIRST.taxes;
   const pfOpex = realRevenue * PROFIT_FIRST.opex;
 
-  // Net profit = what Profit First says you actually keep (15% bucket)
+  // Net profit
   const netProfit = pfProfit;
   const netMarginPct = realRevenue > 0 ? (netProfit / realRevenue) * 100 : 0;
 
-  // Op expenses tracking
+  // Inventory value
+  const inventoryValue = spools.reduce((sum, s) =>
+    sum + (Number(s.weight_remaining_g) / 1000) * (Number(s.cost_per_kg) || COST_PER_KG[s.material] || 16), 0);
+
+  // Op expenses tracking (Novo)
   const actualOpex = parseFloat(novoBalances.opex) || 0;
-  const opexVariance = pfOpex - actualOpex; // positive = under budget (good), negative = over budget (bad)
+  const opexVariance = pfOpex - actualOpex;
   const opexUsedPct = pfOpex > 0 ? Math.min((actualOpex / pfOpex) * 100, 100) : 0;
   const opexEfficiencyScore = pfOpex > 0 ? Math.max(0, Math.round(((pfOpex - actualOpex) / pfOpex) * 100)) : 0;
 
-  // Total obligations accounted for
-  const totalObligations = pfOwnerComp + pfTaxes + pfOpex;
-  const obligationsMetPct = realRevenue > 0 ? (totalObligations / realRevenue) * 100 : 0;
+  // Production cost vs opex budget (COGS + Square + Electricity)
+  const totalProductionCost = totalMatCost + totalSquareFees + totalElecCost;
+  const productionVsOpex = pfOpex - totalProductionCost;
+  const productionOpexPct = pfOpex > 0 ? Math.min((totalProductionCost / pfOpex) * 100, 100) : 0;
 
   const statusCounts: Record<string, number> = {};
   for (const o of allActiveOrders) { statusCounts[o.status] = (statusCounts[o.status] || 0) + 1; }
@@ -307,6 +303,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Link href="/admin/orders" className="text-bone/50 hover:text-bone transition-colors cursor-pointer"><ArrowLeft size={20} /></Link>
@@ -326,16 +323,14 @@ export default function AnalyticsPage() {
         <div className="flex items-center gap-2">
           <label className="font-mono text-xs text-steel">FROM</label>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            className="px-2 py-1 rounded-lg text-bone text-xs font-mono transition-colors"
-            style={inputSt}
+            className="px-2 py-1 rounded-lg text-bone text-xs font-mono transition-colors" style={inputSt}
             onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,181,71,0.50)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(255,181,71,0.08)"; }}
             onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.boxShadow = "none"; }} />
         </div>
         <div className="flex items-center gap-2">
           <label className="font-mono text-xs text-steel">TO</label>
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            className="px-2 py-1 rounded-lg text-bone text-xs font-mono transition-colors"
-            style={inputSt}
+            className="px-2 py-1 rounded-lg text-bone text-xs font-mono transition-colors" style={inputSt}
             onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,181,71,0.50)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(255,181,71,0.08)"; }}
             onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.boxShadow = "none"; }} />
         </div>
@@ -359,7 +354,7 @@ export default function AnalyticsPage() {
 
       {/* Govee */}
       {(goveeWatts !== null || goveeOn !== null) && (
-        <div className={`mb-6 rounded-xl p-4 flex items-center gap-4`}
+        <div className="mb-6 rounded-xl p-4 flex items-center gap-4"
           style={goveeOn
             ? { ...glass, border: "1px solid rgba(249,115,22,0.40)", background: "rgba(249,115,22,0.05)" }
             : glass}>
@@ -379,7 +374,7 @@ export default function AnalyticsPage() {
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <StatCard label="REVENUE" value={fc(totalRevenue)} sub={`${completedOrders.length} orders`} icon={DollarSign} />
-        <StatCard label="COGS (MATERIAL)" value={fc(totalMatCost)} sub={`${(totalMatCost / totalRevenue * 100 || 0).toFixed(0)}% of revenue`} color="text-red-400" icon={Weight} />
+        <StatCard label="COGS (MATERIAL)" value={fc(totalMatCost)} sub={`${(totalMatCost / (totalRevenue || 1) * 100).toFixed(0)}% of revenue`} color="text-red-400" icon={Weight} />
         <StatCard label="SQUARE FEES" value={fc(totalSquareFees)} sub="2.9% + $0.30/order" color="text-orange-400" icon={DollarSign} />
         <StatCard label="ELECTRICITY EST." value={fc(totalElecCost)} sub={`${totalHours.toFixed(0)}h × ${AVG_PRINTER_WATTS}W`} color="text-yellow-400" icon={Zap} />
       </div>
@@ -391,31 +386,60 @@ export default function AnalyticsPage() {
         <StatCard label="INVENTORY VALUE" value={fc(inventoryValue)} sub={`${spools.length} spools on hand`} color="text-cyan-400" icon={Package} />
       </div>
 
-      {/* Op Expenses KPI */}
+      {/* Op Expenses Tracker */}
       <div className="mb-2 font-mono text-xs text-steel tracking-widest">OPERATING EXPENSES TRACKER</div>
       <div className="rounded-xl p-5 mb-6" style={glass}>
         <div className="grid md:grid-cols-3 gap-6">
-          {/* Budget vs Actual */}
-          <div className="md:col-span-2">
-            <div className="flex items-center justify-between mb-2">
-              <div className="font-mono text-xs text-steel">OP. EXPENSES BUDGET (30% of real revenue)</div>
-              <div className="font-mono text-xs text-amber">{fc(pfOpex)} target</div>
+          {/* Budget vs Actual + Production breakdown */}
+          <div className="md:col-span-2 space-y-5">
+            {/* Novo opex balance vs budget */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="font-mono text-xs text-steel">NOVO OPEX BALANCE vs. BUDGET (30%)</div>
+                <div className="font-mono text-xs text-amber">{fc(pfOpex)} target</div>
+              </div>
+              <div className="h-3 rounded-full overflow-hidden mb-2" style={{ background: "rgba(255,255,255,0.07)" }}>
+                <div className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${opexUsedPct}%`, background: opexUsedPct > 90 ? "#ef4444" : opexUsedPct > 70 ? "#f59e0b" : "#22c55e" }} />
+              </div>
+              <div className="flex items-center justify-between font-mono text-xs">
+                <span className="text-steel">Actual spent: <span className={actualOpex > 0 ? (actualOpex > pfOpex ? "text-red-400" : "text-green-400") : "text-steel"}>{actualOpex > 0 ? fc(actualOpex) : "Enter in Novo fields →"}</span></span>
+                <span className={opexUsedPct > 0 ? (opexVariance >= 0 ? "text-green-400" : "text-red-400") : "text-steel"}>
+                  {actualOpex > 0 ? (opexVariance >= 0 ? `${fc(opexVariance)} under budget` : `${fc(Math.abs(opexVariance))} OVER budget`) : ""}
+                </span>
+              </div>
             </div>
-            <div className="h-3 rounded-full overflow-hidden mb-2" style={{ background: "rgba(255,255,255,0.07)" }}>
-              <div className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${opexUsedPct}%`,
-                  background: opexUsedPct > 90 ? "#ef4444" : opexUsedPct > 70 ? "#f59e0b" : "#22c55e"
-                }} />
+
+            {/* Production cost vs opex budget */}
+            <div className="pt-4 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="font-mono text-xs text-steel">PRODUCTION COSTS vs. OPEX BUDGET</div>
+                <div className="font-mono text-xs text-steel flex items-center gap-1.5 flex-wrap justify-end">
+                  <span className="text-red-400">{fc(totalMatCost)}</span>
+                  <span className="text-steel/40">COGS +</span>
+                  <span className="text-orange-400">{fc(totalSquareFees)}</span>
+                  <span className="text-steel/40">fees +</span>
+                  <span className="text-yellow-400">{fc(totalElecCost)}</span>
+                  <span className="text-steel/40">elec =</span>
+                  <span className="text-bone font-bold">{fc(totalProductionCost)}</span>
+                </div>
+              </div>
+              <div className="h-3 rounded-full overflow-hidden mb-2" style={{ background: "rgba(255,255,255,0.07)" }}>
+                <div className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${productionOpexPct}%`, background: productionOpexPct > 90 ? "#ef4444" : productionOpexPct > 70 ? "#f59e0b" : "#22c55e" }} />
+              </div>
+              <div className="flex items-center justify-between font-mono text-xs">
+                <span className="text-steel">{productionOpexPct.toFixed(0)}% of your 30% opex bucket used by production</span>
+                <span className={productionVsOpex >= 0 ? "text-green-400" : "text-red-400"}>
+                  {productionVsOpex >= 0
+                    ? `${fc(productionVsOpex)} left — consider bumping profit %`
+                    : `${fc(Math.abs(productionVsOpex))} over — tighten or raise prices`}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center justify-between font-mono text-xs">
-              <span className="text-steel">Actual spent: <span className={actualOpex > 0 ? (actualOpex > pfOpex ? "text-red-400" : "text-green-400") : "text-steel"}>{actualOpex > 0 ? fc(actualOpex) : "Enter in Novo fields →"}</span></span>
-              <span className={opexUsedPct > 0 ? (opexVariance >= 0 ? "text-green-400" : "text-red-400") : "text-steel"}>
-                {actualOpex > 0 ? (opexVariance >= 0 ? `${fc(opexVariance)} under budget` : `${fc(Math.abs(opexVariance))} OVER budget`) : ""}
-              </span>
-            </div>
-            {/* Breakdown of what the 70% covers */}
-            <div className="mt-4 grid grid-cols-3 gap-3">
+
+            {/* Allocation breakdown */}
+            <div className="grid grid-cols-3 gap-3">
               {[
                 { label: "OWNER COMP", pct: 25, val: pfOwnerComp, color: "#f59e0b" },
                 { label: "TAXES", pct: 30, val: pfTaxes, color: "#ef4444" },
@@ -430,7 +454,7 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          {/* Efficiency Score */}
+          {/* Lean score */}
           <div className="flex flex-col items-center justify-center rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <div className="font-mono text-xs text-steel mb-2 tracking-widest">LEAN SCORE</div>
             <div className={`font-display font-black text-5xl mb-1 ${
@@ -455,7 +479,7 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Profit First / Reserves */}
+      {/* Profit First Reserves */}
       <div className="mb-2 font-mono text-xs text-steel tracking-widest">PROFIT FIRST RESERVES</div>
       <div className="rounded-xl p-5 mb-8" style={glass}>
         <div className="font-mono text-xs text-steel mb-4">Rolling totals based on real revenue (subtotal minus Square fees). Enter actual Novo balances to see if you&apos;re caught up.</div>
@@ -503,7 +527,7 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Charts row 1 */}
+      {/* Monthly trend charts */}
       <div className="mb-2 font-mono text-xs text-steel tracking-widest">MONTHLY TRENDS (LAST 6 MONTHS)</div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         {[
@@ -559,7 +583,6 @@ export default function AnalyticsPage() {
             <span>kg used</span><span>orders</span><span>revenue</span>
           </div>
         </div>
-
         <div className="rounded-xl p-5" style={glass}>
           <div className="font-mono text-xs text-amber tracking-widest mb-4">ORDER STATUS BREAKDOWN</div>
           <div className="space-y-2">
