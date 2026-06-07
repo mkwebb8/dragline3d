@@ -289,7 +289,9 @@ export default function AnalyticsPage() {
   const novoOpex = parseFloat(novoBalances.opex) || 0;
   const opexVariance = pfOpex - actualOpex;
   const opexUsedPct = pfOpex > 0 ? Math.min((actualOpex / pfOpex) * 100, 100) : 0;
-  const opexEfficiencyScore = pfOpex > 0 ? Math.max(0, Math.round(((pfOpex - actualOpex) / pfOpex) * 100)) : 0;
+  // Lean score: how much of real revenue is NOT consumed by production costs
+  // Independent of PF allocation so raising profit % / lowering opex % doesn't penalize it
+  const opexEfficiencyScore = realRevenue > 0 ? Math.max(0, Math.round((1 - actualOpex / realRevenue) * 100)) : 0;
   // If under: how much slack can shift to profit
   const suggestedProfitPct = realRevenue > 0
     ? Math.round((PF.profit + opexVariance / realRevenue) * 100)
@@ -521,20 +523,20 @@ export default function AnalyticsPage() {
           <div className="flex flex-col items-center justify-center rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <div className="font-mono text-xs text-steel mb-2 tracking-widest">LEAN SCORE</div>
             <div className={`font-display font-black text-5xl mb-1 ${
-              opexEfficiencyScore >= 50 ? "text-green-400" :
-              opexEfficiencyScore >= 20 ? "text-amber" : "text-red-400"
+              opexEfficiencyScore >= 70 ? "text-green-400" :
+              opexEfficiencyScore >= 40 ? "text-amber" : "text-red-400"
             }`}>
               {`${opexEfficiencyScore}%`}
             </div>
             <div className="font-mono text-[9px] text-steel text-center">
-              {opexEfficiencyScore >= 50 ? "Lean & profitable" :
-               opexEfficiencyScore >= 20 ? "Room to tighten" : "Trim expenses"}
+              {opexEfficiencyScore >= 70 ? "Lean & profitable" :
+               opexEfficiencyScore >= 40 ? "Room to tighten" : "Trim expenses"}
             </div>
             {opexVariance > 0 && (
               <div className="mt-2 font-mono text-xs text-green-400 text-center font-bold">{fc(opexVariance)} saved</div>
             )}
             <div className="mt-3 font-mono text-[9px] text-steel text-center">
-              % of opex budget<br />NOT consumed by production
+              % of real revenue<br />kept after production costs
             </div>
           </div>
         </div>
