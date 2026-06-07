@@ -2,7 +2,21 @@
 export const runtime = "edge";
 import { verifyAdminToken } from "@/lib/adminAuth";
 
-const NAS_BASE = "/mnt/media3/dragline3d";
+const ORDERS_BASE = "/mnt/media3/dragline3d/orders";
+const RECORDS_BASE = "/mnt/media3/dragline3d/records";
+
+function sanitizeFolderName(name: string): string {
+  return name.trim().replace(/[\\/:*?"<>|]/g, "_");
+}
+
+async function nasRequest(nasUrl: string, nasKey: string, endpoint: string, body: unknown) {
+  const res = await fetch(`${nasUrl}/api/v2.0/${endpoint}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${nasKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return res;
+}
 
 export async function POST(request: Request) {
   if (!await verifyAdminToken(request)) {
@@ -16,17 +30,19 @@ export async function POST(request: Request) {
     return Response.json({ error: "TRUENAS_URL or TRUENAS_API_KEY not set in .env.local" }, { status: 503 });
   }
 
-  let body: { orderId: string; month: string; pdfBase64: string };
+  let body: { orderId: string; month: string; pdfBase64: string; customerName: string };
   try {
     body = await request.json();
   } catch {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { orderId, month, pdfBase64 } = body;
+  const { orderId, month, pdfBase64, customerName } = body;
   if (!orderId || !month || !pdfBase64) {
     return Response.json({ error: "Missing orderId, month, or pdfBase64" }, { status: 400 });
   }
+
+  const customerFolder = sanitizeFolderName(customerName || "Unknown");
 
   // Decode base64 → binary
   const binaryStr = atob(pdfBase64);
@@ -34,12 +50,29 @@ export async function POST(request: Request) {
   for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
   const pdfBlob = new Blob([bytes], { type: "application/pdf" });
 
-  const paths = [
-    `${NAS_BASE}/orders/${orderId}/invoice.pdf`,
-    `${NAS_BASE}/records/${month}/${orderId}-invoice.pdf`,
+  // Path 1: /mnt/media3/orders/<Customer Name>/<order-id>/invoice.pdf
+  // Path 2: /mnt/media3/dragline3d/records/<month>/<order-id>-invoice.pdf
+  const filePaths = [
+    `${ORDERS_BASE}/${customerFolder}/${orderId}/invoice.pdf`,
+    `${RECORDS_BASE}/${month}/${orderId}-invoice.pdf`,
   ];
 
-  for (const path of paths) {
+  // Ensure parent directories exist before writing
+  const dirPaths = [
+    `${ORDERS_BASE}/${customerFolder}/${orderId}`,
+    `${RECORDS_BASE}/${month}`,
+  ];
+
+  for (const dirPath of dirPaths) {
+    try {
+      await nasRequest(nasUrl, nasKey, "filesystem/mkdir", { path: dirPath, options: {} });
+      // mkdir returns error if dir exists — that's fine, ignore it
+    } catch {
+      // ignore — dir may already exist
+    }
+  }
+
+  for (const path of filePaths) {
     const fd = new FormData();
     fd.append("data", JSON.stringify({ path }));
     fd.append("file", pdfBlob, "invoice.pdf");
@@ -67,5 +100,5 @@ export async function POST(request: Request) {
     }
   }
 
-  return Response.json({ ok: true, paths });
+  return Response.json({ ok: true, paths: filePaths });
 }
