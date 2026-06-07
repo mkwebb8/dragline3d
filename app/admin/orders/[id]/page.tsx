@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Save, ExternalLink, FileText, Receipt, Package, CheckCircle2, Circle, Scissors, Printer, PlayCircle } from "lucide-react";
 import type { CSSProperties } from "react";
+import BoxSelect from "@/components/BoxSelect"; // ← added
 
 const glass: CSSProperties = {
   background: "rgba(255,255,255,0.03)",
@@ -14,7 +15,6 @@ const glass: CSSProperties = {
   boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
 };
 const inputSt: CSSProperties = { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", outline: "none" };
-
 function focusOn(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
   e.currentTarget.style.borderColor = "rgba(255,181,71,0.50)";
   e.currentTarget.style.boxShadow = "0 0 0 3px rgba(255,181,71,0.08)";
@@ -23,7 +23,6 @@ function focusOff(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | H
   e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)";
   e.currentTarget.style.boxShadow = "none";
 }
-
 const STATUS_OPTIONS = [{ value: "pending", label: "Payment Pending" }, { value: "received", label: "Order Received" }, { value: "queued", label: "In Queue" }, { value: "printing", label: "Printing" }, { value: "quality_check", label: "Quality Check" }, { value: "shipped", label: "Shipped" }, { value: "delivered", label: "Delivered" }, { value: "cancelled", label: "Cancelled" }];
 const STATUS_COLORS: Record<string, string> = { pending: "#6b7280", received: "#3b82f6", queued: "#f59e0b", printing: "#f97316", quality_check: "#a855f7", shipped: "#22c55e", delivered: "#16a34a", cancelled: "#ef4444" };
 const BOX_PRESETS = [
@@ -40,7 +39,6 @@ const PART_STATUS_CONFIG: Record<string, { label: string; color: string; icon: a
   printing: { label: "Printing", color: "#f97316", icon: PlayCircle },
   completed: { label: "Completed", color: "#22c55e", icon: CheckCircle2 },
 };
-
 export default function AdminOrderDetail({ params }: { params: { id: string } }) {
   const { id } = params;
   const [order, setOrder] = useState<any>(null);
@@ -62,12 +60,14 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
   const [creatingLabel, setCreatingLabel] = useState(false);
   const [labelUrl, setLabelUrl] = useState<string | null>(null);
   const [labelError, setLabelError] = useState<string | null>(null);
+  const [token, setToken] = useState(""); // ← added for BoxSelect
   const router = useRouter();
 
   useEffect(() => {
-    const token = localStorage.getItem("dragline_admin_token");
-    if (!token) { router.push("/admin/login"); return; }
-    fetch(`/api/admin/orders/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+    const t = localStorage.getItem("dragline_admin_token");
+    if (!t) { router.push("/admin/login"); return; }
+    setToken(t); // ← added
+    fetch(`/api/admin/orders/${id}`, { headers: { Authorization: `Bearer ${t}` } })
       .then(r => r.json()).then(data => {
         setOrder(data); setStatus(data.status || "received"); setTracking(data.tracking_number || "");
         setNotes(data.notes || ""); setInvoiceUrl(data.square_invoice_url || null);
@@ -82,28 +82,25 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
     const p = BOX_PRESETS[i];
     if (p.l) { setBoxL(String(p.l)); setBoxW(String(p.w)); setBoxH(String(p.h)); }
   }
-
   async function handleSave() {
-    const token = localStorage.getItem("dragline_admin_token"); if (!token) return;
+    const t = localStorage.getItem("dragline_admin_token"); if (!t) return;
     setSaving(true);
-    const res = await fetch(`/api/admin/orders/${id}`, { method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ status, tracking_number: tracking, notes }) });
+    const res = await fetch(`/api/admin/orders/${id}`, { method: "PATCH", headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" }, body: JSON.stringify({ status, tracking_number: tracking, notes }) });
     if (res.ok) { const u = await res.json(); setOrder(u); setSaved(true); setTimeout(() => setSaved(false), 2000); }
     setSaving(false);
   }
-
   async function handleCreateInvoice() {
-    const token = localStorage.getItem("dragline_admin_token"); if (!token) return;
+    const t = localStorage.getItem("dragline_admin_token"); if (!t) return;
     setInvoicing(true); setInvoiceError(null);
-    const res = await fetch(`/api/admin/orders/${id}/invoice`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(`/api/admin/orders/${id}/invoice`, { method: "POST", headers: { Authorization: `Bearer ${t}` } });
     if (res.ok) { const data = await res.json(); setInvoiceUrl(data.invoice_url); window.open(data.invoice_url, "_blank"); }
     else { const err = await res.json(); setInvoiceError(err.error || "Failed to create invoice"); }
     setInvoicing(false);
   }
-
   async function handleCreateLabel() {
-    const token = localStorage.getItem("dragline_admin_token"); if (!token) return;
+    const t = localStorage.getItem("dragline_admin_token"); if (!t) return;
     setCreatingLabel(true); setLabelError(null);
-    const res = await fetch(`/api/admin/orders/${id}/label`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ length: parseFloat(boxL), width: parseFloat(boxW), height: parseFloat(boxH), recipientName: recipientName || undefined }) });
+    const res = await fetch(`/api/admin/orders/${id}/label`, { method: "POST", headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" }, body: JSON.stringify({ length: parseFloat(boxL), width: parseFloat(boxW), height: parseFloat(boxH), recipientName: recipientName || undefined }) });
     if (res.ok) {
       const data = await res.json();
       setLabelUrl(data.label_url); setTracking(data.tracking_number);
@@ -114,10 +111,8 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
 
   if (loading) return <div className="max-w-4xl mx-auto px-6 py-16 text-center"><div className="inline-block w-8 h-8 border-2 border-white/10 border-t-amber rounded-full animate-spin" /></div>;
   if (!order) return <div className="max-w-4xl mx-auto px-6 py-16 text-center text-bone/50">Order not found</div>;
-
   const completedQty = order.order_items?.filter((i: any) => i.completed).reduce((s: number, i: any) => s + (i.qty || 1), 0) || 0;
   const totalCount = order.order_items?.reduce((s: number, i: any) => s + (i.qty || 1), 0) || 0;
-
   const COST_PER_KG: Record<string, number> = { PLA: 16, PETG: 18, TPU: 24, ABS: 20, ASA: 22, "PET-GF15": 30, "PETG-ESD": 66, PA: 35, "ASA-CF": 40, "PETG-CF": 40, "PA-CF": 80, PCTG: 29.95 };
   const totalGrams = order.order_items?.reduce((s: number, i: any) => s + (i.grams || 0) * (i.qty || 1), 0) || 0;
   const matCost = order.order_items?.reduce((s: number, i: any) => s + ((i.grams || 0) * (i.qty || 1) / 1000) * (COST_PER_KG[i.material] || 16), 0) || 0;
@@ -212,7 +207,7 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
         </div>
       )}
 
-      <div className="grid md:grid-cols-2 gap-4 mb-6">
+      <div className="grid md:grid-cols-2 gap-4 mb-4">
         <div className="rounded-xl p-5" style={glass}>
           <div className="font-mono text-xs text-amber tracking-widest mb-3">CUSTOMER</div>
           <div className="space-y-1.5 text-sm">
@@ -262,6 +257,13 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
         </div>
       </div>
 
+      {/* ── Shipping box selector ────────────────────────────────────────────── */}
+      {token && (
+        <div className="mb-6">
+          <BoxSelect orderId={order.id} currentBoxId={order.box_id ?? null} token={token} />
+        </div>
+      )}
+
       {order.order_items?.length > 0 && (
         <div className="rounded-xl overflow-hidden" style={glass}>
           <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
@@ -284,7 +286,6 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
                   style={{ borderColor: "rgba(255,255,255,0.07)" }}>
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <Icon size={18} className="flex-shrink-0" style={{ color: cfg.color }} />
-                    {/* Thumbnail */}
                     <img
                       src={`/api/admin/orders/${order.id}/thumb?itemId=${item.id}`}
                       alt=""
