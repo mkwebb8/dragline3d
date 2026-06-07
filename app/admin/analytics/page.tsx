@@ -167,7 +167,7 @@ export default function AnalyticsPage() {
   for (const b of boxes) boxCostMap[b.id] = Number(b.cost_each) || 0;
 
   const monthlyData: Record<string, {
-    revenue: number; materialCost: number; tax: number; printHours: number;
+    revenue: number; filamentCost: number; boxCost: number; tax: number; printHours: number;
     grams: Record<string, number>; orderCount: number; shipping: number;
     itemCount: number; squareFees: number;
   }> = {};
@@ -175,24 +175,24 @@ export default function AnalyticsPage() {
   for (const order of completedOrders) {
     const month = order.created_at?.slice(0, 7);
     if (!month) continue;
-    if (!monthlyData[month]) monthlyData[month] = { revenue: 0, materialCost: 0, tax: 0, printHours: 0, grams: {}, orderCount: 0, shipping: 0, itemCount: 0, squareFees: 0 };
+    if (!monthlyData[month]) monthlyData[month] = { revenue: 0, filamentCost: 0, boxCost: 0, tax: 0, printHours: 0, grams: {}, orderCount: 0, shipping: 0, itemCount: 0, squareFees: 0 };
     const subtotal = order.subtotal || 0;
     const shipping = Number(order.shipping_cost || 0);
     const tax = Math.round(subtotal * 0.06 * 100) / 100;
     const squareFee = Math.round(((order.total || 0) * SQUARE_PCT + SQUARE_FIXED) * 100) / 100;
-    const boxCost = order.box_id ? (boxCostMap[order.box_id] || 0) : 0;
+    const orderBoxCost = order.box_id ? (boxCostMap[order.box_id] || 0) : 0;
     monthlyData[month].revenue += subtotal;
     monthlyData[month].tax += tax;
     monthlyData[month].shipping += shipping;
     monthlyData[month].squareFees += squareFee;
-    monthlyData[month].materialCost += boxCost; // box is part of COGS
+    monthlyData[month].boxCost += orderBoxCost;
     monthlyData[month].orderCount += 1;
     for (const item of (order.order_items || [])) {
       const qty = item.qty || 1;
       const grams = (item.grams || 0) * qty;
       const hours = (item.print_hours || item.hours || 0) * qty;
       const mat = item.material || "PLA";
-      monthlyData[month].materialCost += (grams / 1000) * (COST_PER_KG[mat] || 16);
+      monthlyData[month].filamentCost += (grams / 1000) * (COST_PER_KG[mat] || 16);
       monthlyData[month].printHours += hours;
       monthlyData[month].grams[mat] = (monthlyData[month].grams[mat] || 0) + grams;
       monthlyData[month].itemCount += qty;
@@ -204,20 +204,21 @@ export default function AnalyticsPage() {
   const mProfit = months.map(m => {
     const d = monthlyData[m];
     const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
-    return { month: m, value: d.revenue - d.materialCost - elec - d.squareFees };
+    return { month: m, value: d.revenue - d.filamentCost - d.boxCost - elec - d.squareFees };
   });
   const mNetProfit = months.map(m => {
     const d = monthlyData[m];
     const realRev = d.revenue - d.squareFees;
     return { month: m, value: realRev * PROFIT_FIRST.profit };
   });
-  const mMatCost = months.map(m => ({ month: m, value: monthlyData[m].materialCost }));
+  const mFilamentCost = months.map(m => ({ month: m, value: monthlyData[m].filamentCost }));
+  const mBoxCost = months.map(m => ({ month: m, value: monthlyData[m].boxCost }));
   const mProductionCosts = months.map(m => {
     const d = monthlyData[m];
     const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
     return {
       month: m,
-      actual: d.materialCost + d.squareFees + elec,
+      actual: d.filamentCost + d.boxCost + d.squareFees + elec,
       budget: (d.revenue - d.squareFees) * PROFIT_FIRST.opex,
     };
   });
@@ -227,18 +228,18 @@ export default function AnalyticsPage() {
   const mMargin = months.map(m => {
     const d = monthlyData[m];
     const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
-    const profit = d.revenue - d.materialCost - elec - d.squareFees;
+    const profit = d.revenue - d.filamentCost - d.boxCost - elec - d.squareFees;
     return { month: m, value: d.revenue > 0 ? (profit / d.revenue) * 100 : 0 };
   });
 
   const totalRevenue = completedOrders.reduce((s, o) => s + (o.subtotal || 0), 0);
   const totalShipping = completedOrders.reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
   const totalSquareFees = completedOrders.reduce((s, o) => s + Math.round(((o.total || 0) * SQUARE_PCT + SQUARE_FIXED) * 100) / 100, 0);
-  const totalMatCost = completedOrders.reduce((s, o) => {
-    const filamentCost = (o.order_items || []).reduce((si: number, i: any) => si + ((i.grams || 0) * (i.qty || 1) / 1000) * (COST_PER_KG[i.material] || 16), 0);
-    const boxCost = o.box_id ? (boxCostMap[o.box_id] || 0) : 0;
-    return s + filamentCost + boxCost;
-  }, 0);
+  const totalFilamentCost = completedOrders.reduce((s, o) =>
+    s + (o.order_items || []).reduce((si: number, i: any) => si + ((i.grams || 0) * (i.qty || 1) / 1000) * (COST_PER_KG[i.material] || 16), 0), 0);
+  const totalBoxCost = completedOrders.reduce((s, o) =>
+    s + (o.box_id ? (boxCostMap[o.box_id] || 0) : 0), 0);
+  const totalMatCost = totalFilamentCost + totalBoxCost;
   const totalHours = completedOrders.reduce((s, o) =>
     s + (o.order_items || []).reduce((si: number, i: any) => si + (i.print_hours || i.hours || 0) * (i.qty || 1), 0), 0);
   const totalElecCost = (totalHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
@@ -305,12 +306,13 @@ export default function AnalyticsPage() {
     const rows = months.map(m => {
       const d = monthlyData[m];
       const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
-      const profit = d.revenue - d.materialCost - elec - d.squareFees;
+      const profit = d.revenue - d.filamentCost - d.boxCost - elec - d.squareFees;
       const realRev = d.revenue - d.squareFees;
       const netP = realRev * PROFIT_FIRST.profit;
       return {
         Month: fMonth(m), Orders: d.orderCount, Parts: d.itemCount,
-        Revenue: d.revenue.toFixed(2), "Material Cost": d.materialCost.toFixed(2),
+        Revenue: d.revenue.toFixed(2), "Filament Cost": d.filamentCost.toFixed(2),
+        "Packaging Cost": d.boxCost.toFixed(2),
         "Electricity": elec.toFixed(2), "Square Fees": d.squareFees.toFixed(2),
         "Tax Collected": d.tax.toFixed(2), Shipping: d.shipping.toFixed(2),
         "Gross Profit": profit.toFixed(2),
@@ -421,9 +423,10 @@ export default function AnalyticsPage() {
       <div className="mb-2 font-mono text-xs text-steel tracking-widest">
         P&L SUMMARY {(dateFrom || dateTo) && <span className="text-amber ml-2">FILTERED</span>}
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
         <StatCard label="REVENUE" value={fc(totalRevenue)} sub={`${completedOrders.length} orders`} icon={DollarSign} />
-        <StatCard label="COGS (MAT + BOX)" value={fc(totalMatCost)} sub={`${(totalMatCost / (totalRevenue || 1) * 100).toFixed(0)}% of revenue`} color="text-red-400" icon={Weight} />
+        <StatCard label="FILAMENT COST" value={fc(totalFilamentCost)} sub={`${(totalFilamentCost / (totalRevenue || 1) * 100).toFixed(0)}% of revenue`} color="text-red-400" icon={Weight} />
+        <StatCard label="PACKAGING" value={fc(totalBoxCost)} sub={`${(totalBoxCost / (totalRevenue || 1) * 100).toFixed(0)}% of revenue · boxes`} color="text-pink-400" icon={Package} />
         <StatCard label="SQUARE FEES" value={fc(totalSquareFees)} sub="2.9% + $0.30/order" color="text-orange-400" icon={DollarSign} />
         <StatCard label="ELECTRICITY EST." value={fc(totalElecCost)} sub={`${totalHours.toFixed(0)}h × ${AVG_PRINTER_WATTS}W`} color="text-yellow-400" icon={Zap} />
       </div>
@@ -448,8 +451,10 @@ export default function AnalyticsPage() {
               </div>
               {/* Cost breakdown equation */}
               <div className="flex items-center gap-1.5 flex-wrap mb-2">
-                <span className="font-mono text-xs text-red-400">{fc(totalMatCost)}</span>
-                <span className="font-mono text-[10px] text-steel/40">COGS +</span>
+                <span className="font-mono text-xs text-red-400">{fc(totalFilamentCost)}</span>
+                <span className="font-mono text-[10px] text-steel/40">filament +</span>
+                <span className="font-mono text-xs text-pink-400">{fc(totalBoxCost)}</span>
+                <span className="font-mono text-[10px] text-steel/40">packaging +</span>
                 <span className="font-mono text-xs text-orange-400">{fc(totalSquareFees)}</span>
                 <span className="font-mono text-[10px] text-steel/40">fees +</span>
                 <span className="font-mono text-xs text-yellow-400">{fc(totalElecCost)}</span>
@@ -564,12 +569,13 @@ export default function AnalyticsPage() {
 
       {/* Monthly trend charts */}
       <div className="mb-2 font-mono text-xs text-steel tracking-widest">MONTHLY TRENDS (LAST 6 MONTHS)</div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
         {[
           { label: "REVENUE", data: mRev, color: "#f59e0b", labelStr: "$" },
           { label: "GROSS PROFIT", data: mProfit, color: "#22c55e", labelStr: "$" },
           { label: "NET PROFIT (PF)", data: mNetProfit, color: "#10b981", labelStr: "$" },
-          { label: "MATERIAL COST", data: mMatCost, color: "#ef4444", labelStr: "$" },
+          { label: "FILAMENT COST", data: mFilamentCost, color: "#ef4444", labelStr: "$" },
+          { label: "PACKAGING COST", data: mBoxCost, color: "#ec4899", labelStr: "$" },
         ].map(({ label, data, color, labelStr }) => (
           <div key={label} className="rounded-xl p-4" style={glass}>
             <div className="font-mono text-xs text-steel tracking-widest mb-3">{label}</div>
@@ -704,7 +710,7 @@ export default function AnalyticsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-                  {["MONTH", "ORDERS", "PARTS", "REVENUE", "MAT COST", "ELEC", "SQ FEES", "TAX", "SHIPPING", "GROSS PROFIT", "GROSS %", "NET PROFIT", "NET %", "FILAMENT", "HRS"].map(h => (
+                  {["MONTH", "ORDERS", "PARTS", "REVENUE", "FILAMENT", "PACKAGING", "ELEC", "SQ FEES", "TAX", "SHIPPING", "GROSS PROFIT", "GROSS %", "NET PROFIT", "NET %", "KG", "HRS"].map(h => (
                     <th key={h} className="px-3 py-3 text-left font-mono text-xs text-steel whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -713,7 +719,7 @@ export default function AnalyticsPage() {
                 {months.map(m => {
                   const d = monthlyData[m];
                   const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
-                  const grossProfit = d.revenue - d.materialCost - elec - d.squareFees;
+                  const grossProfit = d.revenue - d.filamentCost - d.boxCost - elec - d.squareFees;
                   const grossMargin = d.revenue > 0 ? (grossProfit / d.revenue) * 100 : 0;
                   const realRev = d.revenue - d.squareFees;
                   const netP = realRev * PROFIT_FIRST.profit;
@@ -725,7 +731,8 @@ export default function AnalyticsPage() {
                       <td className="px-3 py-2 font-mono text-xs text-steel">{d.orderCount}</td>
                       <td className="px-3 py-2 font-mono text-xs text-steel">{d.itemCount}</td>
                       <td className="px-3 py-2 font-mono text-xs text-amber">{fc(d.revenue)}</td>
-                      <td className="px-3 py-2 font-mono text-xs text-red-400">{fc(d.materialCost)}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-red-400">{fc(d.filamentCost)}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-pink-400">{fc(d.boxCost)}</td>
                       <td className="px-3 py-2 font-mono text-xs text-yellow-400">{fc(elec)}</td>
                       <td className="px-3 py-2 font-mono text-xs text-orange-400">{fc(d.squareFees)}</td>
                       <td className="px-3 py-2 font-mono text-xs text-purple-400">{fc(d.tax)}</td>
