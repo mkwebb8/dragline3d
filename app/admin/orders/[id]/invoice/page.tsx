@@ -12,7 +12,6 @@ const COST_PER_KG: Record<string, number> = {
   PLA: 16, PETG: 18, TPU: 24, ABS: 20, ASA: 22, "PET-GF15": 30,
   "PETG-ESD": 66, PA: 35, "ASA-CF": 40, "PETG-CF": 40, "PA-CF": 80, PCTG: 29.95,
 };
-const NAS_BASE = "/mnt/media3/dragline3d";
 const PAID_STATUSES = ["shipped", "delivered", "quality_check", "printing", "queued", "received"];
 
 function fc(n: number) { return `$${n.toFixed(2)}`; }
@@ -29,9 +28,6 @@ export default function InvoicePage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
   const [nasStatus, setNasStatus] = useState<NasStatus>("idle");
   const [nasError, setNasError] = useState<string | null>(null);
-  const [showNasConfig, setShowNasConfig] = useState(false);
-  const [nasUrlInput, setNasUrlInput] = useState("");
-  const [nasKeyInput, setNasKeyInput] = useState("");
   const invoiceRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -46,25 +42,17 @@ export default function InvoicePage({ params }: { params: { id: string } }) {
       setBoxes(bxs);
       setLoading(false);
     });
-    setNasUrlInput(localStorage.getItem("truenas_url") || "");
-    setNasKeyInput(localStorage.getItem("truenas_key") || "");
   }, [id, router]);
 
   async function saveToNas(orderData: any) {
-    const nasUrl = localStorage.getItem("truenas_url");
-    const nasKey = localStorage.getItem("truenas_key");
-    if (!nasUrl || !nasKey) { setNasStatus("no-config"); return; }
     if (!invoiceRef.current) return;
-
     setNasStatus("saving");
     setNasError(null);
 
     try {
-      // Dynamically import so these don't affect SSR bundle
       const html2canvas = (await import("html2canvas")).default;
       const { jsPDF } = await import("jspdf");
 
-      // Capture the dark invoice at 2× resolution
       const canvas = await html2canvas(invoiceRef.current, {
         backgroundColor: "#080808",
         scale: 2,
@@ -77,50 +65,32 @@ export default function InvoicePage({ params }: { params: { id: string } }) {
       const pdfW = pdf.internal.pageSize.getWidth();
       const pdfH = (canvas.height * pdfW) / canvas.width;
       pdf.addImage(imgData, "PNG", 0, 0, pdfW, pdfH);
-      const pdfBytes = pdf.output("arraybuffer");
 
+      // Convert to base64 for JSON transport to API route
+      const pdfBase64 = pdf.output("datauristring").split(",")[1];
       const orderId = (orderData.id || "UNKNOWN").toUpperCase();
       const month = orderData.created_at?.slice(0, 7) || new Date().toISOString().slice(0, 7);
+      const token = localStorage.getItem("dragline_admin_token");
 
-      const paths = [
-        `${NAS_BASE}/orders/${orderId}/invoice.pdf`,
-        `${NAS_BASE}/records/${month}/${orderId}-invoice.pdf`,
-      ];
+      const res = await fetch("/api/admin/save-nas", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ orderId, month, pdfBase64 }),
+      });
 
-      for (const path of paths) {
-        const fd = new FormData();
-        fd.append("data", JSON.stringify({ path, mode: "0644" }));
-        fd.append("file", new Blob([pdfBytes], { type: "application/pdf" }), "invoice.pdf");
-
-        const res = await fetch(`${nasUrl}/api/v2.0/filesystem/put`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${nasKey}` },
-          body: fd,
-        });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.message || `TrueNAS responded ${res.status}`);
-        }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Server error ${res.status}`);
       }
 
       setNasStatus("saved");
     } catch (err: any) {
       setNasStatus("error");
-      setNasError(
-        err.message?.includes("Failed to fetch")
-          ? "Cannot reach TrueNAS — check the URL and that CORS is enabled (System → General Settings → UI → Allowed Origins)"
-          : err.message || "Unknown error"
-      );
+      setNasError(err.message || "Unknown error");
     }
-  }
-
-  function saveNasConfig() {
-    localStorage.setItem("truenas_url", nasUrlInput.replace(/\/$/, ""));
-    localStorage.setItem("truenas_key", nasKeyInput);
-    setShowNasConfig(false);
-    setNasStatus("idle");
-    if (order) saveToNas(order);
   }
 
   // On load: trigger print dialog + NAS save
@@ -148,11 +118,11 @@ export default function InvoicePage({ params }: { params: { id: string } }) {
   const month = order.created_at?.slice(0, 7) || "";
 
   const nasStatusLabel: Record<NasStatus, { text: string; color: string }> = {
-    idle:      { text: "—", color: "#7a7060" },
-    saving:    { text: "Saving to NAS…", color: "#f59e0b" },
-    saved:     { text: `Saved ✓  orders/${invoiceNum}/  +  records/${month}/`, color: "#4ade80" },
-    error:     { text: "NAS error", color: "#f87171" },
-    "no-config": { text: "TrueNAS not configured", color: "#f87171" },
+    idle:        { text: "—", color: "#7a7060" },
+    saving:      { text: "Saving to NAS…", color: "#f59e0b" },
+    saved:       { text: `Saved ✓  orders/${invoiceNum}/  +  records/${month}/`, color: "#4ade80" },
+    error:       { text: "NAS error", color: "#f87171" },
+    "no-config": { text: "TRUENAS_URL / TRUENAS_API_KEY not set in .env.local", color: "#f87171" },
   };
 
   return (
@@ -207,19 +177,6 @@ export default function InvoicePage({ params }: { params: { id: string } }) {
               — {nasError}
             </span>
           )}
-          {(nasStatus === "error" || nasStatus === "no-config") && (
-            <button
-              onClick={() => setShowNasConfig(true)}
-              className="mono"
-              style={{
-                fontSize: 10, color: "#f59e0b", background: "none",
-                border: "1px solid rgba(245,158,11,0.30)", borderRadius: 6,
-                padding: "2px 8px", cursor: "pointer", marginLeft: 4,
-              }}
-            >
-              Configure
-            </button>
-          )}
           {nasStatus === "saved" && (
             <button
               onClick={() => order && saveToNas(order)}
@@ -234,16 +191,6 @@ export default function InvoicePage({ params }: { params: { id: string } }) {
             </button>
           )}
         </div>
-
-        {/* Config gear */}
-        <button
-          onClick={() => setShowNasConfig(v => !v)}
-          title="TrueNAS settings"
-          style={{
-            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: "#7a7060", fontSize: 14,
-          }}
-        >⚙</button>
 
         <button
           onClick={() => window.print()}
@@ -266,71 +213,6 @@ export default function InvoicePage({ params }: { params: { id: string } }) {
           }}
         >✕</button>
       </div>
-
-      {/* ── NAS config panel ─────────────────────────────────────── */}
-      {showNasConfig && (
-        <div className="no-print" style={{
-          position: "fixed", top: 52, right: 20, zIndex: 200,
-          background: "#141414", border: "1px solid rgba(255,181,71,0.20)",
-          borderRadius: 14, padding: "20px 20px", width: 340,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
-        }}>
-          <div className="mono" style={{ fontSize: 10, color: "#7a7060", letterSpacing: "0.12em", marginBottom: 14 }}>
-            TRUENAS SETTINGS
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <label className="mono" style={{ fontSize: 10, color: "#7a7060", display: "block", marginBottom: 4 }}>
-              URL (e.g. http://192.168.1.100)
-            </label>
-            <input
-              type="text" value={nasUrlInput}
-              onChange={e => setNasUrlInput(e.target.value)}
-              placeholder="http://192.168.x.x"
-              style={{
-                width: "100%", padding: "7px 10px", borderRadius: 8,
-                background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)",
-                color: "#e8dfd0", fontFamily: "monospace", fontSize: 12, outline: "none",
-              }}
-            />
-          </div>
-          <div style={{ marginBottom: 14 }}>
-            <label className="mono" style={{ fontSize: 10, color: "#7a7060", display: "block", marginBottom: 4 }}>
-              API Key
-            </label>
-            <input
-              type="password" value={nasKeyInput}
-              onChange={e => setNasKeyInput(e.target.value)}
-              placeholder="TrueNAS API key"
-              style={{
-                width: "100%", padding: "7px 10px", borderRadius: 8,
-                background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)",
-                color: "#e8dfd0", fontFamily: "monospace", fontSize: 12, outline: "none",
-              }}
-            />
-          </div>
-          <div className="mono" style={{ fontSize: 9, color: "#5a5245", marginBottom: 14, lineHeight: 1.6 }}>
-            CORS required: TrueNAS → System → General Settings → UI → Allowed Origins → add your admin app domain
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              onClick={saveNasConfig}
-              style={{
-                flex: 1, padding: "8px", borderRadius: 8, cursor: "pointer", fontWeight: 700,
-                background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)",
-                color: "#1a1208", border: "none", fontFamily: "'Space Mono', monospace", fontSize: 11,
-              }}
-            >SAVE & TEST</button>
-            <button
-              onClick={() => setShowNasConfig(false)}
-              style={{
-                padding: "8px 14px", borderRadius: 8, cursor: "pointer",
-                background: "rgba(255,255,255,0.04)", color: "#7a7060",
-                border: "1px solid rgba(255,255,255,0.08)", fontFamily: "monospace", fontSize: 11,
-              }}
-            >Cancel</button>
-          </div>
-        </div>
-      )}
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
