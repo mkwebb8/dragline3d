@@ -90,6 +90,7 @@ export default function AnalyticsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [novoBalances, setNovoBalances] = useState({ profit: "", ownerComp: "", taxes: "", opex: "" });
+  const [spools, setSpools] = useState<any[]>([]);
   const router = useRouter();
 
   const fetchData = useCallback(async () => {
@@ -101,6 +102,10 @@ export default function AnalyticsPage() {
       fetch(`/api/admin/orders?status=${s}`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : [])
     ));
     setOrders(results.flat());
+    fetch("/api/admin/inventory", { headers: { Authorization: `Bearer ${token}` } })
+  .then(r => r.ok ? r.json() : [])
+  .then(data => setSpools(data))
+  .catch(() => {});
     fetch("/api/admin/govee").then(r => r.ok ? r.json() : null).then(data => {
       if (data?.watts !== undefined) setGoveeWatts(data.watts);
       if (data?.on !== undefined) setGoveeOn(data.on);
@@ -203,6 +208,8 @@ export default function AnalyticsPage() {
   // Profit First
   const realRevenue = totalRevenue - totalSquareFees;
   const pfProfit = realRevenue * PROFIT_FIRST.profit;
+  const inventoryValue = spools.reduce((sum, s) =>
+  sum + (Number(s.weight_remaining_g) / 1000) * (Number(s.cost_per_kg) || COST_PER_KG[s.material] || 16), 0);
   const pfOwnerComp = realRevenue * PROFIT_FIRST.ownerComp;
   const pfTaxes = realRevenue * PROFIT_FIRST.taxes;
   const pfOpex = realRevenue * PROFIT_FIRST.opex;
@@ -376,11 +383,12 @@ export default function AnalyticsPage() {
         <StatCard label="SQUARE FEES" value={fc(totalSquareFees)} sub="2.9% + $0.30/order" color="text-orange-400" icon={DollarSign} />
         <StatCard label="ELECTRICITY EST." value={fc(totalElecCost)} sub={`${totalHours.toFixed(0)}h × ${AVG_PRINTER_WATTS}W`} color="text-yellow-400" icon={Zap} />
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <StatCard label="GROSS PROFIT" value={fc(totalProfit)} sub={`${marginPct.toFixed(0)}% gross margin`} color={totalProfit > 0 ? "text-green-400" : "text-red-400"} icon={TrendingUp} />
         <StatCard label="NET PROFIT (PF 15%)" value={fc(netProfit)} sub={`${netMarginPct.toFixed(0)}% of real revenue`} color={netProfit > 0 ? "text-emerald-400" : "text-red-400"} icon={Target} />
         <StatCard label="SHIPPING COLLECTED" value={fc(totalShipping)} sub="from customers" color="text-blue-400" icon={Package} />
         <StatCard label="AVG ORDER VALUE" value={fc(avgOrderValue)} sub="excl. tax & shipping" icon={BarChart2} />
+        <StatCard label="INVENTORY VALUE" value={fc(inventoryValue)} sub={`${spools.length} spools on hand`} color="text-cyan-400" icon={Package} />
       </div>
 
       {/* Op Expenses KPI */}
