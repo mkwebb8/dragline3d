@@ -12,7 +12,7 @@ const STLViewer = dynamic(() => import("@/components/STLViewer").then(m => ({ de
 
 type Stats = { dims: { x: number; y: number; z: number }; volumeMm3: number };
 type Quote = { grams: number; hours: number; price: number; fromSlicer: boolean; breakdown: { material: number; machine: number; setup: number } };
-type CartItem = { id: string; file: File | null; fileName: string; material: MaterialKey; quality: QualityKey; infill: number; qty: number; color: string; stats: Stats; quote: Quote; geometry: any };
+type CartItem = { id: string; file: File | null; fileName: string; material: MaterialKey; quality: QualityKey; infill: number; qty: number; color: string; stats: Stats; quote: Quote; geometry: any; thumbnail?: string };
 type ShippingRate = { id: string; provider: string; service: string; amount: number; currency: string; days?: number };
 
 function genId() { return Math.random().toString(36).slice(2, 10); }
@@ -80,6 +80,7 @@ export default function QuotePage() {
   const [rateError, setRateError]           = useState<string | null>(null);
   const [checkingOut, setCheckingOut]       = useState(false);
   const [checkoutError, setCheckoutError]   = useState<string | null>(null);
+  const [currentThumbnail, setCurrentThumbnail] = useState<string | null>(null);
 
   const inputRef   = useRef<HTMLInputElement>(null);
   const initializedRef = useRef(false);
@@ -95,6 +96,7 @@ export default function QuotePage() {
     const serializable = cartItems.map(i => ({
       id: i.id, fileName: i.fileName, material: i.material, quality: i.quality,
       infill: i.infill, qty: i.qty, color: i.color, stats: i.stats, quote: i.quote,
+      thumbnail: i.thumbnail,
     }));
     localStorage.setItem("dragline_cart", JSON.stringify(serializable));
   }, [cartItems]);
@@ -124,7 +126,6 @@ export default function QuotePage() {
       setCartItems(hydrated);
       sessionStorage.removeItem("dragline_reorder_files");
 
-      // Autofill shipping from reorder session
       const shippingRaw = sessionStorage.getItem("dragline_reorder_shipping");
       if (shippingRaw) {
         const s = JSON.parse(shippingRaw);
@@ -145,7 +146,6 @@ export default function QuotePage() {
     initializedRef.current = true;
   }, []);
 
-  // Reslice a cart item with new settings
   async function resliceCartItem(itemId: string, mat: MaterialKey, q: QualityKey, inf: number) {
     const item = cartItems.find(i => i.id === itemId);
     if (!item?.file) return;
@@ -187,6 +187,18 @@ export default function QuotePage() {
         if (data.price && !data.fallback) {
           setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
           setSlicerFailed(false);
+          if (data.convertedStl) {
+            try {
+              const bytes = Uint8Array.from(atob(data.convertedStl), c => c.charCodeAt(0));
+              const geo = parseSTL(bytes.buffer);
+              geo.computeBoundingBox();
+              const size = new THREE.Vector3();
+              geo.boundingBox!.getSize(size);
+              setStats({ dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: computeVolume(geo) });
+              setGeometry(geo);
+              setIsStepFile(false);
+            } catch(e) { console.warn("Could not parse converted STL for preview", e); }
+          }
         } else { setSlicerFailed(true); }
       })
       .catch(() => { setSlicerFailed(true); })
@@ -203,7 +215,7 @@ export default function QuotePage() {
     if (!f) return;
     if (!/\.(stl|3mf|step|stp)$/i.test(f.name)) { setFileError("STL, 3MF, or STEP files only."); return; }
     setFileError(null); setFile(f); setStats(null); setGeometry(null);
-    setCurrentQuote(null); setSlicerFailed(false); setSlicerComplete(false);
+    setCurrentQuote(null); setCurrentThumbnail(null); setSlicerFailed(false); setSlicerComplete(false);
 
     if (/\.(step|stp)$/i.test(f.name)) {
       setIsStepFile(true); setParsing(false);
@@ -227,7 +239,8 @@ export default function QuotePage() {
   function addToCart() {
     if (!file || !stats || !currentQuote || !currentQuote.fromSlicer) return;
     if (!isStepFile && !geometry) return;
-    setCartItems(prev => [...prev, { id: genId(), file, fileName: file.name, material, quality, infill, qty, color, stats, quote: currentQuote, geometry: geometry || null }]);
+    setCartItems(prev => [...prev, { id: genId(), file, fileName: file.name, material, quality, infill, qty, color, stats, quote: currentQuote, geometry: geometry || null, thumbnail: currentThumbnail || undefined }]);
+    setCurrentThumbnail(null);
     setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null); setIsStepFile(false);
     setMaterial("PLA"); setQuality("standard"); setInfill(15); setQty(1); setColor("Midnight Black");
     setSlicerComplete(false); setSlicerFailed(false);
@@ -279,7 +292,7 @@ export default function QuotePage() {
       notifyForm.append("shippingLabel", localPickup ? "Local Pickup" : (selectedRate?.service || "Standard"));
       notifyForm.append("shippingCost", String(localPickup ? 0 : (selectedRate?.amount || 0)));
       notifyForm.append("total", String(orderTotal));
-      notifyForm.append("items", JSON.stringify(cartItems.map(i => ({ id: i.id, fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, grams: i.quote.grams, hours: i.quote.hours, price: i.quote.price, lineTotal: i.quote.price * i.qty }))));
+      notifyForm.append("items", JSON.stringify(cartItems.map(i => ({ id: i.id, fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, grams: i.quote.grams, hours: i.quote.hours, price: i.quote.price, lineTotal: i.quote.price * i.qty, thumbnail: i.thumbnail || null }))));
       for (const item of cartItems) { if (item.file) notifyForm.append(`file_${item.id}`, item.file); }
       fetch("/api/notify", { method: "POST", body: notifyForm }).catch(() => {});
       const res = await fetch("/api/checkout", {
@@ -386,7 +399,7 @@ export default function QuotePage() {
                         <div className="font-mono text-[10px] tracking-[0.2em] text-steel">PARSING MESH...</div>
                       </div>
                     </div>
-                  ) : <STLViewer geometry={geometry} onStats={() => {}} />}
+                  ) : <STLViewer geometry={geometry} onStats={() => {}} onCapture={(dataUrl) => setCurrentThumbnail(dataUrl)} />}
                 </div>
                 <div className="mt-2.5 flex justify-between items-center">
                   <span className="font-mono text-[10px] text-steel tracking-wider">
@@ -514,10 +527,19 @@ export default function QuotePage() {
                     const isReslicing = reslicingItem === item.id;
                     return (
                       <div key={item.id} style={{ borderBottom: idx < cartItems.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
-                        {/* Item row */}
                         <div className="px-5 py-4 flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
-                            <div className="font-medium text-sm text-bone truncate">{item.fileName.replace(/\.(stl|3mf|step|stp)$/i, "")}</div>
+                            <div className="flex items-center gap-2">
+                              {item.thumbnail && (
+                                <img
+                                  src={item.thumbnail}
+                                  alt={item.fileName}
+                                  className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                                  style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+                                />
+                              )}
+                              <div className="font-medium text-sm text-bone truncate">{item.fileName.replace(/\.(stl|3mf|step|stp)$/i, "")}</div>
+                            </div>
                             <div className="mt-1 flex items-center gap-1.5 flex-wrap font-mono text-[10px] text-steel">
                               {itemColor && <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: itemColor.hex, border: "1px solid rgba(255,255,255,0.15)" }} />}
                               <span>{item.material} · {item.color} · {QUALITIES[item.quality].label}mm · {item.infill}%</span>
@@ -545,10 +567,8 @@ export default function QuotePage() {
                           </div>
                         </div>
 
-                        {/* Inline editor */}
                         {isExpanded && item.file && (
                           <div className="px-5 pb-4 space-y-4" style={{ borderTop: "1px solid rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.01)" }}>
-                            {/* Material */}
                             <div className="pt-3">
                               <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-2">Material</div>
                               <div className="grid grid-cols-2 gap-1.5 max-h-[200px] overflow-y-auto">
@@ -568,8 +588,6 @@ export default function QuotePage() {
                                 ))}
                               </div>
                             </div>
-
-                            {/* Color */}
                             <div>
                               <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-2">Color</div>
                               <div className="flex flex-wrap gap-1.5">
@@ -581,8 +599,6 @@ export default function QuotePage() {
                                 ))}
                               </div>
                             </div>
-
-                            {/* Quality */}
                             <div>
                               <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-2">Layer Height</div>
                               <div className="grid grid-cols-4 gap-1.5">
@@ -599,8 +615,6 @@ export default function QuotePage() {
                                 ))}
                               </div>
                             </div>
-
-                            {/* Infill */}
                             <div>
                               <div className="flex justify-between items-baseline mb-1">
                                 <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel">Infill</div>
@@ -611,12 +625,11 @@ export default function QuotePage() {
                                   const v = +e.target.value;
                                   setCartItems(prev => prev.map(i => i.id === item.id ? { ...i, infill: v } : i));
                                 }}
-                                onMouseUp={e => resliceCartItem(item.id, item.material, item.quality, +( e.target as HTMLInputElement).value)}
+                                onMouseUp={e => resliceCartItem(item.id, item.material, item.quality, +(e.target as HTMLInputElement).value)}
                                 onTouchEnd={e => resliceCartItem(item.id, item.material, item.quality, +(e.currentTarget as HTMLInputElement).value)}
                                 className="w-full" />
                               <div className="flex justify-between font-mono text-[9px] mt-1 text-steel"><span>LIGHT</span><span>SOLID</span></div>
                             </div>
-
                             {isReslicing && (
                               <div className="flex items-center gap-2 text-amber/60 font-mono text-[10px]">
                                 <RefreshCw size={10} className="animate-spin" /> Recalculating price…
