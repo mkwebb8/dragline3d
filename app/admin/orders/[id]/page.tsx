@@ -275,7 +275,12 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
       {/* ── Shipping box selector ────────────────────────────────────────────── */}
       {token && (
         <div className="mb-6">
-          <BoxSelect orderId={order.id} currentBoxId={order.box_id ?? null} token={token} />
+          <BoxSelect
+            orderId={order.id}
+            currentBoxId={order.box_id ?? null}
+            token={token}
+            onSave={(newBoxId) => setOrder((o: any) => ({ ...o, box_id: newBoxId }))}
+          />
         </div>
       )}
 
