@@ -761,6 +761,10 @@ export default function QuotePage() {
                   style={{ background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)", boxShadow: "0 0 28px rgba(255,181,71,0.30)" }}>
                   {checkingOut ? <><span className="inline-block w-4 h-4 rounded-full animate-spin" style={{ border: "2px solid rgba(8,8,10,0.3)", borderTopColor: "#08080a" }} />REDIRECTING...</> : <> PAY WITH SQUARE <ArrowRight size={16} /> </>}
                 </button>
+                <div className="mt-3 text-center font-mono text-[9px]" style={{ color: "rgba(255,255,255,0.25)" }}>
+  By completing your order you agree to our{" "}
+  <a href="/terms" target="_blank" className="underline hover:text-bone transition-colors">Terms & Conditions</a>.
+</div>
                 {checkoutError && <div className="mt-3 text-sm text-center font-medium text-red-400">{checkoutError}</div>}
                 <div className="mt-3 text-center font-mono text-[9px] uppercase tracking-[0.18em]" style={{ color: "rgba(255,181,71,0.35)" }}>SECURE · CARD · APPLE PAY · GOOGLE PAY</div>
               </div>
