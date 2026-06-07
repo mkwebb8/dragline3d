@@ -61,6 +61,7 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
   const [labelUrl, setLabelUrl] = useState<string | null>(null);
   const [labelError, setLabelError] = useState<string | null>(null);
   const [token, setToken] = useState(""); // ← added for BoxSelect
+  const [boxes, setBoxes] = useState<any[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -75,6 +76,8 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
         setRecipientName(data.customer_name || "");
       })
       .finally(() => setLoading(false));
+    fetch("/api/admin/inventory/boxes", { headers: { Authorization: `Bearer ${t}` } })
+      .then(r => r.ok ? r.json() : []).then(setBoxes).catch(() => {});
   }, [id, router]);
 
   function selectPreset(i: number) {
@@ -115,7 +118,10 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
   const totalCount = order.order_items?.reduce((s: number, i: any) => s + (i.qty || 1), 0) || 0;
   const COST_PER_KG: Record<string, number> = { PLA: 16, PETG: 18, TPU: 24, ABS: 20, ASA: 22, "PET-GF15": 30, "PETG-ESD": 66, PA: 35, "ASA-CF": 40, "PETG-CF": 40, "PA-CF": 80, PCTG: 29.95 };
   const totalGrams = order.order_items?.reduce((s: number, i: any) => s + (i.grams || 0) * (i.qty || 1), 0) || 0;
-  const matCost = order.order_items?.reduce((s: number, i: any) => s + ((i.grams || 0) * (i.qty || 1) / 1000) * (COST_PER_KG[i.material] || 16), 0) || 0;
+  const filamentCost = order.order_items?.reduce((s: number, i: any) => s + ((i.grams || 0) * (i.qty || 1) / 1000) * (COST_PER_KG[i.material] || 16), 0) || 0;
+  const selectedBox = order.box_id ? boxes.find((b: any) => b.id === order.box_id) : null;
+  const packagingCost = selectedBox ? Number(selectedBox.cost_each) || 0 : 0;
+  const matCost = filamentCost + packagingCost;
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
@@ -217,7 +223,11 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
             <div><span className="text-steel">Shipping:</span> {order.shipping_service || "--"} · ${Number(order.shipping_cost || 0).toFixed(2)}</div>
             <div><span className="text-steel">Total:</span> <span className="font-bold text-amber">${order.total?.toFixed(2)}</span></div>
             <div><span className="text-steel">Filament:</span> {(totalGrams / 1000).toFixed(3)} kg</div>
-            <div><span className="text-steel">Material cost:</span> <span className="text-red-400">${matCost.toFixed(2)}</span></div>
+            <div><span className="text-steel">Filament cost:</span> <span className="text-red-400">${filamentCost.toFixed(2)}</span></div>
+            {packagingCost > 0 && (
+              <div><span className="text-steel">Packaging cost:</span> <span className="text-pink-400">${packagingCost.toFixed(2)}</span> <span className="text-steel/50">({selectedBox?.name})</span></div>
+            )}
+            <div><span className="text-steel">Total COGS:</span> <span className="font-bold text-red-400">${matCost.toFixed(2)}</span></div>
             <div className="font-mono text-xs text-steel pt-1">{new Date(order.created_at).toLocaleString("en-US")}</div>
           </div>
         </div>
