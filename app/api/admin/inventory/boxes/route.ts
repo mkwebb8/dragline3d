@@ -1,33 +1,44 @@
+// app/api/admin/inventory/boxes/route.ts
 export const runtime = "edge";
-import { NextRequest, NextResponse } from "next/server";
+import { verifyAdminToken } from "@/lib/adminAuth";
 import { createClient } from "@supabase/supabase-js";
 
-function supabase() {
+function db() {
   return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
 }
 
-function auth(req: NextRequest) {
-  return req.headers.get("Authorization")?.replace("Bearer ", "") === process.env.ADMIN_TOKEN;
+export async function GET(request: Request) {
+  if (!await verifyAdminToken(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const { data, error } = await db()
+    .from("boxes")
+    .select("*")
+    .order("name");
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  return Response.json(data || []);
 }
 
-export async function GET(req: NextRequest) {
-  if (!auth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { data } = await supabase().from("boxes").select("*").order("name");
-  return NextResponse.json(data || []);
-}
+export async function POST(request: Request) {
+  if (!await verifyAdminToken(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const body = await request.json();
 
-export async function POST(req: NextRequest) {
-  if (!auth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = await req.json();
-  const { data, error } = await supabase().from("boxes").insert({
+  if (!body.name) return Response.json({ error: "name is required" }, { status: 400 });
+
+  const insert: Record<string, any> = {
     name: body.name,
-    length_in: body.length_in,
-    width_in: body.width_in,
-    height_in: body.height_in,
-    quantity: body.quantity || 0,
-    cost_each: body.cost_each || null,
-    notes: body.notes || null,
-  }).select().single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+    length_in: body.length_in !== "" && body.length_in != null ? Number(body.length_in) : null,
+    width_in:  body.width_in  !== "" && body.width_in  != null ? Number(body.width_in)  : null,
+    height_in: body.height_in !== "" && body.height_in != null ? Number(body.height_in) : null,
+    quantity:  body.quantity  !== "" && body.quantity  != null ? Number(body.quantity)   : 0,
+    cost_each: body.cost_each !== "" && body.cost_each != null ? Number(body.cost_each)  : null,
+    notes:     body.notes || null,
+  };
+
+  const { data, error } = await db()
+    .from("boxes")
+    .insert(insert)
+    .select()
+    .single();
+
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  return Response.json(data, { status: 201 });
 }
