@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { DraglineMark } from "./DraglineMark";
-
 export function Footer() {
   return (
     <footer className="mt-24 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
@@ -25,7 +24,6 @@ export function Footer() {
               Functional parts, fast turnaround, fair prices.
             </p>
           </div>
-
           <div>
             <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-amber mb-5">Shop</div>
             <ul className="space-y-3 text-sm">
@@ -46,7 +44,6 @@ export function Footer() {
               ))}
             </ul>
           </div>
-
           <div>
             <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-amber mb-5">Contact</div>
             <ul className="space-y-3 text-sm text-bone/50">
@@ -56,13 +53,12 @@ export function Footer() {
             </ul>
           </div>
         </div>
-
         <div
           className="border-t pt-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-3"
           style={{ borderColor: "rgba(255,255,255,0.06)" }}
         >
           <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel">
-            © {new Date().getFullYear()} Dragline 3D
+            © {new Date().getFullYear()} Dragline 3D LLC · All rights reserved.
           </div>
           <div className="font-mono text-[9px] uppercase tracking-[0.2em]" style={{ color: "rgba(255,181,71,0.35)" }}>
             Layer by layer<span style={{ color: "#ffb547" }}>.</span>
