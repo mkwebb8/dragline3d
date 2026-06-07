@@ -69,37 +69,51 @@ export default function BoxSelect({ orderId, currentBoxId, token }: Props) {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ box_id: selected || null }),
     });
-
     if (!orderRes.ok) {
       setSaving(false);
       alert("Failed to update order box");
       return;
     }
 
-    // 2. Adjust inventory quantities
+    // 2. Refetch fresh quantities before adjusting — avoids stale-read issues
+    const freshBoxes: Box[] = await fetch("/api/admin/inventory/boxes", {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => r.ok ? r.json() : boxes).catch(() => boxes);
+    setBoxes(freshBoxes);
+
     // If switching away from a previous box, restore its stock (+1)
     if (savedBoxId && savedBoxId !== selected) {
-      const prev = boxes.find(b => b.id === savedBoxId);
+      const prev = freshBoxes.find(b => b.id === savedBoxId);
       if (prev) {
-        await fetch(`/api/admin/inventory/boxes/${savedBoxId}`, {
+        const res = await fetch(`/api/admin/inventory/boxes/${savedBoxId}`, {
           method: "PATCH",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({ quantity: prev.quantity + 1 }),
         });
-        setBoxes(bs => bs.map(b => b.id === savedBoxId ? { ...b, quantity: b.quantity + 1 } : b));
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          console.error("Failed to restore previous box qty:", err);
+        } else {
+          setBoxes(bs => bs.map(b => b.id === savedBoxId ? { ...b, quantity: b.quantity + 1 } : b));
+        }
       }
     }
 
     // If selecting a new box, decrement its stock (-1)
     if (selected) {
-      const next = boxes.find(b => b.id === selected);
+      const next = freshBoxes.find(b => b.id === selected);
       if (next) {
-        await fetch(`/api/admin/inventory/boxes/${selected}`, {
+        const res = await fetch(`/api/admin/inventory/boxes/${selected}`, {
           method: "PATCH",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({ quantity: Math.max(0, next.quantity - 1) }),
         });
-        setBoxes(bs => bs.map(b => b.id === selected ? { ...b, quantity: Math.max(0, b.quantity - 1) } : b));
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(`Failed to update box inventory: ${err.error || res.status}`);
+        } else {
+          setBoxes(bs => bs.map(b => b.id === selected ? { ...b, quantity: Math.max(0, b.quantity - 1) } : b));
+        }
       }
     }
 
