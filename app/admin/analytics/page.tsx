@@ -273,6 +273,14 @@ export default function AnalyticsPage() {
   const opexVariance = pfOpex - actualOpex;
   const opexUsedPct = pfOpex > 0 ? Math.min((actualOpex / pfOpex) * 100, 100) : 0;
   const opexEfficiencyScore = pfOpex > 0 ? Math.max(0, Math.round(((pfOpex - actualOpex) / pfOpex) * 100)) : 0;
+  // If under: how much slack can shift to profit
+  const suggestedProfitPct = realRevenue > 0
+    ? Math.round((PROFIT_FIRST.profit + opexVariance / realRevenue) * 100)
+    : Math.round(PROFIT_FIRST.profit * 100);
+  // If over: minimum opex % needed to cover actual production costs
+  const suggestedOpexPct = realRevenue > 0
+    ? Math.ceil((actualOpex / realRevenue) * 100)
+    : Math.round(PROFIT_FIRST.opex * 100);
 
   const statusCounts: Record<string, number> = {};
   for (const o of allActiveOrders) { statusCounts[o.status] = (statusCounts[o.status] || 0) + 1; }
@@ -470,8 +478,8 @@ export default function AnalyticsPage() {
                 <span className="text-steel">{opexUsedPct.toFixed(0)}% of opex budget</span>
                 <span className={opexVariance >= 0 ? "text-green-400" : "text-red-400"}>
                   {opexVariance >= 0
-                    ? `${fc(opexVariance)} under — consider bumping profit %`
-                    : `${fc(Math.abs(opexVariance))} OVER budget — raise prices or cut`}
+                    ? `${fc(opexVariance)} under — bump profit to ${suggestedProfitPct}%`
+                    : `${fc(Math.abs(opexVariance))} OVER — reduce opex to ${suggestedOpexPct}% or raise prices`}
                 </span>
               </div>
             </div>
