@@ -72,13 +72,14 @@ export default function InvoicePage({ params }: { params: { id: string } }) {
       const month = orderData.created_at?.slice(0, 7) || new Date().toISOString().slice(0, 7);
       const token = localStorage.getItem("dragline_admin_token");
 
+      const customerName = orderData.customer_name || "Unknown";
       const res = await fetch("/api/admin/save-nas", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ orderId, month, pdfBase64 }),
+        body: JSON.stringify({ orderId, month, pdfBase64, customerName }),
       });
 
       if (!res.ok) {
@@ -120,7 +121,7 @@ export default function InvoicePage({ params }: { params: { id: string } }) {
   const nasStatusLabel: Record<NasStatus, { text: string; color: string }> = {
     idle:        { text: "—", color: "#7a7060" },
     saving:      { text: "Saving to NAS…", color: "#f59e0b" },
-    saved:       { text: `Saved ✓  orders/${invoiceNum}/  +  records/${month}/`, color: "#4ade80" },
+    saved:       { text: `Saved ✓  orders/${order.customer_name?.split(" ")[0] || ""}/${invoiceNum}/  +  records/${month}/`, color: "#4ade80" },
     error:       { text: "NAS error", color: "#f87171" },
     "no-config": { text: "TRUENAS_URL / TRUENAS_API_KEY not set in .env.local", color: "#f87171" },
   };
