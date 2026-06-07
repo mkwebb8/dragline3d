@@ -25,8 +25,13 @@ function focusOff(e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) {
   e.currentTarget.style.boxShadow = "none";
 }
 
-const MATERIALS = [
+// Shown in the pricing grid (editable $/kg)
+const PRICING_MATERIALS = [
   "PLA","PETG","TPU","ABS","ASA","PET-GF15","PETG-ESD","PA","ASA-CF","PETG-CF","PA-CF","PCTG",
+];
+// Full list available when adding a spool (includes specialty materials)
+const MATERIALS = [
+  ...PRICING_MATERIALS,
   "Hyper PLA","Hyper PETG","PET-CF17",
 ];
 const BRANDS = [
@@ -356,7 +361,7 @@ export default function InventoryPage() {
           <div className="font-mono text-xs text-amber tracking-widest">MATERIAL PRICING ($/kg)</div>
         </div>
         <div className="p-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-          {MATERIALS.map(mat => (
+          {PRICING_MATERIALS.map(mat => (
             <div key={mat} className="p-2 rounded-xl" style={innerCell}>
               <div className="font-mono text-xs text-steel mb-1">{mat}</div>
               {editingPrice === mat ? (
