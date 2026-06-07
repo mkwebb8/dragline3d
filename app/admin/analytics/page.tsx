@@ -3,7 +3,7 @@ export const runtime = "edge";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, RefreshCw, TrendingUp, Package, Zap, DollarSign, Weight, Users, BarChart2, Download, Calendar } from "lucide-react";
+import { ArrowLeft, RefreshCw, TrendingUp, Package, Zap, DollarSign, Weight, Users, BarChart2, Download, Calendar, TrendingDown, Target } from "lucide-react";
 import type { CSSProperties } from "react";
 
 const glass: CSSProperties = {
@@ -166,6 +166,11 @@ export default function AnalyticsPage() {
     const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
     return { month: m, value: d.revenue - d.materialCost - elec - d.squareFees };
   });
+  const mNetProfit = months.map(m => {
+    const d = monthlyData[m];
+    const realRev = d.revenue - d.squareFees;
+    return { month: m, value: realRev * PROFIT_FIRST.profit };
+  });
   const mMatCost = months.map(m => ({ month: m, value: monthlyData[m].materialCost }));
   const mElec = months.map(m => ({ month: m, value: (monthlyData[m].printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE }));
   const mOrders = months.map(m => ({ month: m, value: monthlyData[m].orderCount }));
@@ -195,11 +200,26 @@ export default function AnalyticsPage() {
   const avgOrderValue = totalRevenue / (completedOrders.length || 1);
   const marginPct = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
+  // Profit First
   const realRevenue = totalRevenue - totalSquareFees;
   const pfProfit = realRevenue * PROFIT_FIRST.profit;
   const pfOwnerComp = realRevenue * PROFIT_FIRST.ownerComp;
   const pfTaxes = realRevenue * PROFIT_FIRST.taxes;
   const pfOpex = realRevenue * PROFIT_FIRST.opex;
+
+  // Net profit = what Profit First says you actually keep (15% bucket)
+  const netProfit = pfProfit;
+  const netMarginPct = realRevenue > 0 ? (netProfit / realRevenue) * 100 : 0;
+
+  // Op expenses tracking
+  const actualOpex = parseFloat(novoBalances.opex) || 0;
+  const opexVariance = pfOpex - actualOpex; // positive = under budget (good), negative = over budget (bad)
+  const opexUsedPct = pfOpex > 0 ? Math.min((actualOpex / pfOpex) * 100, 100) : 0;
+  const opexEfficiencyScore = pfOpex > 0 ? Math.max(0, Math.round(((pfOpex - actualOpex) / pfOpex) * 100)) : 0;
+
+  // Total obligations accounted for
+  const totalObligations = pfOwnerComp + pfTaxes + pfOpex;
+  const obligationsMetPct = realRevenue > 0 ? (totalObligations / realRevenue) * 100 : 0;
 
   const statusCounts: Record<string, number> = {};
   for (const o of allActiveOrders) { statusCounts[o.status] = (statusCounts[o.status] || 0) + 1; }
@@ -234,12 +254,17 @@ export default function AnalyticsPage() {
       const d = monthlyData[m];
       const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
       const profit = d.revenue - d.materialCost - elec - d.squareFees;
+      const realRev = d.revenue - d.squareFees;
+      const netP = realRev * PROFIT_FIRST.profit;
       return {
         Month: fMonth(m), Orders: d.orderCount, Parts: d.itemCount,
         Revenue: d.revenue.toFixed(2), "Material Cost": d.materialCost.toFixed(2),
         "Electricity": elec.toFixed(2), "Square Fees": d.squareFees.toFixed(2),
         "Tax Collected": d.tax.toFixed(2), Shipping: d.shipping.toFixed(2),
-        Profit: profit.toFixed(2), "Margin %": d.revenue > 0 ? ((profit / d.revenue) * 100).toFixed(0) : "0",
+        "Gross Profit": profit.toFixed(2),
+        "Gross Margin %": d.revenue > 0 ? ((profit / d.revenue) * 100).toFixed(0) : "0",
+        "Net Profit (PF 15%)": netP.toFixed(2),
+        "Net Margin %": realRev > 0 ? ((netP / realRev) * 100).toFixed(0) : "0",
         "Filament kg": (Object.values(d.grams).reduce((s, g) => s + g, 0) / 1000).toFixed(3),
         "Print Hours": d.printHours.toFixed(1),
       };
@@ -351,11 +376,75 @@ export default function AnalyticsPage() {
         <StatCard label="SQUARE FEES" value={fc(totalSquareFees)} sub="2.9% + $0.30/order" color="text-orange-400" icon={DollarSign} />
         <StatCard label="ELECTRICITY EST." value={fc(totalElecCost)} sub={`${totalHours.toFixed(0)}h × ${AVG_PRINTER_WATTS}W`} color="text-yellow-400" icon={Zap} />
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-        <StatCard label="GROSS PROFIT" value={fc(totalProfit)} sub={`${marginPct.toFixed(0)}% margin`} color={totalProfit > 0 ? "text-green-400" : "text-red-400"} icon={TrendingUp} />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <StatCard label="GROSS PROFIT" value={fc(totalProfit)} sub={`${marginPct.toFixed(0)}% gross margin`} color={totalProfit > 0 ? "text-green-400" : "text-red-400"} icon={TrendingUp} />
+        <StatCard label="NET PROFIT (PF 15%)" value={fc(netProfit)} sub={`${netMarginPct.toFixed(0)}% of real revenue`} color={netProfit > 0 ? "text-emerald-400" : "text-red-400"} icon={Target} />
         <StatCard label="SHIPPING COLLECTED" value={fc(totalShipping)} sub="from customers" color="text-blue-400" icon={Package} />
-        <StatCard label="KY SALES TAX" value={fc(totalTax)} sub="collected" color="text-purple-400" icon={DollarSign} />
         <StatCard label="AVG ORDER VALUE" value={fc(avgOrderValue)} sub="excl. tax & shipping" icon={BarChart2} />
+      </div>
+
+      {/* Op Expenses KPI */}
+      <div className="mb-2 font-mono text-xs text-steel tracking-widest">OPERATING EXPENSES TRACKER</div>
+      <div className="rounded-xl p-5 mb-6" style={glass}>
+        <div className="grid md:grid-cols-3 gap-6">
+          {/* Budget vs Actual */}
+          <div className="md:col-span-2">
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-mono text-xs text-steel">OP. EXPENSES BUDGET (30% of real revenue)</div>
+              <div className="font-mono text-xs text-amber">{fc(pfOpex)} target</div>
+            </div>
+            <div className="h-3 rounded-full overflow-hidden mb-2" style={{ background: "rgba(255,255,255,0.07)" }}>
+              <div className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${opexUsedPct}%`,
+                  background: opexUsedPct > 90 ? "#ef4444" : opexUsedPct > 70 ? "#f59e0b" : "#22c55e"
+                }} />
+            </div>
+            <div className="flex items-center justify-between font-mono text-xs">
+              <span className="text-steel">Actual spent: <span className={actualOpex > 0 ? (actualOpex > pfOpex ? "text-red-400" : "text-green-400") : "text-steel"}>{actualOpex > 0 ? fc(actualOpex) : "Enter in Novo fields →"}</span></span>
+              <span className={opexUsedPct > 0 ? (opexVariance >= 0 ? "text-green-400" : "text-red-400") : "text-steel"}>
+                {actualOpex > 0 ? (opexVariance >= 0 ? `${fc(opexVariance)} under budget` : `${fc(Math.abs(opexVariance))} OVER budget`) : ""}
+              </span>
+            </div>
+            {/* Breakdown of what the 70% covers */}
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              {[
+                { label: "OWNER COMP", pct: 25, val: pfOwnerComp, color: "#f59e0b" },
+                { label: "TAXES", pct: 30, val: pfTaxes, color: "#ef4444" },
+                { label: "OP. EXPENSES", pct: 30, val: pfOpex, color: "#3b82f6" },
+              ].map(({ label, pct, val, color }) => (
+                <div key={label} className="rounded-lg p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div className="font-mono text-[9px] text-steel mb-1">{label}</div>
+                  <div className="font-display font-bold text-sm" style={{ color }}>{fc(val)}</div>
+                  <div className="font-mono text-[9px] text-steel">{pct}% reserved</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Efficiency Score */}
+          <div className="flex flex-col items-center justify-center rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="font-mono text-xs text-steel mb-2 tracking-widest">LEAN SCORE</div>
+            <div className={`font-display font-black text-5xl mb-1 ${
+              actualOpex === 0 ? "text-steel" :
+              opexEfficiencyScore >= 50 ? "text-green-400" :
+              opexEfficiencyScore >= 20 ? "text-amber" : "text-red-400"
+            }`}>
+              {actualOpex > 0 ? `${opexEfficiencyScore}%` : "—"}
+            </div>
+            <div className="font-mono text-[9px] text-steel text-center">
+              {actualOpex === 0 ? "Enter Novo opex balance" :
+               opexEfficiencyScore >= 50 ? "Lean & profitable" :
+               opexEfficiencyScore >= 20 ? "Room to tighten" : "Trim expenses"}
+            </div>
+            {actualOpex > 0 && opexVariance > 0 && (
+              <div className="mt-2 font-mono text-xs text-green-400 text-center font-bold">{fc(opexVariance)} saved</div>
+            )}
+            <div className="mt-3 font-mono text-[9px] text-steel text-center">
+              Higher score = more room<br />to boost profit or owner comp
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Profit First / Reserves */}
@@ -393,6 +482,17 @@ export default function AnalyticsPage() {
             );
           })}
         </div>
+        {/* Net profit callout */}
+        <div className="mt-4 rounded-xl p-4 flex items-center justify-between" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.20)" }}>
+          <div>
+            <div className="font-mono text-xs text-steel mb-0.5">NET PROFIT — what you actually keep after all obligations</div>
+            <div className="font-mono text-xs text-steel/50">Revenue − Square fees = {fc(realRevenue)} real revenue × 15% profit</div>
+          </div>
+          <div className="text-right flex-shrink-0 ml-4">
+            <div className="font-display font-black text-2xl text-green-400">{fc(netProfit)}</div>
+            <div className="font-mono text-xs text-green-400/60">{netMarginPct.toFixed(0)}% net margin</div>
+          </div>
+        </div>
       </div>
 
       {/* Charts row 1 */}
@@ -400,9 +500,9 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         {[
           { label: "REVENUE", data: mRev, color: "#f59e0b", labelStr: "$" },
-          { label: "PROFIT", data: mProfit, color: "#22c55e", labelStr: "$" },
+          { label: "GROSS PROFIT", data: mProfit, color: "#22c55e", labelStr: "$" },
+          { label: "NET PROFIT (PF)", data: mNetProfit, color: "#10b981", labelStr: "$" },
           { label: "MATERIAL COST", data: mMatCost, color: "#ef4444", labelStr: "$" },
-          { label: "ELEC. COST", data: mElec, color: "#eab308", labelStr: "$" },
         ].map(({ label, data, color, labelStr }) => (
           <div key={label} className="rounded-xl p-4" style={glass}>
             <div className="font-mono text-xs text-steel tracking-widest mb-3">{label}</div>
@@ -511,7 +611,7 @@ export default function AnalyticsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-                  {["MONTH", "ORDERS", "PARTS", "REVENUE", "MAT COST", "ELEC", "SQ FEES", "TAX", "SHIPPING", "PROFIT", "MARGIN", "FILAMENT", "HRS"].map(h => (
+                  {["MONTH", "ORDERS", "PARTS", "REVENUE", "MAT COST", "ELEC", "SQ FEES", "TAX", "SHIPPING", "GROSS PROFIT", "GROSS %", "NET PROFIT", "NET %", "FILAMENT", "HRS"].map(h => (
                     <th key={h} className="px-3 py-3 text-left font-mono text-xs text-steel whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -520,8 +620,11 @@ export default function AnalyticsPage() {
                 {months.map(m => {
                   const d = monthlyData[m];
                   const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
-                  const profit = d.revenue - d.materialCost - elec - d.squareFees;
-                  const margin = d.revenue > 0 ? (profit / d.revenue) * 100 : 0;
+                  const grossProfit = d.revenue - d.materialCost - elec - d.squareFees;
+                  const grossMargin = d.revenue > 0 ? (grossProfit / d.revenue) * 100 : 0;
+                  const realRev = d.revenue - d.squareFees;
+                  const netP = realRev * PROFIT_FIRST.profit;
+                  const netM = realRev > 0 ? (netP / realRev) * 100 : 0;
                   const kg = Object.values(d.grams).reduce((s, g) => s + g, 0) / 1000;
                   return (
                     <tr key={m} className="border-b hover:bg-white/[0.02] transition-colors" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
@@ -534,8 +637,10 @@ export default function AnalyticsPage() {
                       <td className="px-3 py-2 font-mono text-xs text-orange-400">{fc(d.squareFees)}</td>
                       <td className="px-3 py-2 font-mono text-xs text-purple-400">{fc(d.tax)}</td>
                       <td className="px-3 py-2 font-mono text-xs text-blue-400">{fc(d.shipping)}</td>
-                      <td className={`px-3 py-2 font-mono text-xs font-bold ${profit > 0 ? "text-green-400" : "text-red-400"}`}>{fc(profit)}</td>
-                      <td className={`px-3 py-2 font-mono text-xs ${margin > 40 ? "text-green-400" : margin > 20 ? "text-amber" : "text-red-400"}`}>{margin.toFixed(0)}%</td>
+                      <td className={`px-3 py-2 font-mono text-xs font-bold ${grossProfit > 0 ? "text-green-400" : "text-red-400"}`}>{fc(grossProfit)}</td>
+                      <td className={`px-3 py-2 font-mono text-xs ${grossMargin > 40 ? "text-green-400" : grossMargin > 20 ? "text-amber" : "text-red-400"}`}>{grossMargin.toFixed(0)}%</td>
+                      <td className="px-3 py-2 font-mono text-xs font-bold text-emerald-400">{fc(netP)}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-emerald-400/70">{netM.toFixed(0)}%</td>
                       <td className="px-3 py-2 font-mono text-xs text-steel">{kg.toFixed(3)}kg</td>
                       <td className="px-3 py-2 font-mono text-xs text-steel">{d.printHours.toFixed(1)}h</td>
                     </tr>
