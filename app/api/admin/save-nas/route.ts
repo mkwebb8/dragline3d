@@ -2,11 +2,16 @@
 export const runtime = "edge";
 import { verifyAdminToken } from "@/lib/adminAuth";
 
-const ORDERS_BASE = "/mnt/media3/dragline3d/orders";
+const ORDERS_BASE = "/mnt/media3/orders";
 const RECORDS_BASE = "/mnt/media3/dragline3d/records";
 
-function sanitizeFolderName(name: string): string {
-  return name.trim().replace(/[\\/:*?"<>|]/g, "_");
+// "Peter Golembiewski" → "Golembiewski_Peter"
+function customerFolder(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  const last = parts[parts.length - 1];
+  const first = parts.slice(0, -1).join(" ");
+  return `${last}_${first}`.replace(/[\\/:*?"<>|]/g, "_");
 }
 
 async function nasRequest(nasUrl: string, nasKey: string, endpoint: string, body: unknown) {
@@ -42,7 +47,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Missing orderId, month, or pdfBase64" }, { status: 400 });
   }
 
-  const customerFolder = sanitizeFolderName(customerName || "Unknown");
+  const customer = customerFolder(customerName || "Unknown");
 
   // Decode base64 → binary
   const binaryStr = atob(pdfBase64);
@@ -50,16 +55,16 @@ export async function POST(request: Request) {
   for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
   const pdfBlob = new Blob([bytes], { type: "application/pdf" });
 
-  // Path 1: /mnt/media3/orders/<Customer Name>/<order-id>/invoice.pdf
+  // Path 1: /mnt/media3/orders/LastName_FirstName/<order-id>/invoice.pdf
   // Path 2: /mnt/media3/dragline3d/records/<month>/<order-id>-invoice.pdf
   const filePaths = [
-    `${ORDERS_BASE}/${customerFolder}/${orderId}/invoice.pdf`,
+    `${ORDERS_BASE}/${customer}/${orderId}/invoice.pdf`,
     `${RECORDS_BASE}/${month}/${orderId}-invoice.pdf`,
   ];
 
   // Ensure parent directories exist before writing
   const dirPaths = [
-    `${ORDERS_BASE}/${customerFolder}/${orderId}`,
+    `${ORDERS_BASE}/${customer}/${orderId}`,
     `${RECORDS_BASE}/${month}`,
   ];
 
