@@ -341,7 +341,7 @@ export default function QuotePage() {
             </span>
           </h1>
           <p className="text-bone/50 text-base leading-relaxed max-w-xl">
-            Upload STL or 3MF files, configure each part, add them to your cart, then checkout.
+            Upload STL, STEP or 3MF files, configure each part, add them to your cart, then checkout.
           </p>
         </div>
 
@@ -372,7 +372,7 @@ export default function QuotePage() {
                     {cartItems.length > 0 ? "Add another part" : "Drop your file"}
                   </div>
                   <div className="text-bone/45 text-sm">or click to browse · .STL · .3MF · .STEP</div>
-                  <div className="text-bone/25 text-xs mt-1">3MF files are priced as a single unit — qty multiplies the entire file</div>
+<div className="text-bone/25 text-xs mt-1">Upload individual parts — one file per part. 3MF & STEP files are priced as a single unit.</div>
                 </div>
                 {fileError && (
                   <div className="text-sm flex items-center gap-2 text-red-400">
