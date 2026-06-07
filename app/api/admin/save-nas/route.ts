@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
   for (const path of paths) {
     const fd = new FormData();
-    fd.append("data", JSON.stringify({ path, mode: "0644" }));
+    fd.append("data", JSON.stringify({ path }));
     fd.append("file", pdfBlob, "invoice.pdf");
 
     let res: Response;
