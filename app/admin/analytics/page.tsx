@@ -196,9 +196,10 @@ export default function AnalyticsPage() {
     const subtotal = order.subtotal || 0;
     const shipping = Number(order.shipping_cost || 0);
     const tax = Math.round(subtotal * 0.06 * 100) / 100;
-    const squareFee = Math.round(((order.total || 0) * SQUARE_PCT + SQUARE_FIXED) * 100) / 100;
+    const collected = order.total || (subtotal + tax + shipping);
+    const squareFee = Math.round((collected * SQUARE_PCT + SQUARE_FIXED) * 100) / 100;
     const orderBoxCost = order.box_id ? (boxCostMap[order.box_id] || 0) : 0;
-    monthlyData[month].revenue += subtotal;
+    monthlyData[month].revenue += collected;
     monthlyData[month].tax += tax;
     monthlyData[month].shipping += shipping;
     monthlyData[month].squareFees += squareFee;
@@ -249,9 +250,20 @@ export default function AnalyticsPage() {
     return { month: m, value: d.revenue > 0 ? (profit / d.revenue) * 100 : 0 };
   });
 
-  const totalRevenue = completedOrders.reduce((s, o) => s + (o.subtotal || 0), 0);
+  const totalRevenue = completedOrders.reduce((s, o) => {
+    const sub = o.subtotal || 0;
+    const tax = Math.round(sub * 0.06 * 100) / 100;
+    const ship = Number(o.shipping_cost || 0);
+    return s + (o.total || (sub + tax + ship));
+  }, 0);
   const totalShipping = completedOrders.reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
-  const totalSquareFees = completedOrders.reduce((s, o) => s + Math.round(((o.total || 0) * SQUARE_PCT + SQUARE_FIXED) * 100) / 100, 0);
+  const totalSquareFees = completedOrders.reduce((s, o) => {
+    const sub = o.subtotal || 0;
+    const tax = Math.round(sub * 0.06 * 100) / 100;
+    const ship = Number(o.shipping_cost || 0);
+    const collected = o.total || (sub + tax + ship);
+    return s + Math.round((collected * SQUARE_PCT + SQUARE_FIXED) * 100) / 100;
+  }, 0);
   const totalFilamentCost = completedOrders.reduce((s, o) =>
     s + (o.order_items || []).reduce((si: number, i: any) => si + ((i.grams || 0) * (i.qty || 1) / 1000) * (COST_PER_KG[i.material] || 16), 0), 0);
   const totalBoxCost = completedOrders.reduce((s, o) =>
@@ -357,7 +369,7 @@ export default function AnalyticsPage() {
     const rows = completedOrders.map(o => ({
       "Order ID": o.id, Customer: o.customer_name, Email: o.customer_email,
       Date: o.created_at?.slice(0, 10), Status: o.status,
-      Subtotal: (o.subtotal || 0).toFixed(2), Tax: Math.round((o.subtotal || 0) * 0.06 * 100) / 100,
+      Subtotal: (o.subtotal || 0).toFixed(2), Tax: Math.round((o.subtotal || 0) * 0.06 * 100) / 100, Total: (o.total || 0).toFixed(2),
       Shipping: Number(o.shipping_cost || 0).toFixed(2), Total: (o.total || 0).toFixed(2),
       "Square Fee": ((o.total || 0) * SQUARE_PCT + SQUARE_FIXED).toFixed(2),
     }));
@@ -451,7 +463,7 @@ export default function AnalyticsPage() {
         P&L SUMMARY {(dateFrom || dateTo) && <span className="text-amber ml-2">FILTERED</span>}
       </div>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
-        <StatCard label="REVENUE" value={fc(totalRevenue)} sub={`${completedOrders.length} orders`} icon={DollarSign} />
+        <StatCard label="TOTAL COLLECTED" value={fc(totalRevenue)} sub={`${completedOrders.length} orders · matches Square`} icon={DollarSign} />
         <StatCard label="FILAMENT COST" value={fc(totalFilamentCost)} sub={`${(totalFilamentCost / (totalRevenue || 1) * 100).toFixed(0)}% of revenue`} color="text-red-400" icon={Weight} />
         <StatCard label="PACKAGING" value={fc(totalBoxCost)} sub={`${(totalBoxCost / (totalRevenue || 1) * 100).toFixed(0)}% of revenue · boxes`} color="text-pink-400" icon={Package} />
         <StatCard label="SQUARE FEES" value={fc(totalSquareFees)} sub="2.9% + $0.30/order" color="text-orange-400" icon={DollarSign} />
@@ -763,7 +775,7 @@ export default function AnalyticsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-                  {["MONTH", "ORDERS", "PARTS", "REVENUE", "FILAMENT", "PACKAGING", "ELEC", "SQ FEES", "TAX", "SHIPPING", "GROSS PROFIT", "GROSS %", "NET PROFIT", "NET %", "KG", "HRS"].map(h => (
+                  {["MONTH", "ORDERS", "PARTS", "COLLECTED", "FILAMENT", "PACKAGING", "ELEC", "SQ FEES", "TAX", "SHIPPING", "GROSS PROFIT", "GROSS %", "NET PROFIT", "NET %", "KG", "HRS"].map(h => (
                     <th key={h} className="px-3 py-3 text-left font-mono text-xs text-steel whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
