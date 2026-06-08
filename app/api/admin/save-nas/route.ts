@@ -35,14 +35,14 @@ export async function POST(request: Request) {
     return Response.json({ error: "TRUENAS_URL or TRUENAS_API_KEY not set in .env.local" }, { status: 503 });
   }
 
-  let body: { orderId: string; month: string; pdfBase64: string; customerName: string };
+  let body: { orderId: string; month: string; pdfBase64: string; customerName: string; filename?: string };
   try {
     body = await request.json();
   } catch {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { orderId, month, pdfBase64, customerName } = body;
+  const { orderId, month, pdfBase64, customerName, filename = "invoice.pdf" } = body;
   if (!orderId || !month || !pdfBase64) {
     return Response.json({ error: "Missing orderId, month, or pdfBase64" }, { status: 400 });
   }
@@ -55,11 +55,12 @@ export async function POST(request: Request) {
   for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
   const pdfBlob = new Blob([bytes], { type: "application/pdf" });
 
-  // Path 1: /mnt/media3/orders/LastName_FirstName/<order-id>/invoice.pdf
-  // Path 2: /mnt/media3/dragline3d/records/<month>/<order-id>-invoice.pdf
+  // Path 1: /mnt/media3/orders/LastName_FirstName/<order-id>/<filename>
+  // Path 2: /mnt/media3/dragline3d/records/<month>/<order-id>-<filename>
+  const recordFilename = filename.replace(".pdf", "");
   const filePaths = [
-    `${ORDERS_BASE}/${customer}/${orderId}/invoice.pdf`,
-    `${RECORDS_BASE}/${month}/${orderId}-invoice.pdf`,
+    `${ORDERS_BASE}/${customer}/${orderId}/${filename}`,
+    `${RECORDS_BASE}/${month}/${orderId}-${recordFilename}.pdf`,
   ];
 
   // Ensure parent directories exist before writing
