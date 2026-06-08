@@ -1,6 +1,57 @@
+// app/api/admin/orders/[id]/label/route.ts
 export const runtime="edge";
 import{verifyAdminToken}from "@/lib/adminAuth";
 import{getOrder}from "@/lib/db";
+
+const ORDERS_BASE="/mnt/media3/orders";
+
+// "Peter Golembiewski" → "Golembiewski_Peter"
+function customerFolder(name:string):string{
+  const parts=name.trim().split(/\s+/);
+  if(parts.length===1)return parts[0];
+  const last=parts[parts.length-1];
+  const first=parts.slice(0,-1).join(" ");
+  return`${last}_${first}`.replace(/[\\/:*?"<>|]/g,"_");
+}
+
+async function saveLabelToNas(nasUrl:string,nasKey:string,orderId:string,customerName:string,labelUrl:string){
+  // Fetch PDF from Shippo
+  const labelResp=await fetch(labelUrl);
+  if(!labelResp.ok)return;
+  const buffer=await labelResp.arrayBuffer();
+  const bytes=new Uint8Array(buffer);
+  let binary="";
+  for(let i=0;i<bytes.length;i++)binary+=String.fromCharCode(bytes[i]);
+  const pdfBase64=btoa(binary);
+
+  const customer=customerFolder(customerName||"Unknown");
+  const dirPath=`${ORDERS_BASE}/${customer}/${orderId}`;
+  const filePath=`${dirPath}/shipping-label.pdf`;
+
+  // Ensure directory exists
+  try{
+    await fetch(`${nasUrl}/api/v2.0/filesystem/mkdir`,{
+      method:"POST",
+      headers:{Authorization:`Bearer ${nasKey}`,"Content-Type":"application/json"},
+      body:JSON.stringify({path:dirPath,options:{}}),
+    });
+  }catch{}
+
+  // Write file
+  const binaryStr=atob(pdfBase64);
+  const fileBytes=new Uint8Array(binaryStr.length);
+  for(let i=0;i<binaryStr.length;i++)fileBytes[i]=binaryStr.charCodeAt(i);
+  const pdfBlob=new Blob([fileBytes],{type:"application/pdf"});
+  const fd=new FormData();
+  fd.append("data",JSON.stringify({path:filePath}));
+  fd.append("file",pdfBlob,"shipping-label.pdf");
+  await fetch(`${nasUrl}/api/v2.0/filesystem/put`,{
+    method:"POST",
+    headers:{Authorization:`Bearer ${nasKey}`},
+    body:fd,
+  });
+}
+
 export async function POST(request:Request,{params}:{params:{id:string}}){
   if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
   const{id}=params;
@@ -11,6 +62,7 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
   if(!shippoKey)return Response.json({error:"Shippo not configured"},{status:500});
   const totalGrams=order.order_items?.reduce((s:number,i:any)=>s+(i.grams||0),0)||0;
   const weightOz=Math.max(1,Math.round((totalGrams/28.35)*10)/10);
+
   if(rateId&&rateId!=="flat_ground"){
     const txResp=await fetch("https://api.goshippo.com/transactions/",{
       method:"POST",
@@ -24,10 +76,19 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
         headers:{"Content-Type":"application/json","Authorization":`Bearer ${process.env.SUPABASE_SERVICE_KEY}`,"apikey":process.env.SUPABASE_SERVICE_KEY!},
         body:JSON.stringify({tracking_number:tx.tracking_number}),
       });
+      // Save label to NAS (non-fatal)
+      try{
+        const nasUrl=process.env.TRUENAS_URL;
+        const nasKey=process.env.TRUENAS_API_KEY;
+        if(nasUrl&&nasKey&&tx.label_url){
+          await saveLabelToNas(nasUrl,nasKey,id.toUpperCase(),order.customer_name||"Unknown",tx.label_url);
+        }
+      }catch{}
       return Response.json({label_url:tx.label_url,tracking_number:tx.tracking_number});
     }
     return Response.json({error:tx.messages?.[0]?.text||"Label creation failed"},{status:502});
   }
+
   const shipment={
     address_from:{
       name:process.env.SHIP_FROM_NAME||"Dragline 3D",
@@ -64,5 +125,13 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
     headers:{"Content-Type":"application/json","Authorization":`Bearer ${process.env.SUPABASE_SERVICE_KEY}`,"apikey":process.env.SUPABASE_SERVICE_KEY!},
     body:JSON.stringify({tracking_number:tx.tracking_number}),
   });
+  // Save label to NAS (non-fatal)
+  try{
+    const nasUrl=process.env.TRUENAS_URL;
+    const nasKey=process.env.TRUENAS_API_KEY;
+    if(nasUrl&&nasKey&&tx.label_url){
+      await saveLabelToNas(nasUrl,nasKey,id.toUpperCase(),order.customer_name||"Unknown",tx.label_url);
+    }
+  }catch{}
   return Response.json({label_url:tx.label_url,tracking_number:tx.tracking_number,rate_used:matchedRate.servicelevel?.name,amount:matchedRate.amount});
 }
