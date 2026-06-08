@@ -197,7 +197,9 @@ export default function AnalyticsPage() {
     const shipping = Number(order.shipping_cost || 0);
     const tax = Math.round(subtotal * 0.06 * 100) / 100;
     const collected = order.total || (subtotal + tax + shipping);
-    const squareFee = Math.round((collected * SQUARE_PCT + SQUARE_FIXED) * 100) / 100;
+    const squareFee = order.square_fee != null
+      ? Number(order.square_fee)
+      : Math.round((collected * SQUARE_PCT + SQUARE_FIXED) * 100) / 100;
     const orderBoxCost = order.box_id ? (boxCostMap[order.box_id] || 0) : 0;
     monthlyData[month].revenue += collected;
     monthlyData[month].tax += tax;
@@ -262,7 +264,9 @@ export default function AnalyticsPage() {
     const tax = Math.round(sub * 0.06 * 100) / 100;
     const ship = Number(o.shipping_cost || 0);
     const collected = o.total || (sub + tax + ship);
-    return s + Math.round((collected * SQUARE_PCT + SQUARE_FIXED) * 100) / 100;
+    return s + (o.square_fee != null
+      ? Number(o.square_fee)
+      : Math.round((collected * SQUARE_PCT + SQUARE_FIXED) * 100) / 100);
   }, 0);
   const totalFilamentCost = completedOrders.reduce((s, o) =>
     s + (o.order_items || []).reduce((si: number, i: any) => si + ((i.grams || 0) * (i.qty || 1) / 1000) * (COST_PER_KG[i.material] || 16), 0), 0);
