@@ -373,7 +373,7 @@ export default function AnalyticsPage() {
     const rows = completedOrders.map(o => ({
       "Order ID": o.id, Customer: o.customer_name, Email: o.customer_email,
       Date: o.created_at?.slice(0, 10), Status: o.status,
-      Subtotal: (o.subtotal || 0).toFixed(2), Tax: Math.round((o.subtotal || 0) * 0.06 * 100) / 100, Total: (o.total || 0).toFixed(2),
+      Subtotal: (o.subtotal || 0).toFixed(2), Tax: Math.round((o.subtotal || 0) * 0.06 * 100) / 100,
       Shipping: Number(o.shipping_cost || 0).toFixed(2), Total: (o.total || 0).toFixed(2),
       "Square Fee": ((o.total || 0) * SQUARE_PCT + SQUARE_FIXED).toFixed(2),
     }));
