@@ -44,6 +44,32 @@ export async function PATCH(request:Request,{params}:{params:{id:string}}){
         }
       }
     }
+    // Auto-consume inventory when status → printing (FIFO, non-fatal)
+    if(updates.status==="printing"){
+      try{
+        const ord=await getOrder(params.id);
+        if(ord&&!ord.inventory_consumed){
+          const sbUrl=process.env.SUPABASE_URL!;
+          const sbKey=process.env.SUPABASE_SERVICE_KEY!;
+          const h={apikey:sbKey,Authorization:`Bearer ${sbKey}`,"Content-Type":"application/json",Prefer:"return=representation"};
+          const items:Array<{material:string;grams:number;qty:number}>=ord.order_items||[];
+          for(const item of items){
+            const mat=item.material||"PLA";
+            let need=(item.grams||0)*(item.qty||1);
+            if(need<=0)continue;
+            const sr=await fetch(`${sbUrl}/rest/v1/inventory?material=eq.${encodeURIComponent(mat)}&weight_remaining_g=gt.0&order=created_at.asc`,{headers:h});
+            const spools:Array<{id:string;weight_remaining_g:number}>=await sr.json();
+            for(const s of spools){
+              if(need<=0)break;
+              const deduct=Math.min(s.weight_remaining_g,need);
+              await fetch(`${sbUrl}/rest/v1/inventory?id=eq.${s.id}`,{method:"PATCH",headers:h,body:JSON.stringify({weight_remaining_g:Math.max(0,s.weight_remaining_g-deduct)})});
+              need-=deduct;
+            }
+          }
+          await fetch(`${sbUrl}/rest/v1/orders?id=eq.${params.id}`,{method:"PATCH",headers:h,body:JSON.stringify({inventory_consumed:true})});
+        }
+      }catch{}
+    }
     return Response.json(updated);
   }catch(e:any){return Response.json({error:e.message},{status:500});}
 }
