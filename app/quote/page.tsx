@@ -62,6 +62,7 @@ export default function QuotePage() {
   const [cartItems, setCartItems]           = useState<CartItem[]>([]);
   const [slicerLoading, setSlicerLoading]   = useState(false);
   const [slicerFailed, setSlicerFailed]     = useState(false);
+  const [slicerTooLarge, setSlicerTooLarge] = useState<string | null>(null);
   const [slicerComplete, setSlicerComplete] = useState(false);
   const [isStepFile, setIsStepFile]         = useState(false);
   const [expandedCartItem, setExpandedCartItem] = useState<string | null>(null);
@@ -177,16 +178,19 @@ export default function QuotePage() {
   const totalLbs       = cartItems.reduce((s, i) => s + i.quote.grams * i.qty, 0) / 453.592;
 
   function runSlicer(f: File, mat: MaterialKey, q: QualityKey, inf: number) {
-    setSlicerLoading(true); setSlicerFailed(false); setSlicerComplete(false);
+    setSlicerLoading(true); setSlicerFailed(false); setSlicerTooLarge(null); setSlicerComplete(false);
     const form = new FormData();
     form.append("stl", f); form.append("material", mat); form.append("quality", q); form.append("infill", String(inf));
     if (livePricing[mat]) form.append("costPerKg", String(livePricing[mat]));
     fetch("/api/slice", { method: "POST", body: form })
       .then(r => r.json())
       .then(data => {
-        if (data.price && !data.fallback) {
-          setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
+        if (data.tooLarge) {
+          setSlicerTooLarge(data.error || "Part exceeds build volume");
           setSlicerFailed(false);
+        } else if (data.price && !data.fallback) {
+          setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
+          setSlicerFailed(false); setSlicerTooLarge(null);
           if (data.convertedStl) {
             try {
               const bytes = Uint8Array.from(atob(data.convertedStl), c => c.charCodeAt(0));
@@ -215,7 +219,7 @@ export default function QuotePage() {
     if (!f) return;
     if (!/\.(stl|3mf|step|stp)$/i.test(f.name)) { setFileError("STL, 3MF, or STEP files only."); return; }
     setFileError(null); setFile(f); setStats(null); setGeometry(null);
-    setCurrentQuote(null); setCurrentThumbnail(null); setSlicerFailed(false); setSlicerComplete(false);
+    setCurrentQuote(null); setCurrentThumbnail(null); setSlicerFailed(false); setSlicerTooLarge(null); setSlicerComplete(false);
 
     if (/\.(step|stp)$/i.test(f.name)) {
       setIsStepFile(true); setParsing(false);
@@ -243,7 +247,7 @@ export default function QuotePage() {
     setCurrentThumbnail(null);
     setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null); setIsStepFile(false);
     setMaterial("PLA"); setQuality("standard"); setInfill(15); setQty(1); setColor("Midnight Black");
-    setSlicerComplete(false); setSlicerFailed(false);
+    setSlicerComplete(false); setSlicerFailed(false); setSlicerTooLarge(null);
     setShippingRates([]); setSelectedRateId(null);
   }
 
@@ -481,7 +485,13 @@ export default function QuotePage() {
                     )}
                   </div>
                 </div>
-                {slicerFailed ? (
+                {slicerTooLarge ? (
+                  <div className="w-full py-4 rounded-xl font-mono text-xs text-center flex flex-col items-center gap-2 text-amber-400" style={{ background: "rgba(255,181,71,0.06)", border: "1px solid rgba(255,181,71,0.25)" }}>
+                    <div className="flex items-center gap-2"><AlertCircle size={14} /> PART EXCEEDS BUILD VOLUME</div>
+                    <div className="text-steel text-[11px]">{slicerTooLarge}</div>
+                    <div className="text-steel text-[11px]">Max build volume: 350 × 350 × 350 mm · <a href="/contact" className="underline hover:text-bone">Contact us</a> for a custom quote.</div>
+                  </div>
+                ) : slicerFailed ? (
                   <div className="w-full py-4 rounded-xl font-mono text-xs text-center flex items-center justify-center gap-2 text-red-400" style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.25)" }}>
                     <AlertCircle size={14} /> SLICER UNAVAILABLE — cannot calculate price. Try again shortly.
                   </div>
