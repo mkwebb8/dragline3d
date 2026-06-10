@@ -466,6 +466,16 @@ export default function AnalyticsPage() {
 
   // ── CAPACITY & EFFICIENCY ─────────────────────────────────────────────────
   const PRACTICAL_HOURS_PER_DAY = 20; // per printer
+
+  // Queue: orders not yet shipped/delivered
+  const queueOrders = filteredOrders.filter(o =>
+    ["received", "queued", "printing", "quality_check"].includes(o.status)
+  );
+  const queuedHours = queueOrders.reduce((s, o) =>
+    s + (o.order_items || []).reduce((hs: number, i: any) => hs + (i.print_hours || i.hours || 0) * (i.qty || 1), 0), 0
+  );
+  const queueOrderCount = queueOrders.length;
+
   const monthlyCapacity = allMonths.map(m => {
     const d = monthlyData[m];
     const daysInMonth = new Date(parseInt(m.split("-")[0]), parseInt(m.split("-")[1]), 0).getDate();
@@ -1237,39 +1247,93 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Horizontal bar chart */}
-            <div className="flex flex-col gap-2">
-              <div className="grid gap-1" style={{ gridTemplateColumns: "72px 1fr 52px 60px" }}>
-                {["MONTH", "", "UTIL", "REV/HR"].map(h => (
-                  <div key={h} className="font-mono text-[9px] text-steel/50 pb-1">{h}</div>
-                ))}
-              </div>
-              {monthlyCapacity.map(m => {
-                const barColor = m.utilPct > 70 ? "#ef4444" : m.utilPct > 40 ? "#f59e0b" : "#22c55e";
-                return (
-                  <div key={m.month} className="grid items-center gap-1" style={{ gridTemplateColumns: "72px 1fr 52px 60px" }}>
-                    <span className="font-mono text-[10px] text-bone truncate">{fMonth(m.month)}</span>
-                    <div className="relative h-6 rounded-lg overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
-                      <div className="absolute inset-y-0 left-0 rounded-lg flex items-center pl-2"
-                        style={{ width: `${Math.max(m.utilPct, 2)}%`, background: `linear-gradient(90deg, ${barColor}88, ${barColor})` }}>
-                        {m.utilPct > 15 && <span className="font-mono text-[9px] text-white/80 font-bold">{m.used.toFixed(0)}h</span>}
-                      </div>
-                      {[25, 50, 75].map(p => (
-                        <div key={p} className="absolute inset-y-0 w-px" style={{ left: `${p}%`, background: "rgba(255,255,255,0.06)" }} />
-                      ))}
-                    </div>
-                    <span className="font-mono text-[10px] text-right pr-1" style={{ color: barColor }}>{m.utilPct.toFixed(0)}%</span>
-                    <span className="font-mono text-[10px] text-right text-emerald-400/80">{m.used > 0 ? fc(m.revenuePerHour) : "—"}</span>
+            {(() => {
+              const currentMonth = new Date().toISOString().slice(0, 7);
+              const currentMonthCap = monthlyCapacity.find(m => m.month === currentMonth);
+              const queuePct = currentMonthCap ? Math.min((queuedHours / currentMonthCap.available) * 100, 100) : 0;
+              const combinedPct = currentMonthCap ? Math.min(((currentMonthCap.used + queuedHours) / currentMonthCap.available) * 100, 100) : 0;
+              const overCapacity = currentMonthCap && (currentMonthCap.used + queuedHours) > currentMonthCap.available;
+              const nearCapacity = combinedPct > 75;
+              return (
+                <div className="flex flex-col gap-2">
+                  <div className="grid gap-1" style={{ gridTemplateColumns: "72px 1fr 52px 60px" }}>
+                    {["MONTH", "", "UTIL", "REV/HR"].map(h => (
+                      <div key={h} className="font-mono text-[9px] text-steel/50 pb-1">{h}</div>
+                    ))}
                   </div>
-                );
-              })}
-              <div className="grid gap-1 mt-1" style={{ gridTemplateColumns: "72px 1fr 52px 60px" }}>
-                <div /><div className="flex justify-between px-0.5">
-                  {["0%", "25%", "50%", "75%", "100%"].map(l => (
-                    <span key={l} className="font-mono text-[8px] text-steel/30">{l}</span>
-                  ))}
-                </div><div /><div />
-              </div>
-            </div>
+                  {monthlyCapacity.map(m => {
+                    const isCurrentMonth = m.month === currentMonth;
+                    const barColor = m.utilPct > 70 ? "#ef4444" : m.utilPct > 40 ? "#f59e0b" : "#22c55e";
+                    const queueBarPct = isCurrentMonth ? Math.min((queuedHours / m.available) * 100, 100 - m.utilPct) : 0;
+                    return (
+                      <div key={m.month} className="grid items-center gap-1" style={{ gridTemplateColumns: "72px 1fr 52px 60px" }}>
+                        <span className="font-mono text-[10px] text-bone truncate">{fMonth(m.month)}{isCurrentMonth ? " ·" : ""}</span>
+                        <div className="relative h-6 rounded-lg overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                          {/* Completed hours bar */}
+                          <div className="absolute inset-y-0 left-0 flex items-center pl-2"
+                            style={{ width: `${Math.max(m.utilPct, isCurrentMonth && queuedHours > 0 ? 2 : 2)}%`, background: `linear-gradient(90deg, ${barColor}88, ${barColor})`, borderRadius: queueBarPct > 0 ? "8px 0 0 8px" : "8px" }}>
+                            {m.utilPct > 15 && <span className="font-mono text-[9px] text-white/80 font-bold">{m.used.toFixed(0)}h</span>}
+                          </div>
+                          {/* Queue overlay for current month */}
+                          {isCurrentMonth && queueBarPct > 0 && (
+                            <div className="absolute inset-y-0 flex items-center justify-center"
+                              style={{ left: `${m.utilPct}%`, width: `${queueBarPct}%`, background: "rgba(251,191,36,0.35)", borderRight: "2px dashed rgba(251,191,36,0.7)", borderRadius: "0 8px 8px 0" }}>
+                              {queueBarPct > 8 && <span className="font-mono text-[8px] text-amber font-bold">{queuedHours.toFixed(0)}h</span>}
+                            </div>
+                          )}
+                          {[25, 50, 75].map(p => (
+                            <div key={p} className="absolute inset-y-0 w-px" style={{ left: `${p}%`, background: "rgba(255,255,255,0.06)" }} />
+                          ))}
+                        </div>
+                        <span className="font-mono text-[10px] text-right pr-1" style={{ color: isCurrentMonth && nearCapacity ? "#fbbf24" : barColor }}>
+                          {isCurrentMonth && queuedHours > 0 ? `${combinedPct.toFixed(0)}%` : `${m.utilPct.toFixed(0)}%`}
+                        </span>
+                        <span className="font-mono text-[10px] text-right text-emerald-400/80">{m.used > 0 ? fc(m.revenuePerHour) : "—"}</span>
+                      </div>
+                    );
+                  })}
+                  <div className="grid gap-1 mt-1" style={{ gridTemplateColumns: "72px 1fr 52px 60px" }}>
+                    <div /><div className="flex justify-between px-0.5">
+                      {["0%", "25%", "50%", "75%", "100%"].map(l => (
+                        <span key={l} className="font-mono text-[8px] text-steel/30">{l}</span>
+                      ))}
+                    </div><div /><div />
+                  </div>
+
+                  {/* Queue summary */}
+                  {queuedHours > 0 && (
+                    <div className="mt-2 rounded-lg p-3 flex items-start gap-3" style={{ background: overCapacity ? "rgba(239,68,68,0.08)" : nearCapacity ? "rgba(251,191,36,0.08)" : "rgba(255,255,255,0.04)", border: `1px solid ${overCapacity ? "rgba(239,68,68,0.25)" : nearCapacity ? "rgba(251,191,36,0.25)" : "rgba(255,255,255,0.08)"}` }}>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-mono text-[10px] font-bold" style={{ color: overCapacity ? "#ef4444" : nearCapacity ? "#fbbf24" : "#22c55e" }}>
+                            {overCapacity ? "⚠ OVER CAPACITY" : nearCapacity ? "⚠ NEAR CAPACITY" : "QUEUE LOAD"}
+                          </span>
+                          <span className="font-mono text-[10px] text-steel">{queueOrderCount} order{queueOrderCount !== 1 ? "s" : ""} · {queuedHours.toFixed(1)}h queued</span>
+                        </div>
+                        {currentMonthCap && (
+                          <div className="font-mono text-[10px] text-steel/70">
+                            {currentMonthCap.used.toFixed(0)}h completed + {queuedHours.toFixed(0)}h queued = {(currentMonthCap.used + queuedHours).toFixed(0)}h of {currentMonthCap.available.toFixed(0)}h available this month
+                            {overCapacity && <span className="text-red-400 ml-1">· {((currentMonthCap.used + queuedHours) - currentMonthCap.available).toFixed(0)}h overflow → consider adding a printer</span>}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Legend */}
+                  <div className="flex items-center gap-4 mt-1">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 rounded-sm" style={{ background: "#22c55e" }} />
+                      <span className="font-mono text-[9px] text-steel/60">Completed</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 rounded-sm" style={{ background: "rgba(251,191,36,0.4)", border: "1px dashed rgba(251,191,36,0.7)" }} />
+                      <span className="font-mono text-[9px] text-steel/60">Queued (this month)</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
