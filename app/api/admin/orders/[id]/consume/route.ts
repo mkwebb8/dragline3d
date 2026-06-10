@@ -14,7 +14,7 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
   if(!ord)return Response.json({error:"Order not found"},{status:404});
   if(ord.inventory_consumed)return Response.json({ok:true,skipped:true,reason:"Already consumed"});
 
-  const items:Array<{material:string;grams:number;qty:number}>=ord.order_items||[];
+  const items:Array<{material?:string;grams?:number;qty?:number}>=ord.order_items||[];
   const log:string[]=[];
 
   for(const item of items){
