@@ -293,6 +293,7 @@ export default function AnalyticsPage() {
 
   // Profit First — use actual Square payout total when available, else estimate
   const totalPaidOut = totalRevenue - totalSquareFees - totalRefunds;
+  const totalPayoutsAmount = payouts.filter(p => p.status === "PAID" || p.status === "SENT").reduce((s, p) => s + Number(p.amount || 0), 0);
   const realRevenue = totalPayoutsAmount > 0 ? totalPayoutsAmount : totalPaidOut;
   const pfProfit = realRevenue * PF.profit;
   const pfOwnerComp = realRevenue * PF.ownerComp;
@@ -434,7 +435,6 @@ export default function AnalyticsPage() {
 
   // Payout stats
   const paidPayouts = payouts.filter(p => p.status === "PAID" || p.status === "SENT");
-  const totalPayoutsAmount = paidPayouts.reduce((s, p) => s + Number(p.amount || 0), 0);
   const lastPayout = paidPayouts[0];
   const pendingPayouts = payouts.filter(p => p.status !== "PAID" && p.status !== "SENT" && p.status !== "FAILED");
   const pendingAmount = pendingPayouts.reduce((s, p) => s + Number(p.amount || 0), 0);
