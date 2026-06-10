@@ -39,27 +39,33 @@ export async function POST(request:Request){
 
     console.log("[notify] orderId:",orderId,"fileEntries:",fileEntries.length);
 
-    // Save files + thumbnails to TrueNAS
+    const totalQty=items.reduce((s:number,i:any)=>s+(i.qty||1),0);
+
+    // ── NAS save (before email so result goes in the email body) ──────────
+    let nasSaved=false;
+    let nasError="";
     if(orderId&&customerName&&fileEntries.length>0){
       const saveForm=new FormData();
       saveForm.append("orderId",orderId);
       saveForm.append("customerName",customerName);
-      for(const{name,file} of fileEntries){
-        saveForm.append("file",file,name);
-      }
-      // Pass items JSON so TrueNAS can extract and save thumbnails
-      saveForm.append("items",JSON.stringify(items.map((i:any)=>({
-        id:i.id,
-        thumbnail:i.thumbnail||null,
-      }))));
+      for(const{name,file} of fileEntries) saveForm.append("file",file,name);
+      saveForm.append("items",JSON.stringify(items.map((i:any)=>({id:i.id,thumbnail:i.thumbnail||null}))));
       const workerSecret=process.env.WORKER_SECRET||"";
       try{
-        const sfRes=await fetch(`${slicerUrl}/save-files`,{method:"POST",headers:{"x-worker-secret":workerSecret},body:saveForm});
+        const controller=new AbortController();
+        const timer=setTimeout(()=>controller.abort(),8000);
+        const sfRes=await fetch(`${slicerUrl}/save-files`,{method:"POST",headers:{"x-worker-secret":workerSecret},body:saveForm,signal:controller.signal});
+        clearTimeout(timer);
+        nasSaved=sfRes.ok;
+        if(!sfRes.ok) nasError=`HTTP ${sfRes.status}`;
         console.log("[save-files] status:",sfRes.status);
-      }catch(e:any){console.error("[save-files] failed:",e.message);}
+      }catch(e:any){
+        nasError=e.name==="AbortError"?"Timed out after 8s":e.message;
+        console.error("[save-files] failed:",nasError);
+      }
+    } else if(fileEntries.length===0){
+      nasError="No files in request";
     }
-
-    const totalQty=items.reduce((s:number,i:any)=>s+(i.qty||1),0);
 
     const itemRows=items.map((i:any)=>{
       const qty=i.qty||1;
@@ -108,6 +114,11 @@ export async function POST(request:Request){
         </table>
       </div>
       <div style="text-align:right;font-size:20px;font-weight:bold;color:#f59e0b">Total: $${Number(total).toFixed(2)}</div>
+      ${fileEntries.length>0?`
+      <div style="margin-top:16px;padding:10px 14px;border-radius:4px;border:1px solid ${nasSaved?"#166534":"#7f1d1d"};background:${nasSaved?"#052e16":"#1c0505"}">
+        <span style="font-size:11px;font-weight:bold;letter-spacing:.08em;color:${nasSaved?"#4ade80":"#f87171"}">${nasSaved?"✓ FILES SAVED TO NAS":"⚠ NAS SAVE FAILED"}</span>
+        ${!nasSaved?`<span style="font-size:11px;color:#f87171;margin-left:8px">— ${nasError} — files are attached to this email</span>`:""}
+      </div>`:""}
     </div>`;
 
     const res=await fetch("https://api.resend.com/emails",{
@@ -122,7 +133,7 @@ export async function POST(request:Request){
       }),
     });
     if(!res.ok){const e=await res.json();console.error("Resend error:",JSON.stringify(e));}
-    return Response.json({ok:true});
+    return Response.json({ok:true,nasSaved,nasError:nasError||undefined});
   }catch(e:any){
     console.error("Notify error:",e.message);
     return Response.json({error:e.message},{status:500});
