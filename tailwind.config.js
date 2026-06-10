@@ -20,7 +20,7 @@ module.exports = {
       fontFamily: {
         display: ["var(--font-archivo)", "sans-serif"],
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
-        mono: ["var(--font-archivo)", "sans-serif"],
+        mono: ["var(--font-syne)", "sans-serif"],
       },
     },
   },
