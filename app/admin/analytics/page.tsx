@@ -258,19 +258,10 @@ export default function AnalyticsPage() {
     const ship = Number(o.shipping_cost || 0);
     return s + (o.total || (sub + tax + ship));
   }, 0);
-<<<<<<< HEAD
-  const totalShipping = completedOrders.reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
-  const totalSquareFees = completedOrders.reduce((s, o) => {
-    const sub = o.subtotal || 0;
-    const tax = Math.round(sub * 0.06 * 100) / 100;
-    const ship = Number(o.shipping_cost || 0);
-    const collected = o.total || (sub + tax + ship);
-=======
   const totalRefunds = completedOrders.reduce((s, o) => s + Number(o.refunded_amount || 0), 0);
   const totalShipping = completedOrders.reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
   const totalSquareFees = completedOrders.reduce((s, o) => {
     const collected = o.total || 0;
->>>>>>> c0075e7 (Fix Order type, Square webhook, analytics revenue + payout, RLS)
     return s + (o.square_fee != null
       ? Number(o.square_fee)
       : Math.round((collected * SQUARE_PCT + SQUARE_FIXED) * 100) / 100);
