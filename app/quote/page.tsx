@@ -188,6 +188,9 @@ export default function QuotePage() {
         if (data.tooLarge) {
           setSlicerTooLarge(data.error || "Part exceeds build volume");
           setSlicerFailed(false);
+        } else if (data.needsOrientation) {
+          setSlicerTooLarge(data.error || "Part requires manual orientation");
+          setSlicerFailed(false);
         } else if (data.price && !data.fallback) {
           setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
           setSlicerFailed(false); setSlicerTooLarge(null);
@@ -487,7 +490,7 @@ export default function QuotePage() {
                 </div>
                 {slicerTooLarge ? (
                   <div className="w-full py-4 rounded-xl font-mono text-xs text-center flex flex-col items-center gap-2 text-amber-400" style={{ background: "rgba(255,181,71,0.06)", border: "1px solid rgba(255,181,71,0.25)" }}>
-                    <div className="flex items-center gap-2"><AlertCircle size={14} /> PART EXCEEDS BUILD VOLUME</div>
+                    <div className="flex items-center gap-2"><AlertCircle size={14} /> MANUAL QUOTE REQUIRED</div>
                     <div className="text-steel text-[11px]">{slicerTooLarge}</div>
                     <div className="text-steel text-[11px]">Max build volume: 350 × 350 × 350 mm · <a href="/contact" className="underline hover:text-bone">Contact us</a> for a custom quote.</div>
                   </div>
