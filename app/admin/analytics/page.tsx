@@ -291,9 +291,9 @@ export default function AnalyticsPage() {
   const avgOrderValue = totalRevenue / (completedOrders.length || 1);
   const marginPct = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
-  // Profit First
+  // Profit First — use actual Square payout total when available, else estimate
   const totalPaidOut = totalRevenue - totalSquareFees - totalRefunds;
-  const realRevenue = totalPaidOut;
+  const realRevenue = totalPayoutsAmount > 0 ? totalPayoutsAmount : totalPaidOut;
   const pfProfit = realRevenue * PF.profit;
   const pfOwnerComp = realRevenue * PF.ownerComp;
   const pfTaxes = realRevenue * PF.taxes;
@@ -521,7 +521,7 @@ export default function AnalyticsPage() {
       </div>
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
         <StatCard label="COLLECTED" value={fc(totalRevenue)} sub={`${completedOrders.length} orders${totalRefunds > 0 ? ` · −${fc(totalRefunds)} refunded` : ''}`} icon={DollarSign} />
-        <StatCard label="PAID OUT" value={fc(totalPaidOut)} sub={`after fees${totalRefunds > 0 ? ' & refunds' : ''} · matches Square`} color="text-emerald-400" icon={DollarSign} />
+        <StatCard label="PAID OUT" value={fc(realRevenue)} sub={totalPayoutsAmount > 0 ? `actual Square payouts` : `estimated · sync Square for exact`} color="text-emerald-400" icon={DollarSign} />
         <StatCard label="FILAMENT COST" value={fc(totalFilamentCost)} sub={`${(totalFilamentCost / (totalRevenue || 1) * 100).toFixed(0)}% of revenue`} color="text-red-400" icon={Weight} />
         <StatCard label="PACKAGING" value={fc(totalBoxCost)} sub={`${(totalBoxCost / (totalRevenue || 1) * 100).toFixed(0)}% of revenue · boxes`} color="text-pink-400" icon={Package} />
         <StatCard label="SQUARE FEES" value={fc(totalSquareFees)} sub="2.9% + $0.30/order" color="text-orange-400" icon={DollarSign} />
