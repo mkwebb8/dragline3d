@@ -1,6 +1,6 @@
 ﻿export type OrderStatus = "pending"|"received"|"queued"|"printing"|"quality_check"|"shipped"|"delivered"|"cancelled";
 export type OrderItem = { id?:string;order_id?:string;file_name:string;material:string;quality:string;infill:number;grams?:number;hours?:number;price:number;qty?:number;color?:string };
-export type Order = { id:string;square_payment_link_id?:string;customer_name:string;customer_email:string;address?:string;city?:string;state?:string;zip?:string;shipping_service?:string;shipping_cost?:number;subtotal?:number;total:number;status:OrderStatus;tracking_number?:string;notes?:string;square_invoice_url?:string;created_at?:string;updated_at?:string;order_items?:OrderItem[] };
+export type Order = { id:string;square_payment_link_id?:string;square_payment_id?:string;customer_name:string;customer_email:string;address?:string;city?:string;state?:string;zip?:string;shipping_service?:string;shipping_cost?:number;subtotal?:number;total:number;square_fee?:number;refunded_amount?:number;status:OrderStatus;tracking_number?:string;notes?:string;square_invoice_url?:string;created_at?:string;updated_at?:string;order_items?:OrderItem[];inventory_consumed?:boolean };
 function supabase(path:string,opts:RequestInit={}){
   const url=process.env.SUPABASE_URL;const key=process.env.SUPABASE_SERVICE_KEY;
   if(!url||!key)throw new Error("Supabase not configured");
