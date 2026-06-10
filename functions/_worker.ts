@@ -6,7 +6,7 @@ export default {
     return env.ASSETS.fetch(request);
   },
 
-  async scheduled(event: ScheduledEvent, env: any, ctx: ExecutionContext) {
+  async scheduled(event: { cron: string }, env: any, ctx: { waitUntil(p: Promise<any>): void }) {
     const cronExpr = event.cron;
     const CRON_SECRET = env.CRON_SECRET || "";
     const BASE = "https://dragline3d.com";
@@ -30,4 +30,4 @@ export default {
       );
     }
   },
-} satisfies ExportedHandler;
+};

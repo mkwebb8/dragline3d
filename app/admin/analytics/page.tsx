@@ -235,7 +235,8 @@ export default function AnalyticsPage() {
     }
   }
 
-  const months = Object.keys(monthlyData).sort().slice(-6);
+  const allMonths = Object.keys(monthlyData).sort();
+  const months = allMonths.slice(-6);
   const mRev = months.map(m => ({ month: m, value: monthlyData[m].revenue }));
   const mProfit = months.map(m => {
     const d = monthlyData[m];
@@ -465,7 +466,7 @@ export default function AnalyticsPage() {
 
   // ── CAPACITY & EFFICIENCY ─────────────────────────────────────────────────
   const PRACTICAL_HOURS_PER_DAY = 20; // per printer
-  const monthlyCapacity = months.map(m => {
+  const monthlyCapacity = allMonths.map(m => {
     const d = monthlyData[m];
     const daysInMonth = new Date(parseInt(m.split("-")[0]), parseInt(m.split("-")[1]), 0).getDate();
     const available = printerCount * PRACTICAL_HOURS_PER_DAY * daysInMonth;
@@ -1189,41 +1190,88 @@ export default function AnalyticsPage() {
             <div className="text-right"><div className="font-mono text-[9px] text-steel">AVG REV/HOUR</div><div className="font-display font-bold text-lg text-emerald-400">{fc(avgRevPerHour)}</div></div>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-                {["MONTH", "HOURS USED", "HOURS AVAIL.", "UTILIZATION", "REV/HOUR", "CAPACITY SLACK"].map(h => (
-                  <th key={h} className="px-3 py-2 text-left font-mono text-[10px] text-steel whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {monthlyCapacity.map(m => {
-                const slack = m.available - m.used;
-                const slackRev = slack * avgRevPerHour;
+        {/* ── Chart: donut + horizontal bars ── */}
+        {monthlyCapacity.length === 0 ? (
+          <div className="text-center font-mono text-xs text-steel/40 py-8">No data yet</div>
+        ) : (
+          <div className="flex flex-col gap-5">
+            {/* Donut summary row */}
+            <div className="flex items-center gap-6 flex-wrap">
+              {(() => {
+                const r = 38;
+                const circ = 2 * Math.PI * r;
+                const fill = (avgUtilPct / 100) * circ;
+                const color = avgUtilPct > 70 ? "#ef4444" : avgUtilPct > 40 ? "#f59e0b" : "#22c55e";
                 return (
-                  <tr key={m.month} className="border-b hover:bg-white/[0.02]" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
-                    <td className="px-3 py-2 font-mono text-xs text-bone">{fMonth(m.month)}</td>
-                    <td className="px-3 py-2 font-mono text-xs text-amber">{m.used.toFixed(1)}h</td>
-                    <td className="px-3 py-2 font-mono text-xs text-steel">{m.available.toFixed(0)}h</td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-2 rounded-full overflow-hidden min-w-[60px]" style={{ background: "rgba(255,255,255,0.07)" }}>
-                          <div className="h-full rounded-full" style={{ width: `${m.utilPct}%`, background: m.utilPct > 70 ? "#ef4444" : m.utilPct > 40 ? "#f59e0b" : "#22c55e" }} />
-                        </div>
-                        <span className={`font-mono text-xs ${m.utilPct > 70 ? "text-red-400" : m.utilPct > 40 ? "text-amber" : "text-green-400"}`}>{m.utilPct.toFixed(0)}%</span>
+                  <div className="flex items-center gap-4">
+                    <div className="relative" style={{ width: 96, height: 96 }}>
+                      <svg width="96" height="96" viewBox="0 0 96 96">
+                        <circle cx="48" cy="48" r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="10" />
+                        <circle cx="48" cy="48" r={r} fill="none" stroke={color} strokeWidth="10"
+                          strokeDasharray={`${fill} ${circ}`}
+                          strokeDashoffset={circ / 4}
+                          strokeLinecap="round" />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="font-display font-black text-xl leading-none" style={{ color }}>{avgUtilPct.toFixed(0)}%</span>
+                        <span className="font-mono text-[8px] text-steel mt-0.5">UTIL</span>
                       </div>
-                    </td>
-                    <td className="px-3 py-2 font-mono text-xs text-emerald-400">{m.used > 0 ? fc(m.revenuePerHour) : "—"}</td>
-                    <td className="px-3 py-2 font-mono text-xs text-steel/60">{slack.toFixed(0)}h slack · {fc(slackRev)} potential</td>
-                  </tr>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <div className="font-mono text-[9px] text-steel mb-0.5">AVG CAPACITY USED</div>
+                      {[["#22c55e", "< 40% — growth room"], ["#f59e0b", "40–70% — healthy load"], ["#ef4444", "70%+ — near capacity"]].map(([c, label]) => (
+                        <div key={label} className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ background: c }} />
+                          <span className="font-mono text-[10px] text-steel">{label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+              <div className="ml-auto text-right">
+                <div className="font-mono text-[9px] text-steel mb-0.5">AVG REV / HOUR</div>
+                <div className="font-display font-black text-3xl text-emerald-400">{fc(avgRevPerHour)}</div>
+                <div className="font-mono text-[9px] text-steel mt-0.5">{monthlyCapacity.reduce((s, m) => s + m.used, 0).toFixed(0)}h total printed</div>
+              </div>
+            </div>
+
+            {/* Horizontal bar chart */}
+            <div className="flex flex-col gap-2">
+              <div className="grid gap-1" style={{ gridTemplateColumns: "72px 1fr 52px 60px" }}>
+                {["MONTH", "", "UTIL", "REV/HR"].map(h => (
+                  <div key={h} className="font-mono text-[9px] text-steel/50 pb-1">{h}</div>
+                ))}
+              </div>
+              {monthlyCapacity.map(m => {
+                const barColor = m.utilPct > 70 ? "#ef4444" : m.utilPct > 40 ? "#f59e0b" : "#22c55e";
+                return (
+                  <div key={m.month} className="grid items-center gap-1" style={{ gridTemplateColumns: "72px 1fr 52px 60px" }}>
+                    <span className="font-mono text-[10px] text-bone truncate">{fMonth(m.month)}</span>
+                    <div className="relative h-6 rounded-lg overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                      <div className="absolute inset-y-0 left-0 rounded-lg flex items-center pl-2"
+                        style={{ width: `${Math.max(m.utilPct, 2)}%`, background: `linear-gradient(90deg, ${barColor}88, ${barColor})` }}>
+                        {m.utilPct > 15 && <span className="font-mono text-[9px] text-white/80 font-bold">{m.used.toFixed(0)}h</span>}
+                      </div>
+                      {[25, 50, 75].map(p => (
+                        <div key={p} className="absolute inset-y-0 w-px" style={{ left: `${p}%`, background: "rgba(255,255,255,0.06)" }} />
+                      ))}
+                    </div>
+                    <span className="font-mono text-[10px] text-right pr-1" style={{ color: barColor }}>{m.utilPct.toFixed(0)}%</span>
+                    <span className="font-mono text-[10px] text-right text-emerald-400/80">{m.used > 0 ? fc(m.revenuePerHour) : "—"}</span>
+                  </div>
                 );
               })}
-              {monthlyCapacity.length === 0 && <tr><td colSpan={6} className="px-3 py-6 text-center font-mono text-xs text-steel/40">No data yet</td></tr>}
-            </tbody>
-          </table>
-        </div>
+              <div className="grid gap-1 mt-1" style={{ gridTemplateColumns: "72px 1fr 52px 60px" }}>
+                <div /><div className="flex justify-between px-0.5">
+                  {["0%", "25%", "50%", "75%", "100%"].map(l => (
+                    <span key={l} className="font-mono text-[8px] text-steel/30">{l}</span>
+                  ))}
+                </div><div /><div />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* CUSTOMER INTELLIGENCE */}
