@@ -122,6 +122,10 @@ export default function AnalyticsPage() {
   const [novoTxns, setNovoTxns] = useState<any[]>([]);
   const [novoImporting, setNovoImporting] = useState(false);
   const [novoImportMsg, setNovoImportMsg] = useState("");
+  const [printerCount, setPrinterCount] = useState(() => {
+    if (typeof window !== "undefined") return parseInt(localStorage.getItem("printer_count") || "1");
+    return 1;
+  });
   const router = useRouter();
 
   const fetchData = useCallback(async () => {
@@ -398,6 +402,108 @@ export default function AnalyticsPage() {
     }));
     exportCSV(rows, "dragline3d-materials.csv");
   }
+
+  function savePrinterCount(n: number) {
+    setPrinterCount(n);
+    if (typeof window !== "undefined") localStorage.setItem("printer_count", String(n));
+  }
+
+  // ── PRICING INTELLIGENCE ─────────────────────────────────────────────────
+  const matIntel: Record<string, { grams: number; revenue: number; hours: number; orders: Set<string> }> = {};
+  for (const order of completedOrders) {
+    for (const item of (order.order_items || [])) {
+      const mat = item.material || "PLA";
+      if (!matIntel[mat]) matIntel[mat] = { grams: 0, revenue: 0, hours: 0, orders: new Set() };
+      const qty = item.qty || 1;
+      matIntel[mat].grams += (item.grams || 0) * qty;
+      matIntel[mat].revenue += (item.price || 0) * qty;
+      matIntel[mat].hours += (item.print_hours || item.hours || 0) * qty;
+      matIntel[mat].orders.add(order.id);
+    }
+  }
+  const matIntelList = Object.entries(matIntel).map(([mat, s]) => {
+    const costPerKg = COST_PER_KG[mat] || 16;
+    const pricePerGram = s.grams > 0 ? s.revenue / s.grams : 0;
+    const costPerGram = costPerKg / 1000;
+    const marginPerGram = pricePerGram - costPerGram;
+    const revenuePerHour = s.hours > 0 ? s.revenue / s.hours : 0;
+    const revenuePerKg = s.grams > 0 ? s.revenue / (s.grams / 1000) : 0;
+    const marginPct = pricePerGram > 0 ? (marginPerGram / pricePerGram) * 100 : 0;
+    return { mat, ...s, costPerKg, pricePerGram, costPerGram, marginPerGram, revenuePerHour, revenuePerKg, marginPct };
+  }).sort((a, b) => b.marginPct - a.marginPct);
+
+  // Break-even per order (solve: revenue × (1 - sqPct) - sqFixed - filament - elec = 0)
+  const avgFilamentGramsPerOrder = completedOrders.length > 0
+    ? completedOrders.reduce((s, o) => s + (o.order_items || []).reduce((si: number, i: any) => si + (i.grams || 0) * (i.qty || 1), 0), 0) / completedOrders.length
+    : 0;
+  const avgHoursPerOrder = completedOrders.length > 0 ? totalHours / completedOrders.length : 0;
+  const avgFilamentCostPerOrder = (avgFilamentGramsPerOrder / 1000) * 16;
+  const avgElecPerOrder = (avgHoursPerOrder * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
+  const breakEvenPrice = (SQUARE_FIXED + avgFilamentCostPerOrder + avgElecPerOrder) / (1 - SQUARE_PCT);
+
+  // ── JOB PROFITABILITY ─────────────────────────────────────────────────────
+  const jobMargins = completedOrders.map(order => {
+    const filCost = (order.order_items || []).reduce((s: number, i: any) =>
+      s + ((i.grams || 0) * (i.qty || 1) / 1000) * (COST_PER_KG[i.material] || 16), 0);
+    const hrs = (order.order_items || []).reduce((s: number, i: any) =>
+      s + (i.print_hours || i.hours || 0) * (i.qty || 1), 0);
+    const elec = (hrs * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
+    const sqFee = order.square_fee != null ? Number(order.square_fee)
+      : Math.round(((order.total || 0) * SQUARE_PCT + SQUARE_FIXED) * 100) / 100;
+    const boxC = order.box_id ? (boxCostMap[order.box_id] || 0) : 0;
+    const rev = order.total || 0;
+    const cost = filCost + elec + sqFee + boxC;
+    const margin = rev - cost;
+    const mPct = rev > 0 ? (margin / rev) * 100 : 0;
+    return { id: order.id, name: order.customer_name, date: order.created_at?.slice(0, 10),
+      rev, filCost, elec, sqFee, boxC, cost, margin, mPct, hrs };
+  }).sort((a, b) => b.mPct - a.mPct);
+  const topJobs = jobMargins.slice(0, 5);
+  const bottomJobs = [...jobMargins].sort((a, b) => a.mPct - b.mPct).slice(0, 5);
+
+  // ── CAPACITY & EFFICIENCY ─────────────────────────────────────────────────
+  const PRACTICAL_HOURS_PER_DAY = 20; // per printer
+  const monthlyCapacity = months.map(m => {
+    const d = monthlyData[m];
+    const daysInMonth = new Date(parseInt(m.split("-")[0]), parseInt(m.split("-")[1]), 0).getDate();
+    const available = printerCount * PRACTICAL_HOURS_PER_DAY * daysInMonth;
+    const used = d.printHours;
+    const utilPct = available > 0 ? Math.min((used / available) * 100, 100) : 0;
+    const revenuePerHour = used > 0 ? d.revenue / used : 0;
+    return { month: m, available, used, utilPct, revenuePerHour };
+  });
+  const avgUtilPct = monthlyCapacity.length > 0
+    ? monthlyCapacity.reduce((s, m) => s + m.utilPct, 0) / monthlyCapacity.length : 0;
+  const avgRevPerHour = monthlyCapacity.filter(m => m.used > 0).length > 0
+    ? monthlyCapacity.reduce((s, m) => s + m.revenuePerHour, 0) / monthlyCapacity.filter(m => m.used > 0).length : 0;
+
+  // Shipping P&L (collected vs flat $8 estimate — no actual cost stored)
+  const SHIPPING_COST_EST = 8.00;
+  const totalShippingPnl = totalShipping - (completedOrders.filter(o => Number(o.shipping_cost || 0) > 0).length * SHIPPING_COST_EST);
+
+  // ── CUSTOMER INTELLIGENCE ─────────────────────────────────────────────────
+  const custMap: Record<string, { orders: any[]; revenue: number; firstDate: string; lastDate: string }> = {};
+  for (const order of completedOrders) {
+    const key = order.customer_email || order.customer_name;
+    if (!custMap[key]) custMap[key] = { orders: [], revenue: 0, firstDate: order.created_at, lastDate: order.created_at };
+    custMap[key].orders.push(order);
+    custMap[key].revenue += order.total || 0;
+    if (order.created_at < custMap[key].firstDate) custMap[key].firstDate = order.created_at;
+    if (order.created_at > custMap[key].lastDate) custMap[key].lastDate = order.created_at;
+  }
+  const custList = Object.entries(custMap).map(([email, d]) => {
+    const daysBetween = d.orders.length > 1
+      ? (new Date(d.lastDate).getTime() - new Date(d.firstDate).getTime()) / (d.orders.length - 1) / 86400000
+      : null;
+    return { email, name: d.orders[0]?.customer_name, orderCount: d.orders.length,
+      revenue: d.revenue, avgOrder: d.revenue / d.orders.length, daysBetween };
+  });
+  const repeatCusts = custList.filter(c => c.orderCount > 1);
+  const oneTimeCusts = custList.filter(c => c.orderCount === 1);
+  const repeatRevenue = repeatCusts.reduce((s, c) => s + c.revenue, 0);
+  const repeatRate = custList.length > 0 ? (repeatCusts.length / custList.length) * 100 : 0;
+  const avgLtv = custList.length > 0 ? totalRevenue / custList.length : 0;
+  const topCustsByLtv = [...custList].sort((a, b) => b.revenue - a.revenue).slice(0, 8);
 
   async function syncPayouts() {
     const token = localStorage.getItem("dragline_admin_token");
@@ -914,6 +1020,224 @@ export default function AnalyticsPage() {
             </div>
           ))}
           {topCustomers.length === 0 && <div className="px-5 py-8 text-center text-bone/40 font-mono text-xs">No customer data yet</div>}
+        </div>
+      </div>
+
+      {/* PRICING INTELLIGENCE */}
+      <div className="mb-2 font-mono text-xs text-steel tracking-widest">PRICING INTELLIGENCE</div>
+      <div className="rounded-xl p-5 mb-6" style={glass}>
+        <div className="grid md:grid-cols-3 gap-3 mb-5">
+          <div className="rounded-lg p-3 text-center" style={innerCell}>
+            <div className="font-mono text-[9px] text-steel mb-1">BREAK-EVEN PER ORDER</div>
+            <div className="font-display font-bold text-xl text-amber">{fc(breakEvenPrice)}</div>
+            <div className="font-mono text-[9px] text-steel">avg filament + elec + sq fee</div>
+          </div>
+          <div className="rounded-lg p-3 text-center" style={innerCell}>
+            <div className="font-mono text-[9px] text-steel mb-1">AVG REV / PRINT HOUR</div>
+            <div className="font-display font-bold text-xl text-emerald-400">{fc(avgRevPerHour)}</div>
+            <div className="font-mono text-[9px] text-steel">across all materials</div>
+          </div>
+          <div className="rounded-lg p-3 text-center" style={innerCell}>
+            <div className="font-mono text-[9px] text-steel mb-1">SHIPPING P&L EST.</div>
+            <div className={`font-display font-bold text-xl ${totalShippingPnl >= 0 ? "text-green-400" : "text-red-400"}`}>{totalShippingPnl >= 0 ? "+" : ""}{fc(totalShippingPnl)}</div>
+            <div className="font-mono text-[9px] text-steel">collected − ~$8/shipped order</div>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+                {["MATERIAL", "$/GRAM CHARGED", "$/GRAM COST", "MARGIN/GRAM", "MARGIN %", "REV/HOUR", "REV/KG", "ORDERS"].map(h => (
+                  <th key={h} className="px-3 py-2 text-left font-mono text-[10px] text-steel whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {matIntelList.map(m => (
+                <tr key={m.mat} className="border-b hover:bg-white/[0.02]" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full" style={{ background: MATERIAL_COLORS_MAP[m.mat] || "#6b7280" }} />
+                      <span className="font-mono text-xs text-bone">{m.mat}</span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs text-amber">${m.pricePerGram.toFixed(3)}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-red-400">${m.costPerGram.toFixed(3)}</td>
+                  <td className={`px-3 py-2 font-mono text-xs font-bold ${m.marginPerGram > 0 ? "text-green-400" : "text-red-400"}`}>${m.marginPerGram.toFixed(3)}</td>
+                  <td className="px-3 py-2">
+                    <div className={`font-mono text-xs font-bold ${m.marginPct > 60 ? "text-green-400" : m.marginPct > 40 ? "text-amber" : "text-red-400"}`}>{m.marginPct.toFixed(0)}%</div>
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs text-emerald-400">{m.hours > 0 ? fc(m.revenuePerHour) : "—"}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-blue-400">{fc(m.revenuePerKg)}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-steel">{m.orders.size}</td>
+                </tr>
+              ))}
+              {matIntelList.length === 0 && <tr><td colSpan={8} className="px-3 py-6 text-center font-mono text-xs text-steel/40">No item data yet</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* JOB PROFITABILITY */}
+      <div className="mb-2 font-mono text-xs text-steel tracking-widest">JOB PROFITABILITY</div>
+      <div className="grid md:grid-cols-2 gap-4 mb-6">
+        <div className="rounded-xl p-5" style={glass}>
+          <div className="font-mono text-xs text-green-400 tracking-widest mb-3">TOP 5 — HIGHEST MARGIN</div>
+          <div className="space-y-2">
+            {topJobs.map((j, i) => (
+              <div key={j.id} className="rounded-lg px-3 py-2 flex items-center justify-between gap-3" style={innerCell}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-mono text-[10px] text-steel">{i + 1}</span>
+                  <div className="min-w-0">
+                    <div className="font-mono text-xs text-bone truncate">{j.name}</div>
+                    <div className="font-mono text-[9px] text-steel">{j.date} · {j.id}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 flex-shrink-0">
+                  <div className="text-right"><div className="font-mono text-[9px] text-steel">revenue</div><div className="font-mono text-xs text-amber">{fc(j.rev)}</div></div>
+                  <div className="text-right"><div className="font-mono text-[9px] text-steel">margin</div><div className="font-mono text-xs font-bold text-green-400">{j.mPct.toFixed(0)}%</div></div>
+                  <div className="text-right"><div className="font-mono text-[9px] text-steel">profit</div><div className="font-mono text-xs text-green-400">{fc(j.margin)}</div></div>
+                </div>
+              </div>
+            ))}
+            {topJobs.length === 0 && <div className="font-mono text-xs text-steel/40 text-center py-4">No data yet</div>}
+          </div>
+        </div>
+        <div className="rounded-xl p-5" style={glass}>
+          <div className="font-mono text-xs text-red-400 tracking-widest mb-3">BOTTOM 5 — LOWEST MARGIN</div>
+          <div className="space-y-2">
+            {bottomJobs.map((j, i) => (
+              <div key={j.id} className="rounded-lg px-3 py-2 flex items-center justify-between gap-3" style={innerCell}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-mono text-[10px] text-steel">{i + 1}</span>
+                  <div className="min-w-0">
+                    <div className="font-mono text-xs text-bone truncate">{j.name}</div>
+                    <div className="font-mono text-[9px] text-steel">{j.date} · {j.id}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 flex-shrink-0">
+                  <div className="text-right"><div className="font-mono text-[9px] text-steel">revenue</div><div className="font-mono text-xs text-amber">{fc(j.rev)}</div></div>
+                  <div className="text-right"><div className="font-mono text-[9px] text-steel">margin</div><div className={`font-mono text-xs font-bold ${j.mPct < 20 ? "text-red-400" : "text-amber"}`}>{j.mPct.toFixed(0)}%</div></div>
+                  <div className="text-right"><div className="font-mono text-[9px] text-steel">profit</div><div className={`font-mono text-xs ${j.margin >= 0 ? "text-amber" : "text-red-400"}`}>{fc(j.margin)}</div></div>
+                </div>
+              </div>
+            ))}
+            {bottomJobs.length === 0 && <div className="font-mono text-xs text-steel/40 text-center py-4">No data yet</div>}
+          </div>
+        </div>
+      </div>
+
+      {/* CAPACITY & EFFICIENCY */}
+      <div className="mb-2 font-mono text-xs text-steel tracking-widest">CAPACITY & EFFICIENCY</div>
+      <div className="rounded-xl p-5 mb-6" style={glass}>
+        <div className="flex items-center gap-4 mb-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <label className="font-mono text-xs text-steel">PRINTERS</label>
+            <input type="number" min="1" max="20" value={printerCount}
+              onChange={e => savePrinterCount(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-16 px-2 py-1 rounded-lg text-bone text-xs font-mono text-center"
+              style={inputSt}
+              onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,181,71,0.50)"; }}
+              onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; }} />
+          </div>
+          <div className="font-mono text-[10px] text-steel/50">{printerCount} printer{printerCount > 1 ? "s" : ""} × {PRACTICAL_HOURS_PER_DAY}h/day practical capacity</div>
+          <div className="ml-auto flex items-center gap-6">
+            <div className="text-right"><div className="font-mono text-[9px] text-steel">AVG UTILIZATION</div><div className={`font-display font-bold text-lg ${avgUtilPct > 70 ? "text-red-400" : avgUtilPct > 40 ? "text-amber" : "text-green-400"}`}>{avgUtilPct.toFixed(0)}%</div></div>
+            <div className="text-right"><div className="font-mono text-[9px] text-steel">AVG REV/HOUR</div><div className="font-display font-bold text-lg text-emerald-400">{fc(avgRevPerHour)}</div></div>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+                {["MONTH", "HOURS USED", "HOURS AVAIL.", "UTILIZATION", "REV/HOUR", "CAPACITY SLACK"].map(h => (
+                  <th key={h} className="px-3 py-2 text-left font-mono text-[10px] text-steel whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {monthlyCapacity.map(m => {
+                const slack = m.available - m.used;
+                const slackRev = slack * avgRevPerHour;
+                return (
+                  <tr key={m.month} className="border-b hover:bg-white/[0.02]" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+                    <td className="px-3 py-2 font-mono text-xs text-bone">{fMonth(m.month)}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-amber">{m.used.toFixed(1)}h</td>
+                    <td className="px-3 py-2 font-mono text-xs text-steel">{m.available.toFixed(0)}h</td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 rounded-full overflow-hidden min-w-[60px]" style={{ background: "rgba(255,255,255,0.07)" }}>
+                          <div className="h-full rounded-full" style={{ width: `${m.utilPct}%`, background: m.utilPct > 70 ? "#ef4444" : m.utilPct > 40 ? "#f59e0b" : "#22c55e" }} />
+                        </div>
+                        <span className={`font-mono text-xs ${m.utilPct > 70 ? "text-red-400" : m.utilPct > 40 ? "text-amber" : "text-green-400"}`}>{m.utilPct.toFixed(0)}%</span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 font-mono text-xs text-emerald-400">{m.used > 0 ? fc(m.revenuePerHour) : "—"}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-steel/60">{slack.toFixed(0)}h slack · {fc(slackRev)} potential</td>
+                  </tr>
+                );
+              })}
+              {monthlyCapacity.length === 0 && <tr><td colSpan={6} className="px-3 py-6 text-center font-mono text-xs text-steel/40">No data yet</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* CUSTOMER INTELLIGENCE */}
+      <div className="mb-2 font-mono text-xs text-steel tracking-widest">CUSTOMER INTELLIGENCE</div>
+      <div className="rounded-xl p-5 mb-6" style={glass}>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+          <div className="rounded-lg p-3 text-center" style={innerCell}>
+            <div className="font-mono text-[9px] text-steel mb-1">REPEAT RATE</div>
+            <div className={`font-display font-bold text-2xl ${repeatRate > 30 ? "text-green-400" : repeatRate > 10 ? "text-amber" : "text-red-400"}`}>{repeatRate.toFixed(0)}%</div>
+            <div className="font-mono text-[9px] text-steel">{repeatCusts.length} of {custList.length} customers</div>
+          </div>
+          <div className="rounded-lg p-3 text-center" style={innerCell}>
+            <div className="font-mono text-[9px] text-steel mb-1">REPEAT REVENUE</div>
+            <div className="font-display font-bold text-2xl text-emerald-400">{fc(repeatRevenue)}</div>
+            <div className="font-mono text-[9px] text-steel">{totalRevenue > 0 ? ((repeatRevenue / totalRevenue) * 100).toFixed(0) : 0}% of total</div>
+          </div>
+          <div className="rounded-lg p-3 text-center" style={innerCell}>
+            <div className="font-mono text-[9px] text-steel mb-1">AVG CUSTOMER LTV</div>
+            <div className="font-display font-bold text-2xl text-amber">{fc(avgLtv)}</div>
+            <div className="font-mono text-[9px] text-steel">lifetime revenue/customer</div>
+          </div>
+          <div className="rounded-lg p-3 text-center" style={innerCell}>
+            <div className="font-mono text-[9px] text-steel mb-1">ONE-TIME CUSTOMERS</div>
+            <div className="font-display font-bold text-2xl text-blue-400">{oneTimeCusts.length}</div>
+            <div className="font-mono text-[9px] text-steel">potential repeat revenue</div>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+                {["CUSTOMER", "ORDERS", "TOTAL LTV", "AVG ORDER", "AVG DAYS BETWEEN", "TYPE"].map(h => (
+                  <th key={h} className="px-3 py-2 text-left font-mono text-[10px] text-steel whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {topCustsByLtv.map((c, i) => (
+                <tr key={c.email} className="border-b hover:bg-white/[0.02]" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+                  <td className="px-3 py-2">
+                    <div className="font-mono text-xs text-bone">{c.name}</div>
+                    <div className="font-mono text-[9px] text-steel">{c.email}</div>
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs text-steel">{c.orderCount}</td>
+                  <td className="px-3 py-2 font-mono text-xs font-bold text-amber">{fc(c.revenue)}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-steel">{fc(c.avgOrder)}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-steel">{c.daysBetween !== null ? `${c.daysBetween.toFixed(0)}d` : "—"}</td>
+                  <td className="px-3 py-2">
+                    <span className={`font-mono text-[9px] px-2 py-0.5 rounded-full ${c.orderCount > 1 ? "text-green-400 bg-green-400/10" : "text-steel bg-white/5"}`}>
+                      {c.orderCount > 1 ? "repeat" : "one-time"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {topCustsByLtv.length === 0 && <tr><td colSpan={6} className="px-3 py-6 text-center font-mono text-xs text-steel/40">No customer data yet</td></tr>}
+            </tbody>
+          </table>
         </div>
       </div>
 
