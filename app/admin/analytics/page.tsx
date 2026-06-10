@@ -3,7 +3,7 @@ export const runtime = "edge";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, RefreshCw, TrendingUp, Package, Zap, DollarSign, Weight, Users, BarChart2, Download, Calendar, TrendingDown, Target, Upload, Landmark } from "lucide-react";
+import { ArrowLeft, RefreshCw, TrendingUp, Package, Zap, DollarSign, Weight, Users, BarChart2, Download, Calendar, TrendingDown, Target, Upload, Landmark, Mail } from "lucide-react";
 import type { CSSProperties } from "react";
 
 const glass: CSSProperties = {
@@ -121,6 +121,8 @@ export default function AnalyticsPage() {
   const [payoutSyncing, setPayoutSyncing] = useState(false);
   const [novoTxns, setNovoTxns] = useState<any[]>([]);
   const [novoImporting, setNovoImporting] = useState(false);
+  const [reportSending, setReportSending] = useState(false);
+  const [reportMsg, setReportMsg] = useState("");
   const [novoImportMsg, setNovoImportMsg] = useState("");
   const [printerCount, setPrinterCount] = useState(() => {
     if (typeof window !== "undefined") return parseInt(localStorage.getItem("printer_count") || "1");
@@ -505,6 +507,27 @@ export default function AnalyticsPage() {
   const avgLtv = custList.length > 0 ? totalRevenue / custList.length : 0;
   const topCustsByLtv = [...custList].sort((a, b) => b.revenue - a.revenue).slice(0, 8);
 
+  async function sendReport(type: "weekly" | "monthly") {
+    const token = localStorage.getItem("dragline_admin_token");
+    if (!token) return;
+    setReportSending(true);
+    setReportMsg("");
+    try {
+      const r = await fetch("/api/admin/reports", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
+      const data = await r.json();
+      setReportMsg(data.ok ? `✓ ${type} report sent` : `✗ ${data.error || "Failed"}`);
+    } catch (e: any) {
+      setReportMsg(`✗ ${e.message}`);
+    } finally {
+      setReportSending(false);
+      setTimeout(() => setReportMsg(""), 4000);
+    }
+  }
+
   async function syncPayouts() {
     const token = localStorage.getItem("dragline_admin_token");
     if (!token) return;
@@ -565,9 +588,29 @@ export default function AnalyticsPage() {
             <div className="font-mono text-xs text-steel">DRAGLINE 3D · BUSINESS OVERVIEW</div>
           </div>
         </div>
-        <button onClick={fetchData} className="p-2 rounded-xl text-bone/60 hover:text-bone transition-colors cursor-pointer" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
-          <RefreshCw size={16} />
-        </button>
+        <div className="flex items-center gap-2">
+          {reportMsg && <span className={`font-mono text-xs ${reportMsg.startsWith("✓") ? "text-green-400" : "text-red-400"}`}>{reportMsg}</span>}
+          <div className="relative group">
+            <button disabled={reportSending}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-bone/60 hover:text-bone transition-colors cursor-pointer disabled:opacity-40"
+              style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+              <Mail size={14} className={reportSending ? "animate-pulse" : ""} />
+              <span className="font-mono text-xs">{reportSending ? "Sending…" : "Report"}</span>
+            </button>
+            <div className="absolute right-0 top-full mt-1 rounded-xl overflow-hidden z-20 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity"
+              style={{ ...glass, minWidth: 120 }}>
+              {(["weekly", "monthly"] as const).map(t => (
+                <button key={t} onClick={() => sendReport(t)}
+                  className="w-full px-4 py-2.5 text-left font-mono text-xs text-bone/70 hover:text-bone hover:bg-white/5 transition-colors cursor-pointer capitalize">
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button onClick={fetchData} className="p-2 rounded-xl text-bone/60 hover:text-bone transition-colors cursor-pointer" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+            <RefreshCw size={16} />
+          </button>
+        </div>
       </div>
 
       {/* Date filter */}

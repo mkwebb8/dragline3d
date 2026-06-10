@@ -9,21 +9,25 @@ export default {
   async scheduled(event: ScheduledEvent, env: any, ctx: ExecutionContext) {
     const cronExpr = event.cron;
     const CRON_SECRET = env.CRON_SECRET || "";
-    const REPORT_URL = "https://dragline3d.com/api/admin/reports";
+    const BASE = "https://dragline3d.com";
+    const headers = { "Content-Type": "application/json", "x-cron-secret": CRON_SECRET };
 
-    let type = "weekly";
-    // "0 10 1 * *" = monthly (day-of-month = 1)
-    if (cronExpr === "0 10 1 * *") type = "monthly";
-
+    // Every cron run: poll Shippo for delivered packages
     ctx.waitUntil(
-      fetch(REPORT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-cron-secret": CRON_SECRET,
-        },
-        body: JSON.stringify({ type }),
-      })
+      fetch(`${BASE}/api/admin/shippo/poll`, { method: "POST", headers })
     );
+
+    // Monday 10am UTC → weekly report
+    // 1st of month 10am UTC → monthly report
+    if (cronExpr === "0 10 * * 1" || cronExpr === "0 10 1 * *") {
+      const type = cronExpr === "0 10 1 * *" ? "monthly" : "weekly";
+      ctx.waitUntil(
+        fetch(`${BASE}/api/admin/reports`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ type }),
+        })
+      );
+    }
   },
 } satisfies ExportedHandler;
