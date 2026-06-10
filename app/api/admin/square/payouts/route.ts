@@ -40,17 +40,16 @@ export async function POST(request: Request) {
   let cursor: string | null = null;
 
   do {
-    const body: any = {
+    const params = new URLSearchParams({
       sort_order: "DESC",
       begin_time: `${begin}T00:00:00Z`,
-      limit: 100,
-    };
-    if (cursor) body.cursor = cursor;
+      limit: "100",
+    });
+    if (cursor) params.set("cursor", cursor);
 
-    const r = await fetch(`${SQ_BASE}/payouts`, {
-      method: "POST",
+    const r = await fetch(`${SQ_BASE}/payouts?${params}`, {
+      method: "GET",
       headers: sqh,
-      body: JSON.stringify(body),
     });
 
     if (!r.ok) {
