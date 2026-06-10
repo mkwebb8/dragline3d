@@ -3,7 +3,7 @@ export const runtime = "edge";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, RefreshCw, TrendingUp, Package, Zap, DollarSign, Weight, Users, BarChart2, Download, Calendar, TrendingDown, Target } from "lucide-react";
+import { ArrowLeft, RefreshCw, TrendingUp, Package, Zap, DollarSign, Weight, Users, BarChart2, Download, Calendar, TrendingDown, Target, Upload, Landmark } from "lucide-react";
 import type { CSSProperties } from "react";
 
 const glass: CSSProperties = {
@@ -117,6 +117,11 @@ export default function AnalyticsPage() {
   const [pfPcts, setPfPcts] = useState({ profit: 15, ownerComp: 25, taxes: 30, opex: 30 });
   const [spools, setSpools] = useState<any[]>([]);
   const [boxes, setBoxes] = useState<any[]>([]);
+  const [payouts, setPayouts] = useState<any[]>([]);
+  const [payoutSyncing, setPayoutSyncing] = useState(false);
+  const [novoTxns, setNovoTxns] = useState<any[]>([]);
+  const [novoImporting, setNovoImporting] = useState(false);
+  const [novoImportMsg, setNovoImportMsg] = useState("");
   const router = useRouter();
 
   const fetchData = useCallback(async () => {
@@ -144,6 +149,11 @@ export default function AnalyticsPage() {
     if (saved) setNovoBalances(JSON.parse(saved));
     const savedPf = localStorage.getItem("pf_pcts");
     if (savedPf) setPfPcts(JSON.parse(savedPf));
+    // Load cached payouts + novo txns
+    fetch("/api/admin/square/payouts", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : []).then(data => setPayouts(Array.isArray(data) ? data : [])).catch(() => {});
+    fetch("/api/admin/novo/transactions", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : []).then(data => setNovoTxns(Array.isArray(data) ? data : [])).catch(() => {});
     setLoading(false);
   }, [router]);
 
@@ -388,6 +398,50 @@ export default function AnalyticsPage() {
     exportCSV(rows, "dragline3d-materials.csv");
   }
 
+  async function syncPayouts() {
+    const token = localStorage.getItem("dragline_admin_token");
+    if (!token) return;
+    setPayoutSyncing(true);
+    try {
+      const r = await fetch("/api/admin/square/payouts", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      const data = await r.json();
+      if (data.payouts) setPayouts(data.payouts);
+    } finally { setPayoutSyncing(false); }
+  }
+
+  async function importNovoCsv(file: File) {
+    const token = localStorage.getItem("dragline_admin_token");
+    if (!token) return;
+    setNovoImporting(true);
+    setNovoImportMsg("");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const r = await fetch("/api/admin/novo/import", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
+      const data = await r.json();
+      if (data.imported) {
+        setNovoImportMsg(`✓ Imported ${data.imported} transactions`);
+        // Reload novo txns
+        const r2 = await fetch("/api/admin/novo/transactions", { headers: { Authorization: `Bearer ${token}` } });
+        if (r2.ok) setNovoTxns(await r2.json());
+      } else {
+        setNovoImportMsg(`✗ ${data.error || "Import failed"}`);
+      }
+    } catch (e: any) {
+      setNovoImportMsg(`✗ ${e.message}`);
+    } finally { setNovoImporting(false); }
+  }
+
+  // Payout stats
+  const paidPayouts = payouts.filter(p => p.status === "PAID" || p.status === "SENT");
+  const totalPayoutsAmount = paidPayouts.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const lastPayout = paidPayouts[0];
+  const pendingPayouts = payouts.filter(p => p.status !== "PAID" && p.status !== "SENT" && p.status !== "FAILED");
+  const pendingAmount = pendingPayouts.reduce((s, p) => s + Number(p.amount || 0), 0);
+
+  // Novo balance (sum of all imported transactions)
+  const novoRunningBalance = novoTxns.reduce((s, t) => s + Number(t.amount || 0), 0);
+
   if (loading) return (
     <div className="max-w-6xl mx-auto px-6 py-16 text-center">
       <div className="inline-block w-8 h-8 border-2 border-white/10 border-t-amber rounded-full animate-spin" />
@@ -479,6 +533,103 @@ export default function AnalyticsPage() {
         <StatCard label="SHIPPING COLLECTED" value={fc(totalShipping)} sub="from customers" color="text-blue-400" icon={Package} />
         <StatCard label="AVG ORDER VALUE" value={fc(avgOrderValue)} sub="excl. tax & shipping" icon={BarChart2} />
         <StatCard label="INVENTORY VALUE" value={fc(inventoryValue)} sub={`${spools.length} spools on hand`} color="text-cyan-400" icon={Package} />
+      </div>
+
+      {/* Square Payouts + Novo */}
+      <div className="mb-2 font-mono text-xs text-steel tracking-widest">CASH FLOW — SQUARE PAYOUTS & NOVO BANK</div>
+      <div className="rounded-xl p-5 mb-6" style={glass}>
+        <div className="grid md:grid-cols-2 gap-6">
+
+          {/* Square Payouts */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <DollarSign size={13} className="text-steel" />
+                <span className="font-mono text-xs text-steel tracking-wider">SQUARE PAYOUTS (90 DAYS)</span>
+              </div>
+              <button onClick={syncPayouts} disabled={payoutSyncing}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg font-mono text-xs text-bone/60 hover:text-bone transition-colors cursor-pointer disabled:opacity-40"
+                style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+                <RefreshCw size={11} className={payoutSyncing ? "animate-spin" : ""} />
+                {payoutSyncing ? "Syncing…" : "Sync"}
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="rounded-lg p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="font-mono text-[9px] text-steel mb-1">TOTAL PAID OUT</div>
+                <div className="font-display font-bold text-lg text-emerald-400">{fc(totalPayoutsAmount)}</div>
+                <div className="font-mono text-[9px] text-steel">{paidPayouts.length} payouts</div>
+              </div>
+              <div className="rounded-lg p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="font-mono text-[9px] text-steel mb-1">LAST PAYOUT</div>
+                <div className="font-display font-bold text-lg text-amber">{lastPayout ? fc(Number(lastPayout.amount)) : "—"}</div>
+                <div className="font-mono text-[9px] text-steel">{lastPayout?.arrival_date || "—"}</div>
+              </div>
+              <div className="rounded-lg p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="font-mono text-[9px] text-steel mb-1">PENDING</div>
+                <div className="font-display font-bold text-lg text-blue-400">{fc(pendingAmount)}</div>
+                <div className="font-mono text-[9px] text-steel">{pendingPayouts.length} in transit</div>
+              </div>
+            </div>
+            {payouts.length > 0 && (
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {payouts.slice(0, 8).map(p => (
+                  <div key={p.id} className="flex items-center justify-between px-3 py-1.5 rounded-lg" style={{ background: "rgba(255,255,255,0.02)" }}>
+                    <div className="font-mono text-xs text-steel">{p.arrival_date || "—"}</div>
+                    <div className={`font-mono text-xs font-bold ${p.status === "PAID" || p.status === "SENT" ? "text-emerald-400" : "text-blue-400"}`}>{fc(Number(p.amount))}</div>
+                    <div className="font-mono text-[9px] text-steel/50">{p.status}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {payouts.length === 0 && (
+              <div className="font-mono text-xs text-steel/40 text-center py-4">No payout data — click Sync to load from Square</div>
+            )}
+          </div>
+
+          {/* Novo CSV */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Landmark size={13} className="text-steel" />
+              <span className="font-mono text-xs text-steel tracking-wider">NOVO BANK BALANCE</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="rounded-lg p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="font-mono text-[9px] text-steel mb-1">RUNNING BALANCE</div>
+                <div className={`font-display font-bold text-lg ${novoRunningBalance >= 0 ? "text-emerald-400" : "text-red-400"}`}>{fc(novoRunningBalance)}</div>
+                <div className="font-mono text-[9px] text-steel">from {novoTxns.length} txns</div>
+              </div>
+              <div className="rounded-lg p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="font-mono text-[9px] text-steel mb-1">IN RESERVE</div>
+                <div className="font-display font-bold text-lg text-amber">{fc(Math.max(0, novoRunningBalance))}</div>
+                <div className="font-mono text-[9px] text-steel">last import: {novoTxns[0]?.date || "—"}</div>
+              </div>
+            </div>
+            {/* CSV upload */}
+            <label className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl cursor-pointer hover:opacity-80 transition-opacity"
+              style={{ border: "1px dashed rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.02)" }}>
+              <Upload size={14} className="text-steel" />
+              <span className="font-mono text-xs text-steel">{novoImporting ? "Importing…" : "Upload Novo CSV"}</span>
+              <input type="file" accept=".csv" className="hidden" disabled={novoImporting}
+                onChange={e => { const f = e.target.files?.[0]; if (f) importNovoCsv(f); e.target.value = ""; }} />
+            </label>
+            {novoImportMsg && (
+              <div className={`mt-2 font-mono text-xs text-center ${novoImportMsg.startsWith("✓") ? "text-green-400" : "text-red-400"}`}>{novoImportMsg}</div>
+            )}
+            <div className="font-mono text-[9px] text-steel/40 text-center mt-2">Novo → Transactions → Export CSV</div>
+            {novoTxns.length > 0 && (
+              <div className="space-y-1 mt-3 max-h-32 overflow-y-auto">
+                {novoTxns.slice(0, 6).map(t => (
+                  <div key={t.id} className="flex items-center justify-between px-3 py-1 rounded-lg" style={{ background: "rgba(255,255,255,0.02)" }}>
+                    <div className="font-mono text-xs text-steel">{t.date}</div>
+                    <div className="font-mono text-[10px] text-steel/60 truncate max-w-[120px] mx-2">{t.description || t.category || "—"}</div>
+                    <div className={`font-mono text-xs font-bold ${Number(t.amount) >= 0 ? "text-emerald-400" : "text-red-400"}`}>{fc(Math.abs(Number(t.amount)))}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Op Expenses Tracker */}
