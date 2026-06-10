@@ -258,12 +258,19 @@ export default function AnalyticsPage() {
     const ship = Number(o.shipping_cost || 0);
     return s + (o.total || (sub + tax + ship));
   }, 0);
+<<<<<<< HEAD
   const totalShipping = completedOrders.reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
   const totalSquareFees = completedOrders.reduce((s, o) => {
     const sub = o.subtotal || 0;
     const tax = Math.round(sub * 0.06 * 100) / 100;
     const ship = Number(o.shipping_cost || 0);
     const collected = o.total || (sub + tax + ship);
+=======
+  const totalRefunds = completedOrders.reduce((s, o) => s + Number(o.refunded_amount || 0), 0);
+  const totalShipping = completedOrders.reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
+  const totalSquareFees = completedOrders.reduce((s, o) => {
+    const collected = o.total || 0;
+>>>>>>> c0075e7 (Fix Order type, Square webhook, analytics revenue + payout, RLS)
     return s + (o.square_fee != null
       ? Number(o.square_fee)
       : Math.round((collected * SQUARE_PCT + SQUARE_FIXED) * 100) / 100);
@@ -284,7 +291,8 @@ export default function AnalyticsPage() {
   const marginPct = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
   // Profit First
-  const realRevenue = totalRevenue - totalSquareFees;
+  const totalPaidOut = totalRevenue - totalSquareFees - totalRefunds;
+  const realRevenue = totalPaidOut;
   const pfProfit = realRevenue * PF.profit;
   const pfOwnerComp = realRevenue * PF.ownerComp;
   const pfTaxes = realRevenue * PF.taxes;
@@ -466,8 +474,14 @@ export default function AnalyticsPage() {
       <div className="mb-2 font-mono text-xs text-steel tracking-widest">
         P&L SUMMARY {(dateFrom || dateTo) && <span className="text-amber ml-2">FILTERED</span>}
       </div>
+<<<<<<< HEAD
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
         <StatCard label="TOTAL COLLECTED" value={fc(totalRevenue)} sub={`${completedOrders.length} orders · matches Square`} icon={DollarSign} />
+=======
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
+        <StatCard label="COLLECTED" value={fc(totalRevenue)} sub={`${completedOrders.length} orders${totalRefunds > 0 ? ` · −${fc(totalRefunds)} refunded` : ''}`} icon={DollarSign} />
+        <StatCard label="PAID OUT" value={fc(totalPaidOut)} sub={`after fees${totalRefunds > 0 ? ' & refunds' : ''} · matches Square`} color="text-emerald-400" icon={DollarSign} />
+>>>>>>> c0075e7 (Fix Order type, Square webhook, analytics revenue + payout, RLS)
         <StatCard label="FILAMENT COST" value={fc(totalFilamentCost)} sub={`${(totalFilamentCost / (totalRevenue || 1) * 100).toFixed(0)}% of revenue`} color="text-red-400" icon={Weight} />
         <StatCard label="PACKAGING" value={fc(totalBoxCost)} sub={`${(totalBoxCost / (totalRevenue || 1) * 100).toFixed(0)}% of revenue · boxes`} color="text-pink-400" icon={Package} />
         <StatCard label="SQUARE FEES" value={fc(totalSquareFees)} sub="2.9% + $0.30/order" color="text-orange-400" icon={DollarSign} />
