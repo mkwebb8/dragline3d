@@ -7,4 +7,5 @@ compatibility_flags = ["nodejs_compat"]
 crons = [
   "0 10 * * 1",    # Weekly report: every Monday at 10am UTC (6am EST)
   "0 10 1 * *",    # Monthly report: 1st of every month at 10am UTC
+  "0 */4 * * *",   # Shippo tracking poll: every 4 hours
 ]
