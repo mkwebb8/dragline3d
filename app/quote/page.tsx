@@ -185,12 +185,11 @@ export default function QuotePage() {
     fetch("/api/slice", { method: "POST", body: form })
       .then(r => r.json())
       .then(data => {
-        if (data.tooLarge) {
-          setSlicerTooLarge(data.error || "Part exceeds build volume");
+        if (data.tooLarge || data.needsOrientation) {
+          // Orientation/size issue — show amber manual quote banner
+          setSlicerTooLarge(data.error || "Part requires manual orientation or exceeds build volume");
           setSlicerFailed(false);
-        } else if (data.needsOrientation) {
-          setSlicerTooLarge(data.error || "Part requires manual orientation");
-          setSlicerFailed(false);
+          setIsStepFile(false); // clear STEP spinner
         } else if (data.price && !data.fallback) {
           setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
           setSlicerFailed(false); setSlicerTooLarge(null);
@@ -206,9 +205,18 @@ export default function QuotePage() {
               setIsStepFile(false);
             } catch(e) { console.warn("Could not parse converted STL for preview", e); }
           }
-        } else { setSlicerFailed(true); }
+        } else if (data.error && !data.fallback) {
+          // Slicer returned an error message (e.g. 422/500 from OrcaSlicer) — treat as manual quote
+          setSlicerTooLarge(data.error);
+          setSlicerFailed(false);
+          setIsStepFile(false);
+        } else {
+          // Slicer truly unavailable (503/fallback) — show red banner
+          setSlicerFailed(true);
+          setIsStepFile(false);
+        }
       })
-      .catch(() => { setSlicerFailed(true); })
+      .catch(() => { setSlicerFailed(true); setIsStepFile(false); })
       .finally(() => { setSlicerLoading(false); setSlicerComplete(true); });
   }
 
@@ -413,7 +421,7 @@ export default function QuotePage() {
                     {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
                   </span>
                   <button
-                    onClick={() => { setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null); setSlicerFailed(false); setSlicerComplete(false); setIsStepFile(false); }}
+                    onClick={() => { setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null); setSlicerFailed(false); setSlicerTooLarge(null); setSlicerComplete(false); setIsStepFile(false); }}
                     className="font-mono text-[10px] text-steel hover:text-bone transition-colors duration-150 underline cursor-pointer">
                     Remove
                   </button>
