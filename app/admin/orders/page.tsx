@@ -166,6 +166,7 @@ export default function AdminOrders() {
             { href: "/admin/parts", label: "PARTS QUEUE" },
             { href: "/admin/analytics", label: "ANALYTICS" },
             { href: "/admin/inventory", label: "INVENTORY" },
+            { href: "/admin/manual-quote", label: "MANUAL QUOTE" },
           ].map(({ href, label }) => (
             <Link key={href} href={href}
               className="flex items-center gap-2 px-3 py-2 rounded-xl font-mono text-xs text-bone/60 hover:text-bone transition-colors cursor-pointer"
@@ -233,10 +234,4 @@ export default function AdminOrders() {
                   <ExternalLink size={14} className="text-bone/30 group-hover:text-bone/60 transition-colors" />
                 </div>
               </div>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+            </
