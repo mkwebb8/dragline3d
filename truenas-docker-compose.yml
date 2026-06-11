@@ -1,0 +1,24 @@
+version: "3.9"
+services:
+  slicer-worker:
+    build: .
+    container_name: dragline-slicer
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    environment:
+      PORT: 3100
+      ORCA_BIN: /opt/orca-slicer/orca-slicer
+      ORCA_RESOURCES: /opt/orca-slicer/resources
+      WORKER_SECRET: ${WORKER_SECRET}
+      SHELLY_IP: 192.168.68.83
+      ELECTRICITY_RATE: "0.12"
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
+    volumes:
+      - /mnt/media3/dragline3d/orders:/mnt/media/orders
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
