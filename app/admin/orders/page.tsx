@@ -234,4 +234,10 @@ export default function AdminOrders() {
                   <ExternalLink size={14} className="text-bone/30 group-hover:text-bone/60 transition-colors" />
                 </div>
               </div>
-            </
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -64,17 +64,6 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
   const [boxes, setBoxes] = useState<any[]>([]);
   const router = useRouter();
 
-  async function downloadFile(fileName: string) {
-    const t = localStorage.getItem("dragline_admin_token") || "";
-    const res = await fetch(`/api/admin/orders/${id}/file?fileName=${encodeURIComponent(fileName)}`, { headers: { Authorization: `Bearer ${t}` } });
-    if (!res.ok) { alert("File not found on NAS"); return; }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = fileName; a.click();
-    URL.revokeObjectURL(url);
-  }
-
   useEffect(() => {
     const t = localStorage.getItem("dragline_admin_token");
     if (!t) { router.push("/admin/login"); return; }
@@ -121,6 +110,16 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
       setShowLabelPicker(false); window.open(data.label_url, "_blank");
     } else { const err = await res.json(); setLabelError(err.error || "Label creation failed"); }
     setCreatingLabel(false);
+  }
+  async function downloadFile(fileName: string) {
+    const t = localStorage.getItem("dragline_admin_token") || "";
+    const res = await fetch(`/api/admin/orders/${id}/file?fileName=${encodeURIComponent(fileName)}`, { headers: { Authorization: `Bearer ${t}` } });
+    if (!res.ok) { alert("File not found on NAS"); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = fileName; a.click();
+    URL.revokeObjectURL(url);
   }
 
   if (loading) return <div className="max-w-4xl mx-auto px-6 py-16 text-center"><div className="inline-block w-8 h-8 border-2 border-white/10 border-t-amber rounded-full animate-spin" /></div>;
@@ -283,7 +282,6 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
         </div>
       </div>
 
-      {/* ── Shipping box selector ────────────────────────────────────────────── */}
       {token && (
         <div className="mb-6">
           <BoxSelect
@@ -334,4 +332,24 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <button onClick={() => downloadFile(item.file_name)} title={`Download ${item.file_name}`}
-                      className="text-steel hover:text-amber transition-colors" 
+                      className="text-steel hover:text-amber transition-colors flex-shrink-0">
+                      <Download size={15} />
+                    </button>
+                    <span className="font-mono text-xs px-2 py-1 rounded-xl border"
+                      style={{ color: cfg.color, borderColor: `${cfg.color}44`, background: `${cfg.color}11` }}>
+                      {cfg.label}
+                    </span>
+                    <div className={`font-display font-bold text-amber ${item.completed ? "opacity-50" : ""}`}>
+                      ${(item.price * qty).toFixed(2)}
+                      {qty > 1 && <span className="font-mono text-xs text-steel font-normal ml-1">${item.price?.toFixed(2)} ea</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
