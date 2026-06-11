@@ -7,8 +7,8 @@ export async function POST(request: Request) {
   try {
     const contentType = request.headers.get("content-type") || "";
     const body = await request.arrayBuffer();
-    
-    const resp = await fetch(`${workerUrl}/slice`, {
+
+    const resp = await fetch(`${workerUrl}/slice-async`, {
       method: "POST",
       headers: {
         "content-type": contentType,
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     });
     const data = await resp.json();
     return Response.json(data, { status: resp.status });
-  } catch (e: any) {
+  } catch {
     return Response.json({ error: "Slicer unavailable", fallback: true }, { status: 503 });
   }
 }

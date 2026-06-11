@@ -40,6 +40,24 @@ function focusOff(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) {
   e.currentTarget.style.boxShadow  = "none";
 }
 
+async function sliceFileAsync(form: FormData): Promise<any> {
+  const r = await fetch("/api/slice", { method: "POST", body: form });
+  const init = await r.json();
+  if (!init.jobId) return init; // direct result or error
+  // Poll until done (up to 5 minutes)
+  for (let i = 0; i < 150; i++) {
+    await new Promise(res => setTimeout(res, 2000));
+    try {
+      const sr = await fetch(`/api/slice-status?jobId=${encodeURIComponent(init.jobId)}`);
+      const status = await sr.json();
+      if (status.status !== "pending") return status;
+    } catch {
+      return { error: "Slicer unavailable", fallback: true };
+    }
+  }
+  return { error: "Slicer timed out", fallback: true };
+}
+
 export default function QuotePage() {
   const [livePricing, setLivePricing] = useState<Record<string, number>>({});
 
@@ -158,8 +176,7 @@ export default function QuotePage() {
       form.append("quality", q);
       form.append("infill", String(inf));
       if (livePricing[mat]) form.append("costPerKg", String(livePricing[mat]));
-      const res = await fetch("/api/slice", { method: "POST", body: form });
-      const data = await res.json();
+      const data = await sliceFileAsync(form);
       if (data.price && !data.fallback) {
         setCartItems(prev => prev.map(i => i.id === itemId ? {
           ...i, material: mat, quality: q, infill: inf,
@@ -182,14 +199,12 @@ export default function QuotePage() {
     const form = new FormData();
     form.append("stl", f); form.append("material", mat); form.append("quality", q); form.append("infill", String(inf));
     if (livePricing[mat]) form.append("costPerKg", String(livePricing[mat]));
-    fetch("/api/slice", { method: "POST", body: form })
-      .then(r => r.json())
+    sliceFileAsync(form)
       .then(data => {
         if (data.tooLarge || data.needsOrientation) {
-          // Orientation/size issue — show amber manual quote banner
           setSlicerTooLarge(data.error || "Part requires manual orientation or exceeds build volume");
           setSlicerFailed(false);
-          setIsStepFile(false); // clear STEP spinner
+          setIsStepFile(false);
         } else if (data.price && !data.fallback) {
           setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
           setSlicerFailed(false); setSlicerTooLarge(null);
@@ -206,12 +221,10 @@ export default function QuotePage() {
             } catch(e) { console.warn("Could not parse converted STL for preview", e); }
           }
         } else if (data.error && !data.fallback) {
-          // Slicer returned an error message (e.g. 422/500 from OrcaSlicer) — treat as manual quote
           setSlicerTooLarge(data.error);
           setSlicerFailed(false);
           setIsStepFile(false);
         } else {
-          // Slicer truly unavailable (503/fallback) — show red banner
           setSlicerFailed(true);
           setIsStepFile(false);
         }
