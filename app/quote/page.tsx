@@ -520,6 +520,7 @@ export default function QuotePage() {
                     <AlertCircle size={14} /> SLICER UNAVAILABLE — cannot calculate price. Try again shortly.
                   </div>
                 ) : (
+                  <>
                   {currentQuote?.fromSlicer && !slicerLoading && (
                     <div className="flex justify-center gap-3 mb-3 font-mono text-[10px] text-steel">
                       <span>{currentQuote.grams.toFixed(1)}g · {(currentQuote.grams / 453.592).toFixed(3)} lbs</span>
@@ -536,6 +537,7 @@ export default function QuotePage() {
                       <><ShoppingCart size={18} />ADD TO CART — ${(currentQuote.price * qty).toFixed(2)}{qty > 1 ? ` (${qty}×)` : ""}</>
                     )}
                   </button>
+                  </>
                 )}
               </div>
             )}
