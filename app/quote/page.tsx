@@ -520,6 +520,13 @@ export default function QuotePage() {
                     <AlertCircle size={14} /> SLICER UNAVAILABLE — cannot calculate price. Try again shortly.
                   </div>
                 ) : (
+                  {currentQuote?.fromSlicer && !slicerLoading && (
+                    <div className="flex justify-center gap-3 mb-3 font-mono text-[10px] text-steel">
+                      <span>{currentQuote.grams.toFixed(1)}g · {(currentQuote.grams / 453.592).toFixed(3)} lbs</span>
+                      <span>·</span>
+                      <span>{currentQuote.hours}h print est.</span>
+                    </div>
+                  )}
                   <button onClick={addToCart} disabled={slicerLoading || !currentQuote?.fromSlicer}
                     className="w-full py-4 rounded-xl font-display font-bold flex items-center justify-center gap-3 text-ironworks transition-opacity duration-150 hover:opacity-90 disabled:opacity-60 disabled:cursor-wait cursor-pointer"
                     style={{ background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)", boxShadow: "0 0 32px rgba(255,181,71,0.30)" }}>
