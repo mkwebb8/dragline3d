@@ -3,7 +3,7 @@ export const runtime = "edge";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Save, ExternalLink, FileText, Receipt, Package, CheckCircle2, Circle, Scissors, Printer, PlayCircle } from "lucide-react";
+import { ArrowLeft, Save, ExternalLink, FileText, Receipt, Package, CheckCircle2, Circle, Scissors, Printer, PlayCircle, Download } from "lucide-react";
 import type { CSSProperties } from "react";
 import BoxSelect from "@/components/BoxSelect"; // ← added
 
@@ -63,6 +63,17 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
   const [token, setToken] = useState(""); // ← added for BoxSelect
   const [boxes, setBoxes] = useState<any[]>([]);
   const router = useRouter();
+
+  async function downloadFile(fileName: string) {
+    const t = localStorage.getItem("dragline_admin_token") || "";
+    const res = await fetch(`/api/admin/orders/${id}/file?fileName=${encodeURIComponent(fileName)}`, { headers: { Authorization: `Bearer ${t}` } });
+    if (!res.ok) { alert("File not found on NAS"); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = fileName; a.click();
+    URL.revokeObjectURL(url);
+  }
 
   useEffect(() => {
     const t = localStorage.getItem("dragline_admin_token");
@@ -322,21 +333,5 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
                     </div>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
-                    <span className="font-mono text-xs px-2 py-1 rounded-xl border"
-                      style={{ color: cfg.color, borderColor: `${cfg.color}44`, background: `${cfg.color}11` }}>
-                      {cfg.label}
-                    </span>
-                    <div className={`font-display font-bold text-amber ${item.completed ? "opacity-50" : ""}`}>
-                      ${(item.price * qty).toFixed(2)}
-                      {qty > 1 && <span className="font-mono text-xs text-steel font-normal ml-1">${item.price?.toFixed(2)} ea</span>}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+                    <button onClick={() => downloadFile(item.file_name)} title={`Download ${item.file_name}`}
+                      className="text-steel hover:text-amber transition-colors" 
