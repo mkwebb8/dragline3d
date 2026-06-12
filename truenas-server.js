@@ -547,7 +547,7 @@ async function pollShelly() {
     shellySession.whAccumulated += delta;
     shellySession.lastWhReading = currentWh;
     const cost = (shellySession.whAccumulated / 1000) * ELECTRICITY_RATE_KWH;
-    const autoEnd = watts < 50 && shellySession.whAccumulated > 1; // >1Wh so we don't end before print starts
+    const autoEnd = watts < 20 && shellySession.whAccumulated > 5; // <20W = truly off (not just between heater cycles); >5Wh = print actually started
     await supabasePatch("print_sessions", shellySession.sessionId, {
       wh_accumulated: Math.round(shellySession.whAccumulated * 100) / 100,
       electricity_cost: Math.round(cost * 10000) / 10000,
