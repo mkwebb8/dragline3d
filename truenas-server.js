@@ -215,6 +215,42 @@ async function preOrient(inputPath, workDir) {
     });
   });
 }
+async function handleConvertStep(req, res) {
+  if (WORKER_SECRET && req.headers["x-worker-secret"] !== WORKER_SECRET) return send(res, 401, { error: "Unauthorized" });
+  if (req.method !== "POST") return send(res, 405, { error: "Method not allowed" });
+  const workDir = await fsp.mkdtemp(path.join(os.tmpdir(), "dragline-step-"));
+  try {
+    const fields = await new Promise((resolve, reject) => {
+      const bb = Busboy({ headers: req.headers, limits: { fileSize: 100 * 1024 * 1024 } });
+      const data = {};
+      let savedPath = null, origName = "input.step";
+      bb.on("file", (_name, stream, info) => {
+        origName = info.filename || "input.step";
+        savedPath = path.join(workDir, "input.step");
+        stream.pipe(fs.createWriteStream(savedPath));
+      });
+      bb.on("field", (n, v) => { data[n] = v; });
+      bb.on("finish", () => setTimeout(() => {
+        if (!savedPath) reject(new Error("No file received"));
+        else resolve({ ...data, savedPath, origName });
+      }, 500));
+      bb.on("error", reject);
+      req.pipe(bb);
+    });
+    console.log(`[convert-step] converting ${fields.origName}`);
+    const stlPath = await convertStepToStl(fields.savedPath, workDir);
+    const stlBuffer = fs.readFileSync(stlPath);
+    const stlBase64 = stlBuffer.toString("base64");
+    console.log(`[convert-step] done — ${stlBuffer.length} bytes`);
+    send(res, 200, { ok: true, stl: stlBase64 });
+  } catch (err) {
+    console.error("[convert-step] error:", err.message);
+    send(res, 500, { error: err.message || "STEP conversion failed" });
+  } finally {
+    fsp.rm(workDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 function send(res, status, obj) {
   const body = JSON.stringify(obj);
   res.writeHead(status, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) });
@@ -762,6 +798,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, data.result?.status || {});
     } catch(e) { return send(res, 503, { error: "Printer unreachable" }); }
   }
+  if (req.url === "/convert-step" && req.method === "POST") return handleConvertStep(req, res);
   if (req.url === "/slice" && req.method === "POST") return handleSlice(req, res);
   if (req.url === "/slice-async" && req.method === "POST") return handleSliceAsync(req, res);
   if (req.url.startsWith("/slice-status") && req.method === "GET") return handleSliceStatus(req, res);
