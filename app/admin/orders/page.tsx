@@ -214,6 +214,7 @@ export default function AdminOrders() {
             { href: "/admin/parts", label: "PARTS QUEUE" },
             { href: "/admin/analytics", label: "ANALYTICS" },
             { href: "/admin/inventory", label: "INVENTORY" },
+            { href: "/admin/gallery", label: "GALLERY" },
             { href: "/admin/manual-quote", label: "MANUAL QUOTE" },
           ].map(({ href, label }) => (
             <Link key={href} href={href}

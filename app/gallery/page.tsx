@@ -1,6 +1,8 @@
+"use client";
+import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Play, Facebook } from "lucide-react";
 import { DraglineMark } from "@/components/DraglineMark";
 
 const glass = {
@@ -13,16 +15,30 @@ const glass = {
 
 const softBorder = { borderColor: "rgba(255,255,255,0.07)" } as CSSProperties;
 
-const PROJECTS = [
-  { title: "Custom enclosure",    client: "Local electronics shop",  material: "PETG",    notes: "Snap-fit lid, threaded inserts for repeated access." },
-  { title: "Replacement bracket", client: "Industrial maintenance",  material: "ABS",     notes: "Reverse-engineered from a broken OEM part, 30% infill, cost less than the original." },
-  { title: "Production jig",      client: "Manufacturing client",    material: "PETG",    notes: "Run-of-50 fixture for a small assembly line. Iterated twice in a week." },
-  { title: "Architectural model", client: "Design studio",           material: "PLA",     notes: "1:50 scale building section. Fine layer height for clean facade detail." },
-  { title: "Cable management",    client: "Home install",            material: "PETG",    notes: "Custom wall plates and clips matched to existing trim." },
-  { title: "Prototype housing",   client: "Hardware startup",        material: "ABS",     notes: "Three iterations to dial in fit before tooling. Cheaper than CNC for early rounds." },
-];
+const FACEBOOK_URL = "https://www.facebook.com/profile.php?id=61575934810729";
+
+type GalleryItem = {
+  id: string;
+  title: string;
+  client: string | null;
+  material: string;
+  notes: string | null;
+  image_url: string | null;
+  video_url: string | null;
+  sort_order: number;
+};
 
 export default function GalleryPage() {
+  const [items, setItems] = useState<GalleryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/gallery")
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { setItems(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
   return (
     <div className="relative overflow-hidden">
       {/* Ambient orb */}
@@ -33,7 +49,11 @@ export default function GalleryPage() {
         {/* Cinematic top bar */}
         <div className="flex items-center justify-between border-b pb-6 mb-20" style={softBorder}>
           <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-steel">The Work</span>
-          <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-steel">Dragline 3D</span>
+          <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.2em] text-steel hover:text-bone transition-colors duration-150 cursor-pointer">
+            <Facebook size={11} />
+            Follow on Facebook
+          </a>
         </div>
 
         {/* Headline */}
@@ -53,44 +73,103 @@ export default function GalleryPage() {
         <div className="border-t pt-10 mb-16" style={softBorder}>
           <p className="text-bone/60 text-lg leading-relaxed max-w-xl">
             A selection of recent work. Every part shipped, every client repeat.
-            Custom photography incoming — placeholders until then.
           </p>
         </div>
 
-        {/* Project cards */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {PROJECTS.map((p, i) => (
-            <div key={i} className="rounded-xl overflow-hidden group cursor-default transition-all duration-200"
-              style={{ ...glass }}>
-              {/* Placeholder visual */}
-              <div className="aspect-[4/3] grid-bg grid place-items-center relative overflow-hidden"
-                style={{ background: "rgba(255,255,255,0.015)" }}>
-                <div className="opacity-10 group-hover:opacity-20 transition-opacity duration-200">
-                  <DraglineMark size={100} />
+        {/* Gallery grid */}
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <div className="w-8 h-8 border-2 border-white/10 border-t-amber rounded-full animate-spin" />
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {items.map((p, i) => {
+              const hasMedia = !!(p.image_url || p.video_url);
+              const isVideo = !p.image_url && !!p.video_url;
+
+              return (
+                <div key={p.id} className="rounded-xl overflow-hidden group transition-all duration-200" style={glass}>
+                  {/* Media area */}
+                  <div className="aspect-[4/3] relative overflow-hidden flex items-center justify-center"
+                    style={{ background: "rgba(255,255,255,0.015)" }}>
+                    {p.image_url ? (
+                      <img
+                        src={p.image_url}
+                        alt={p.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : p.video_url ? (
+                      <a href={p.video_url} target="_blank" rel="noopener noreferrer"
+                        className="absolute inset-0 flex items-center justify-center group/vid cursor-pointer"
+                        style={{ background: "rgba(255,255,255,0.015)" }}>
+                        <div className="w-14 h-14 rounded-full flex items-center justify-center transition-transform group-hover/vid:scale-110 duration-200"
+                          style={{ background: "rgba(255,181,71,0.18)", border: "1px solid rgba(255,181,71,0.35)" }}>
+                          <Play size={22} className="text-amber ml-1" />
+                        </div>
+                      </a>
+                    ) : (
+                      /* Coming Soon placeholder */
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                        <div className="opacity-10 group-hover:opacity-20 transition-opacity duration-200">
+                          <DraglineMark size={80} />
+                        </div>
+                        <span className="font-mono text-[9px] tracking-[0.2em] text-steel/50 uppercase">Coming Soon</span>
+                      </div>
+                    )}
+
+                    {/* Number badge */}
+                    {!hasMedia && (
+                      <div className="absolute top-3 left-3 font-mono text-[9px] tracking-[0.2em] text-steel">
+                        #{String(i + 1).padStart(3, "0")}
+                      </div>
+                    )}
+
+                    {/* Material badge */}
+                    <div className="absolute top-3 right-3 font-mono text-[9px] tracking-[0.15em] text-ironworks font-bold px-2 py-1 rounded-md"
+                      style={{ background: "#ffb547", boxShadow: "0 0 12px rgba(255,181,71,0.4)" }}>
+                      {p.material}
+                    </div>
+
+                    {/* Video label */}
+                    {isVideo && (
+                      <div className="absolute top-3 left-3 font-mono text-[9px] text-bone/50 flex items-center gap-1">
+                        <Play size={9} /> VIDEO
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Text */}
+                  <div className="p-6">
+                    <div className="font-display font-black text-xl mb-1 group-hover:text-amber transition-colors duration-150">
+                      {p.title}
+                    </div>
+                    {p.client && (
+                      <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-amber/70 mb-3">
+                        {p.client}
+                      </div>
+                    )}
+                    {p.notes && (
+                      <p className="text-bone/50 text-sm leading-relaxed">{p.notes}</p>
+                    )}
+                  </div>
                 </div>
-                <div className="absolute top-3 left-3 font-mono text-[9px] tracking-[0.2em] text-steel">
-                  #{String(i + 1).padStart(3, "0")}
-                </div>
-                <div className="absolute top-3 right-3 font-mono text-[9px] tracking-[0.15em] text-ironworks font-bold px-2 py-1 rounded-md"
-                  style={{ background: "#ffb547", boxShadow: "0 0 12px rgba(255,181,71,0.4)" }}>
-                  {p.material}
-                </div>
-              </div>
-              <div className="p-6">
-                <div className="font-display font-black text-xl mb-1 group-hover:text-amber transition-colors duration-150">
-                  {p.title}
-                </div>
-                <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-amber/70 mb-3">
-                  {p.client}
-                </div>
-                <p className="text-bone/50 text-sm leading-relaxed">{p.notes}</p>
-              </div>
-            </div>
-          ))}
+              );
+            })}
+          </div>
+        )}
+
+        {/* Follow on Facebook CTA */}
+        <div className="mt-12 mb-4 flex justify-center">
+          <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer"
+            className="group inline-flex items-center gap-2 font-mono text-xs text-bone/50 hover:text-bone transition-colors cursor-pointer">
+            <Facebook size={14} />
+            See more on our Facebook page
+            <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
+          </a>
         </div>
 
         {/* CTA */}
-        <div className="mt-20 text-center">
+        <div className="mt-12 text-center">
           <h2 className="font-display font-black leading-[0.88] tracking-tight mb-8"
             style={{ fontSize: "clamp(2.5rem, 6vw, 5rem)" }}>
             <span className="block text-bone">Your part</span>
