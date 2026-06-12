@@ -3,7 +3,7 @@ export const runtime = "edge";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Save, ExternalLink, FileText, Receipt, Package, CheckCircle2, Circle, Scissors, Printer, PlayCircle, Download, Zap, ZapOff, Activity, PlusCircle } from "lucide-react";
+import { ArrowLeft, Save, ExternalLink, FileText, Receipt, Package, CheckCircle2, Circle, Scissors, Printer, PlayCircle, Download, Upload, Zap, ZapOff, Activity, PlusCircle } from "lucide-react";
 import type { CSSProperties } from "react";
 import BoxSelect from "@/components/BoxSelect"; // ← added
 
@@ -197,15 +197,31 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
     }
   }
 
-  async function downloadFile(fileName: string) {
+  async function downloadFile(fileName: string, itemId?: string) {
     const t = localStorage.getItem("dragline_admin_token") || "";
-    const res = await fetch(`/api/admin/orders/${id}/file?fileName=${encodeURIComponent(fileName)}`, { headers: { Authorization: `Bearer ${t}` } });
-    if (!res.ok) { alert("File not found on NAS"); return; }
+    const params = new URLSearchParams({ fileName });
+    if (itemId) params.set("itemId", itemId);
+    const res = await fetch(`/api/admin/orders/${id}/file?${params}`, { headers: { Authorization: `Bearer ${t}` } });
+    if (!res.ok) { alert("File not found"); return; }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = fileName; a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function uploadItemFile(item: any, file: File) {
+    const t = localStorage.getItem("dragline_admin_token") || "";
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`/api/admin/orders/${id}/items/${item.id}/upload`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${t}` },
+      body: fd,
+    });
+    if (!res.ok) { alert("Upload failed"); return; }
+    const updated = await res.json();
+    setOrder((o: any) => ({ ...o, order_items: o.order_items.map((i: any) => i.id === item.id ? { ...i, ...updated } : i) }));
   }
 
   if (loading) return <div className="max-w-4xl mx-auto px-6 py-16 text-center"><div className="inline-block w-8 h-8 border-2 border-white/10 border-t-amber rounded-full animate-spin" /></div>;
@@ -476,10 +492,16 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
                     </div>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
-                    <button onClick={() => downloadFile(item.file_name)} title={`Download ${item.file_name}`}
+                    <button onClick={() => downloadFile(item.file_name, item.id)} title={`Download ${item.file_name}`}
                       className="text-steel hover:text-amber transition-colors flex-shrink-0">
                       <Download size={15} />
                     </button>
+                    {/* Upload replacement file (e.g. STEP received via email) */}
+                    <label title="Replace file" className="text-steel hover:text-blue-400 transition-colors flex-shrink-0 cursor-pointer">
+                      <Upload size={14} />
+                      <input type="file" className="hidden" accept=".stl,.step,.stp,.3mf,.obj"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadItemFile(item, f); e.target.value = ""; }} />
+                    </label>
                     {/* Progress badge for multi-run items */}
                     {qty > 1 && (
                       <span className="font-mono text-xs px-2 py-1 rounded-xl"

@@ -85,11 +85,13 @@ function PrinterWidget({ token }: { token: string }) {
   const eta = progress > 0.01 ? (elapsed / progress - elapsed) : 0;
   const filename = (stats?.filename || vsd?.file_path || "").split("/").pop()?.replace(".gcode", "") || "";
   // Creality touchscreen prints bypass Moonraker job tracking — infer from nozzle temp alone
-  const isActive = state === "printing" || (
-    (state === "standby" || state === "ready" || state === "complete") &&
+  const tempInferred = state !== "printing" &&
     (extruder?.temperature || 0) > 150 &&
-    (extruder?.target || 0) > 0
-  );
+    (extruder?.target || 0) > 0;
+  const isActive = state === "printing" || tempInferred;
+  const displayState = state === "printing" ? "PRINTING"
+    : tempInferred ? "PRINTING*"
+    : state.toUpperCase();
   const watts: number | null = shellyData?.apower ?? null;
   const activeSession = shellyData?.active_session ?? null;
 
@@ -100,8 +102,9 @@ function PrinterWidget({ token }: { token: string }) {
           <Printer size={14} className={isActive ? "text-amber" : "text-steel"} />
           <span className="font-mono text-xs tracking-widest font-bold">K2 PLUS</span>
           <span className={`px-2 py-0.5 rounded-md font-mono text-xs font-bold ${isActive ? "bg-orange-500/20 text-orange-400" : "text-steel"}`}
-            style={isActive ? {} : innerCell}>
-            {state.toUpperCase()}
+            style={isActive ? {} : innerCell}
+            title={tempInferred ? "Detected via nozzle temp — touchscreen print bypasses Moonraker" : undefined}>
+            {displayState}
           </span>
           {watts !== null && (
             <span className="flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-xs font-bold text-yellow-400"
