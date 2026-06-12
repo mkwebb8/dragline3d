@@ -104,7 +104,9 @@ export default function QuotePage() {
   const inputRef   = useRef<HTMLInputElement>(null);
   const initializedRef = useRef(false);
   const customerName = `${firstName} ${lastName}`.trim();
-  const isVolume = process.env.NEXT_PUBLIC_PRICING_MODE === "volume";
+  // Volume pricing is the default. Slicer path preserved below for easy revert.
+  // To switch back: const isVolume = process.env.NEXT_PUBLIC_PRICING_MODE === "volume";
+  const isVolume = true;
 
   useEffect(() => {
     const colors = MATERIAL_COLORS[material];
