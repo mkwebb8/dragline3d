@@ -581,6 +581,106 @@ async function pollShelly() {
 setInterval(pollShelly, 30_000);
 pollShelly(); // immediate first read
 
+// ── Moonraker print state watcher ─────────────────────────────────────────────
+// Polls every 15s. On print_start → auto-start Shelly session linked to the
+// most recent order with status="printing". On complete/cancelled/error → auto-stop.
+// NOTE: Prints started from the K2 Plus touchscreen bypass Moonraker's print_stats
+// and won't be detected here. Use the manual Start button for touchscreen prints.
+const MOONRAKER_URL = process.env.MOONRAKER_URL || "http://192.168.68.51:7125";
+let moonrakerPrintState = null; // last known print_stats.state
+
+async function pollMoonraker() {
+  try {
+    const r = await fetch(`${MOONRAKER_URL}/printer/objects/query?print_stats`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!r.ok) return;
+    const data = await r.json();
+    const stats = data.result?.status?.print_stats;
+    if (!stats) return;
+
+    const newState = stats.state; // standby | printing | complete | cancelled | error | paused
+    if (moonrakerPrintState === newState) return; // no change
+
+    const prevState = moonrakerPrintState;
+    moonrakerPrintState = newState;
+    console.log(`[moonraker] state: ${prevState ?? "unknown"} → ${newState} (${stats.filename || ""})`);
+
+    // Print started (not a resume from pause)
+    if (newState === "printing" && prevState !== "paused") {
+      await autoStartShellySession(stats.filename || "");
+    }
+    // Print ended
+    if (["complete", "cancelled", "error"].includes(newState) && shellySession) {
+      await autoStopShellySession(newState);
+    }
+  } catch (e) {
+    // Printer off or unreachable — suppress
+  }
+}
+
+async function autoStartShellySession(filename) {
+  if (shellySession) return; // session already active (manual or previous auto)
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
+  try {
+    // Find the most recently updated order with status = "printing"
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/orders?status=eq.printing&order=updated_at.desc&limit=1&select=id`,
+      { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } }
+    );
+    const orders = await r.json();
+    if (!orders?.length) {
+      console.log("[moonraker] print started — no order with status=printing found, skipping auto-start");
+      return;
+    }
+    const orderId = orders[0].id;
+
+    // Create a new print_session record
+    const ins = await fetch(`${SUPABASE_URL}/rest/v1/print_sessions`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({
+        order_id: orderId,
+        status: "active",
+        started_at: new Date().toISOString(),
+        wh_accumulated: 0,
+        electricity_cost: 0,
+      }),
+    });
+    const rows = await ins.json();
+    const session = rows?.[0];
+    if (!session?.id) { console.error("[moonraker] failed to create print_session"); return; }
+
+    shellySession = { sessionId: session.id, orderId, lastWhReading: shellyLiveWh, whAccumulated: 0, lowWattCount: 0 };
+    console.log(`[moonraker] auto-started Shelly session ${session.id} for order ${orderId} (${filename})`);
+  } catch (e) {
+    console.error("[moonraker] auto-start error:", e.message);
+  }
+}
+
+async function autoStopShellySession(reason) {
+  if (!shellySession) return;
+  const wh = shellySession.whAccumulated;
+  const cost = (wh / 1000) * ELECTRICITY_RATE_KWH;
+  await supabasePatch("print_sessions", shellySession.sessionId, {
+    wh_accumulated: Math.round(wh * 100) / 100,
+    electricity_cost: Math.round(cost * 10000) / 10000,
+    status: "completed",
+    ended_at: new Date().toISOString(),
+  });
+  console.log(`[moonraker] auto-stopped Shelly session (${reason}) — ${wh.toFixed(1)}Wh $${cost.toFixed(4)}`);
+  shellySession = null;
+}
+
+setInterval(pollMoonraker, 15_000);
+pollMoonraker(); // immediate first read
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function readJsonBody(req) {
   return new Promise((resolve, reject) => {
     let raw = "";
@@ -657,7 +757,7 @@ const server = http.createServer(async (req, res) => {
     const secret = req.headers["x-worker-secret"];
     if (WORKER_SECRET && secret !== WORKER_SECRET) return send(res, 401, { error: "Unauthorized" });
     try {
-      const r = await fetch("http://192.168.68.59:7125/printer/objects/query?print_stats&virtual_sdcard&heater_bed&extruder");
+      const r = await fetch(`${MOONRAKER_URL}/printer/objects/query?print_stats&virtual_sdcard&heater_bed&extruder`);
       const data = await r.json();
       return send(res, 200, data.result?.status || {});
     } catch(e) { return send(res, 503, { error: "Printer unreachable" }); }
