@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Facebook } from "lucide-react";
 import { DraglineMark } from "./DraglineMark";
 
-const FACEBOOK_URL = "https://www.facebook.com/profile.php?id=61575934810729";
+const FACEBOOK_URL = "https://www.facebook.com/dragline3d";
+
 export function Footer() {
   return (
     <footer className="mt-24 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>

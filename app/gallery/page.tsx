@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowRight, Play, Facebook } from "lucide-react";
+
+const FACEBOOK_URL = "https://www.facebook.com/dragline3d";
 import { DraglineMark } from "@/components/DraglineMark";
 
 const glass = {
@@ -15,7 +17,6 @@ const glass = {
 
 const softBorder = { borderColor: "rgba(255,255,255,0.07)" } as CSSProperties;
 
-const FACEBOOK_URL = "https://www.facebook.com/profile.php?id=61575934810729";
 
 type GalleryItem = {
   id: string;
