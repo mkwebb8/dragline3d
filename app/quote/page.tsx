@@ -104,6 +104,7 @@ export default function QuotePage() {
   const inputRef   = useRef<HTMLInputElement>(null);
   const initializedRef = useRef(false);
   const customerName = `${firstName} ${lastName}`.trim();
+  const isVolume = process.env.NEXT_PUBLIC_PRICING_MODE === "volume";
 
   useEffect(() => {
     const colors = MATERIAL_COLORS[material];
@@ -167,7 +168,16 @@ export default function QuotePage() {
 
   async function resliceCartItem(itemId: string, mat: MaterialKey, q: QualityKey, inf: number) {
     const item = cartItems.find(i => i.id === itemId);
-    if (!item?.file) return;
+    if (!item) return;
+    if (isVolume) {
+      // Instant recalculation from stored volume — no slicer needed
+      setCartItems(prev => prev.map(i => i.id === itemId ? {
+        ...i, material: mat, quality: q, infill: inf,
+        quote: quoteFromGeometry(i.stats.volumeMm3, mat, q, inf, livePricing[mat]),
+      } : i));
+      return;
+    }
+    if (!item.file) return;
     setReslicingItem(itemId);
     try {
       const form = new FormData();
@@ -206,7 +216,6 @@ export default function QuotePage() {
           setSlicerFailed(false);
           setIsStepFile(false);
         } else if (data.price && !data.fallback) {
-          setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
           setSlicerFailed(false); setSlicerTooLarge(null);
           if (data.convertedStl) {
             try {
@@ -215,10 +224,26 @@ export default function QuotePage() {
               geo.computeBoundingBox();
               const size = new THREE.Vector3();
               geo.boundingBox!.getSize(size);
-              setStats({ dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: computeVolume(geo) });
+              const vol = computeVolume(geo);
+              setStats({ dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: vol });
               setGeometry(geo);
               setIsStepFile(false);
-            } catch(e) { console.warn("Could not parse converted STL for preview", e); }
+              if (isVolume) {
+                // Volume mode: use geometry volume for pricing instead of slicer estimate
+                if (Math.max(size.x, size.y, size.z) > 350) {
+                  setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (350×350×350mm)`);
+                } else {
+                  setCurrentQuote(quoteFromGeometry(vol, mat, q, inf, livePricing[mat]));
+                }
+              } else {
+                setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
+              }
+            } catch(e) {
+              console.warn("Could not parse converted STL for preview", e);
+              if (!isVolume) setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
+            }
+          } else if (!isVolume) {
+            setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
           }
         } else if (data.error && !data.fallback) {
           setSlicerTooLarge(data.error);
@@ -234,9 +259,9 @@ export default function QuotePage() {
   }
 
   function recalc(s: Stats, mat: MaterialKey, q: QualityKey, inf: number) {
-    if (slicerLoading) return;
-    setCurrentQuote(quoteFromGeometry(s.volumeMm3, mat, q, inf));
-    if (slicerComplete && file) runSlicer(file, mat, q, inf);
+    if (!isVolume && slicerLoading) return;
+    setCurrentQuote(quoteFromGeometry(s.volumeMm3, mat, q, inf, livePricing[mat]));
+    if (!isVolume && slicerComplete && file) runSlicer(file, mat, q, inf);
   }
 
   async function handleFile(f: File | undefined) {
@@ -259,13 +284,25 @@ export default function QuotePage() {
       geo.computeBoundingBox();
       const size = new THREE.Vector3(); geo.boundingBox!.getSize(size);
       const s: Stats = { dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: computeVolume(geo) };
-      setStats(s); setGeometry(geo); runSlicer(f, material, quality, infill);
+      setStats(s); setGeometry(geo);
+      if (isVolume) {
+        // Client-side volume pricing — no slicer needed
+        if (Math.max(size.x, size.y, size.z) > 350) {
+          setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (350×350×350mm)`);
+        } else {
+          setCurrentQuote(quoteFromGeometry(s.volumeMm3, material, quality, infill, livePricing[material]));
+          setSlicerComplete(true);
+        }
+      } else {
+        runSlicer(f, material, quality, infill);
+      }
     } catch { setFileError("Could not parse file."); }
     setParsing(false);
   }
 
   function addToCart() {
-    if (!file || !stats || !currentQuote || !currentQuote.fromSlicer) return;
+    if (!file || !stats || !currentQuote) return;
+    if (!isVolume && !currentQuote.fromSlicer) return;
     if (!isStepFile && !geometry) return;
     setCartItems(prev => [...prev, { id: genId(), file, fileName: file.name, material, quality, infill, qty, color, stats, quote: currentQuote, geometry: geometry || null, thumbnail: currentThumbnail || undefined }]);
     setCurrentThumbnail(null);
@@ -415,7 +452,9 @@ export default function QuotePage() {
                     <div className="h-full grid place-items-center">
                       <div className="text-center">
                         <div className="font-mono text-[10px] tracking-[0.2em] text-steel mb-2">STEP FILE</div>
-                        <div className="font-mono text-xs text-steel/40">No preview — slicing on server</div>
+                        <div className="font-mono text-xs text-steel/40">
+                          {isVolume ? "Converting to STL for preview…" : "No preview — slicing on server"}
+                        </div>
                         {slicerLoading && <div className="inline-block w-6 h-6 border-2 border-t-amber rounded-full animate-spin mt-4" style={{ borderColor: "rgba(255,181,71,0.2)", borderTopColor: "#ffb547" }} />}
                       </div>
                     </div>
@@ -491,12 +530,12 @@ export default function QuotePage() {
                 <div className="mb-6">
                   <div className="flex justify-between items-baseline mb-3">
                     <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel">Infill</div>
-                    <div className="font-mono text-sm font-bold" style={{ color: "#ffb547" }}>{infill}% · {infill / 10} walls</div>
+                    <div className="font-mono text-sm font-bold" style={{ color: "#ffb547" }}>{infill}%</div>
                   </div>
                   <input type="range" min="20" max="100" step="20" value={infill}
                     onChange={e => { const v = +e.target.value; setInfill(v); recalc(stats, material, quality, v); }}
                     className="w-full" />
-                  <div className="flex justify-between font-mono text-[9px] mt-1.5 text-steel"><span>20% · 2w</span><span>60% · 6w</span><span>100% · 10w</span></div>
+                  <div className="flex justify-between font-mono text-[9px] mt-1.5 text-steel"><span>20%</span><span>60%</span><span>100%</span></div>
                 </div>
                 <div className="mb-7">
                   <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-3">Quantity</div>
@@ -504,7 +543,7 @@ export default function QuotePage() {
                     <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer transition-all duration-150 hover:border-amber/40" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}><Minus size={14} /></button>
                     <div className="font-display font-black text-xl w-10 text-center">{qty}</div>
                     <button onClick={() => setQty(q => Math.min(50, q + 1))} className="w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer transition-all duration-150 hover:border-amber/40" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}><Plus size={14} /></button>
-                    {qty > 1 && currentQuote?.fromSlicer && !slicerLoading && (
+                    {qty > 1 && currentQuote && !slicerLoading && (isVolume || currentQuote.fromSlicer) && (
                       <div className="font-mono text-xs text-steel ml-1">${currentQuote.price.toFixed(2)} × {qty} = <span className="font-bold" style={{ color: "#ffb547" }}>${(currentQuote.price * qty).toFixed(2)}</span></div>
                     )}
                   </div>
@@ -517,21 +556,22 @@ export default function QuotePage() {
                   </div>
                 ) : slicerFailed ? (
                   <div className="w-full py-4 rounded-xl font-mono text-xs text-center flex items-center justify-center gap-2 text-red-400" style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.25)" }}>
-                    <AlertCircle size={14} /> SLICER UNAVAILABLE — cannot calculate price. Try again shortly.
+                    <AlertCircle size={14} /> {isVolume ? "STEP conversion unavailable — try again shortly." : "SLICER UNAVAILABLE — cannot calculate price. Try again shortly."}
                   </div>
                 ) : (
                   <>
-                  {currentQuote?.fromSlicer && !slicerLoading && (
+                  {currentQuote && !slicerLoading && (isVolume || currentQuote.fromSlicer) && (
                     <div className="flex justify-center gap-3 mb-3 font-mono text-[10px] text-steel">
                       <span>{currentQuote.grams.toFixed(1)}g · {(currentQuote.grams / 453.592).toFixed(3)} lbs</span>
                       <span>·</span>
                       <span>{currentQuote.hours}h print est.</span>
                     </div>
                   )}
-                  <button onClick={addToCart} disabled={slicerLoading || !currentQuote?.fromSlicer}
+                  <button onClick={addToCart}
+                    disabled={slicerLoading || !currentQuote || (!isVolume && !currentQuote.fromSlicer)}
                     className="w-full py-4 rounded-xl font-display font-bold flex items-center justify-center gap-3 text-ironworks transition-opacity duration-150 hover:opacity-90 disabled:opacity-60 disabled:cursor-wait cursor-pointer"
                     style={{ background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)", boxShadow: "0 0 32px rgba(255,181,71,0.30)" }}>
-                    {slicerLoading || !currentQuote?.fromSlicer ? (
+                    {slicerLoading || !currentQuote || (!isVolume && !currentQuote.fromSlicer) ? (
                       <><span className="inline-block w-5 h-5 rounded-full animate-spin" style={{ border: "2px solid rgba(8,8,10,0.3)", borderTopColor: "#08080a" }} />CALCULATING...</>
                     ) : (
                       <><ShoppingCart size={18} />ADD TO CART — ${(currentQuote.price * qty).toFixed(2)}{qty > 1 ? ` (${qty}×)` : ""}</>
@@ -661,7 +701,7 @@ export default function QuotePage() {
                             <div>
                               <div className="flex justify-between items-baseline mb-1">
                                 <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel">Infill</div>
-                                <div className="font-mono text-xs font-bold" style={{ color: "#ffb547" }}>{item.infill}% · {item.infill / 10} walls</div>
+                                <div className="font-mono text-xs font-bold" style={{ color: "#ffb547" }}>{item.infill}%</div>
                               </div>
                               <input type="range" min="20" max="100" step="20" value={item.infill}
                                 onChange={e => {
@@ -671,7 +711,7 @@ export default function QuotePage() {
                                 onMouseUp={e => resliceCartItem(item.id, item.material, item.quality, +(e.target as HTMLInputElement).value)}
                                 onTouchEnd={e => resliceCartItem(item.id, item.material, item.quality, +(e.currentTarget as HTMLInputElement).value)}
                                 className="w-full" />
-                              <div className="flex justify-between font-mono text-[9px] mt-1 text-steel"><span>20% · 2w</span><span>60% · 6w</span><span>100% · 10w</span></div>
+                              <div className="flex justify-between font-mono text-[9px] mt-1 text-steel"><span>20%</span><span>60%</span><span>100%</span></div>
                             </div>
                             {isReslicing && (
                               <div className="flex items-center gap-2 text-amber/60 font-mono text-[10px]">
@@ -806,7 +846,7 @@ export default function QuotePage() {
                 </button>
                 <div className="mt-3 text-center font-mono text-[9px]" style={{ color: "rgba(255,255,255,0.25)" }}>
   By completing your order you agree to our{" "}
-  <a href="/terms" target="_blank" className="underline hover:text-bone transition-colors">Terms & Conditions</a>.
+  <a href="/terms" target="_blank" className="underline hover:text-bone transition-colors">Terms &amp; Conditions</a>.
 </div>
                 {checkoutError && <div className="mt-3 text-sm text-center font-medium text-red-400">{checkoutError}</div>}
                 <div className="mt-3 text-center font-mono text-[9px] uppercase tracking-[0.18em]" style={{ color: "rgba(255,181,71,0.35)" }}>SECURE · CARD · APPLE PAY · GOOGLE PAY</div>

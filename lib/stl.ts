@@ -117,13 +117,15 @@ export function quoteFromGeometry(
   volumeMm3: number,
   material: MaterialKey,
   quality: QualityKey,
-  infill: number
+  infill: number,
+  liveCostPerKg?: number
 ): { grams: number; hours: number; price: number; fromSlicer: boolean; breakdown: { material: number; machine: number; setup: number } } {
   const mat = MATERIALS[material];
   const q   = QUALITIES[quality];
+  const costPerKg = liveCostPerKg ?? mat.costPerKg;
   const grams = (volumeMm3 / 1000) * mat.density * (0.12 + (1 - 0.12) * (infill / 100));
   const hours = (grams / 10) * q.mult;
-  const matCost     = (grams / 1000) * mat.costPerKg * 2.5;
+  const matCost     = (grams / 1000) * costPerKg * 2.5;
   const machineCost = hours * 0.50;
   const setupCost   = 12;
   const price = Math.max(8, Math.round((matCost + machineCost + setupCost) * 100) / 100);

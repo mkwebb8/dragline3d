@@ -85,9 +85,9 @@ function PrinterWidget({ token }: { token: string }) {
   const eta = progress > 0.01 ? (elapsed / progress - elapsed) : 0;
   const filename = (stats?.filename || vsd?.file_path || "").split("/").pop()?.replace(".gcode", "") || "";
   // Creality touchscreen prints bypass Moonraker job tracking — infer from nozzle temp alone
+  // Touchscreen prints bypass Moonraker entirely — target stays 0, only temperature rises
   const tempInferred = state !== "printing" &&
-    (extruder?.temperature || 0) > 150 &&
-    (extruder?.target || 0) > 0;
+    (extruder?.temperature || 0) > 150;
   const isActive = state === "printing" || tempInferred;
   const displayState = state === "printing" ? "PRINTING"
     : tempInferred ? "PRINTING*"
@@ -232,64 +232,4 @@ export default function AdminOrders() {
             <Plus size={14} />NEW ORDER
           </Link>
           <button onClick={logout}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl font-mono text-xs text-bone/60 hover:text-bone transition-colors cursor-pointer"
-            style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
-            <LogOut size={14} /> Logout
-          </button>
-        </div>
-      </div>
-
-      {token && <PrinterWidget token={token} />}
-
-      <div className="flex gap-2 mb-6 flex-wrap">
-        {FILTERS.map(f => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-xl font-mono text-xs tracking-wide transition-colors cursor-pointer ${filter === f ? "text-ironworks" : "text-bone/60 hover:text-bone"}`}
-            style={filter === f
-              ? { background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)" }
-              : { border: "1px solid rgba(255,255,255,0.07)" }}>
-            {f === "all" ? "ALL" : STATUS_LABELS[f]?.toUpperCase()}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div className="text-center py-20">
-          <div className="inline-block w-8 h-8 border-2 border-white/10 border-t-amber rounded-full animate-spin" />
-        </div>
-      ) : orders.length === 0 ? (
-        <div className="text-center py-20 text-bone/40">
-          <div className="font-display text-2xl mb-2">No orders</div>
-          <div className="font-mono text-xs">Orders appear here when customers checkout</div>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {orders.map(order => (
-            <Link key={order.id} href={`/admin/orders/${order.id}`}
-              className="block rounded-xl p-4 hover:opacity-90 transition-opacity group cursor-pointer"
-              style={glass}>
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <div className="font-mono text-xs text-amber font-bold">{order.id}</div>
-                  <div className="font-medium text-sm mt-0.5">{order.customer_name}</div>
-                  <div className="font-mono text-xs text-steel">{order.customer_email}</div>
-                </div>
-                <div className="flex items-center gap-4 flex-shrink-0">
-                  <div className="text-right">
-                    <div className="font-display font-bold text-lg text-amber">${order.total?.toFixed(2)}</div>
-                    <div className="font-mono text-xs text-steel">{new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
-                  </div>
-                  <div className="px-3 py-1.5 rounded-xl text-xs font-mono font-bold"
-                    style={{ background: `${STATUS_COLORS[order.status]}22`, color: STATUS_COLORS[order.status] }}>
-                    {STATUS_LABELS[order.status]}
-                  </div>
-                  <ExternalLink size={14} className="text-bone/30 group-hover:text-bone/60 transition-colors" />
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl font-mono text-xs text-bone/60 hover:text-bone transitio
