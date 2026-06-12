@@ -759,21 +759,16 @@ export default function AnalyticsPage() {
               <Landmark size={13} className="text-steel" />
               <span className="font-mono text-xs text-steel tracking-wider">NOVO BANK BALANCE</span>
             </div>
-            <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="grid grid-cols-2 gap-2 mb-4">
               <div className="rounded-lg p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                 <div className="font-mono text-[9px] text-steel mb-1">TOTAL BALANCE</div>
-                <div className={`font-display font-bold text-base ${novoRunningBalance >= 0 ? "text-emerald-400" : "text-red-400"}`}>{fc(novoRunningBalance)}</div>
+                <div className={`font-display font-bold text-lg ${novoRunningBalance >= 0 ? "text-emerald-400" : "text-red-400"}`}>{fc(novoRunningBalance)}</div>
                 <div className="font-mono text-[9px] text-steel/50">{novoTxns[0]?.date || "no data"}</div>
-              </div>
-              <div className="rounded-lg p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <div className="font-mono text-[9px] text-steel mb-1">IN RESERVES</div>
-                <div className="font-display font-bold text-base text-amber">{fc(novoReserveTotal)}</div>
-                <div className="font-mono text-[9px] text-steel/50">from PF entries below</div>
               </div>
               <div className="rounded-lg p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: novoAvailable >= 0 ? "1px solid rgba(34,197,94,0.25)" : "1px solid rgba(239,68,68,0.25)" }}>
                 <div className="font-mono text-[9px] text-steel mb-1">AVAILABLE</div>
-                <div className={`font-display font-bold text-base ${novoAvailable >= 0 ? "text-emerald-400" : "text-red-400"}`}>{fc(novoAvailable)}</div>
-                <div className="font-mono text-[9px] text-steel/50">total − reserves</div>
+                <div className={`font-display font-bold text-lg ${novoAvailable >= 0 ? "text-emerald-400" : "text-red-400"}`}>{fc(novoAvailable)}</div>
+                <div className="font-mono text-[9px] text-steel/50">after {fc(novoReserveTotal)} reserves</div>
               </div>
             </div>
             {/* CSV upload */}
