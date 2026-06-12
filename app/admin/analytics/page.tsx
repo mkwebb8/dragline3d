@@ -320,8 +320,6 @@ export default function AnalyticsPage() {
   const totalProductionCost = totalMatCost + totalSquareFees + totalElecCost;
   const actualOpex = totalProductionCost;
   const novoOpex = parseFloat(novoBalances.opex) || 0;
-  const novoReserveTotal = (parseFloat(novoBalances.profit) || 0) + (parseFloat(novoBalances.ownerComp) || 0) + (parseFloat(novoBalances.taxes) || 0) + (parseFloat(novoBalances.opex) || 0);
-  const novoAvailable = novoRunningBalance - novoReserveTotal;
   const opexVariance = pfOpex - actualOpex;
   const opexUsedPct = pfOpex > 0 ? Math.min((actualOpex / pfOpex) * 100, 100) : 0;
   // Lean score: how much of real revenue is NOT consumed by production costs
@@ -587,6 +585,8 @@ export default function AnalyticsPage() {
     ? Number(novoTxns[0].balance)
     : null;
   const novoRunningBalance = latestBalance ?? novoTxns.reduce((s, t) => s + Number(t.amount || 0), 0);
+  const novoReserveTotal = (parseFloat(novoBalances.profit) || 0) + (parseFloat(novoBalances.ownerComp) || 0) + (parseFloat(novoBalances.taxes) || 0) + (parseFloat(novoBalances.opex) || 0);
+  const novoAvailable = novoRunningBalance - novoReserveTotal;
 
   if (loading) return (
     <div className="max-w-6xl mx-auto px-6 py-16 text-center">
