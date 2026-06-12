@@ -512,7 +512,7 @@ async function handleGetThumb(req, res) {
   }
 }
 // ── Shelly power monitoring ────────────────────────────────────────────────
-let shellySession = null; // { sessionId, orderId, lastWhReading, whAccumulated, intervalId }
+let shellySession = null; // { sessionId, orderId, lastWhReading, whAccumulated, intervalId, lowWattCount }
 
 async function getShellyStatus() {
   const r = await fetch(`http://${SHELLY_IP}/rpc/Switch.GetStatus?id=0`, { signal: AbortSignal.timeout(5000) });
@@ -539,7 +539,8 @@ async function pollShelly() {
   try {
     const data = await getShellyStatus();
     const currentWh = data.aenergy?.total ?? 0;
-    const watts = data.apower ?? 0;
+    // Use null check — don't treat a missing/null apower as 0W for auto-end purposes
+    const watts = typeof data.apower === "number" ? data.apower : null;
     // accumulate delta (handle counter reset)
     const delta = currentWh >= shellySession.lastWhReading
       ? currentWh - shellySession.lastWhReading
@@ -547,7 +548,14 @@ async function pollShelly() {
     shellySession.whAccumulated += delta;
     shellySession.lastWhReading = currentWh;
     const cost = (shellySession.whAccumulated / 1000) * ELECTRICITY_RATE_KWH;
-    const autoEnd = watts < 20 && shellySession.whAccumulated > 5; // <20W = truly off (not just between heater cycles); >5Wh = print actually started
+    // Track consecutive low-watt readings — require 3 in a row before auto-ending.
+    // Prevents false stops from heater cycles, momentary dips, or bad Shelly reads.
+    if (watts !== null && watts < 20 && shellySession.whAccumulated > 5) {
+      shellySession.lowWattCount = (shellySession.lowWattCount || 0) + 1;
+    } else {
+      shellySession.lowWattCount = 0;
+    }
+    const autoEnd = shellySession.lowWattCount >= 3;
     await supabasePatch("print_sessions", shellySession.sessionId, {
       wh_accumulated: Math.round(shellySession.whAccumulated * 100) / 100,
       electricity_cost: Math.round(cost * 10000) / 10000,
@@ -598,7 +606,7 @@ async function handleShellySessionStart(req, res) {
     const data = await getShellyStatus();
     const startWh = data.aenergy?.total ?? 0;
     const intervalId = setInterval(pollShelly, 60_000);
-    shellySession = { sessionId, orderId, lastWhReading: startWh, whAccumulated: 0, intervalId };
+    shellySession = { sessionId, orderId, lastWhReading: startWh, whAccumulated: 0, lowWattCount: 0, intervalId };
     console.log(`[shelly] session started — order ${orderId} session ${sessionId} startWh=${startWh}`);
     return send(res, 200, { ok: true, startWh, watts: data.apower ?? 0 });
   } catch (e) {

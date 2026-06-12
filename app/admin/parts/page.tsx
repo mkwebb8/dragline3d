@@ -97,9 +97,9 @@ function PrinterWidget({ token }: { token: string }) {
   const eta = progress > 0.01 ? (elapsed / progress - elapsed) : 0;
   const filename = (stats?.filename || vsd?.file_path || "").split("/").pop()?.replace(".gcode", "") || "";
   // Creality touchscreen prints bypass Moonraker job tracking — infer from nozzle temp alone
+  // Touchscreen prints bypass Moonraker entirely — target stays 0, only temperature rises
   const tempInferred = state !== "printing" &&
-    (extruder?.temperature || 0) > 150 &&
-    (extruder?.target || 0) > 0;
+    (extruder?.temperature || 0) > 150;
   const isActive = state === "printing" || tempInferred;
   const displayState = state === "printing" ? "PRINTING"
     : tempInferred ? "PRINTING*"
@@ -450,59 +450,4 @@ export default function PartsPage() {
                             style={{ background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)" }}>
                             save
                           </button>
-                          <button onClick={() => setEditingHours(s => { const n = { ...s }; delete n[part.id]; return n; })}
-                            className="font-mono text-xs text-steel hover:text-bone cursor-pointer">✕</button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-                    {PART_STATUSES.map(s => (
-                      <button key={s.value} disabled={saving[part.id]} onClick={() => updatePart(part.id, { part_status: s.value })}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-colors cursor-pointer"
-                        style={(part.part_status || "pending") === s.value
-                          ? { color: s.color, borderColor: s.color, background: `${s.color}15`, fontWeight: "bold" }
-                          : { border: "1px solid rgba(255,255,255,0.07)", color: "#5a5a5e" }}>
-                        {s.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-
-      {completedParts.length > 0 && (
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-2 h-2 rounded-full bg-green-500" />
-            <div className="font-mono text-xs tracking-widest text-green-500">COMPLETED</div>
-            <div className="font-mono text-xs text-steel">({completedParts.length})</div>
-          </div>
-          <div className="space-y-2 opacity-50">
-            {completedParts.map(part => (
-              <div key={part.id} className="rounded-xl px-4 py-3 flex items-center justify-between gap-4" style={glass}>
-                <div className="flex items-center gap-3 min-w-0">
-                  <CheckCircle2 size={16} className="text-green-400 flex-shrink-0" />
-                  <div>
-                    <div className="font-medium text-sm line-through text-steel truncate">
-                      {(part.qty || 1) > 1 && <span className="mr-1">{part.qty}×</span>}{part.file_name}
-                    </div>
-                    <div className="font-mono text-xs text-steel">{part.material} · {part.quality} · {part.order_id}</div>
-                  </div>
-                </div>
-                <button onClick={() => updatePart(part.id, { part_status: "printing", completed: false, printed_qty: 0 })}
-                  className="text-xs font-mono text-steel hover:text-bone transition-colors cursor-pointer px-2 py-1 rounded-lg"
-                  style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
-                  undo
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+                          <button onClick={() => setEditingHours(s => { const n = { ...s }; d
