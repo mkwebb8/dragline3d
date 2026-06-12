@@ -3,7 +3,7 @@ export const runtime = "edge";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Save, ExternalLink, FileText, Receipt, Package, CheckCircle2, Circle, Scissors, Printer, PlayCircle, Download, Zap, ZapOff, Activity } from "lucide-react";
+import { ArrowLeft, Save, ExternalLink, FileText, Receipt, Package, CheckCircle2, Circle, Scissors, Printer, PlayCircle, Download, Zap, ZapOff, Activity, PlusCircle } from "lucide-react";
 import type { CSSProperties } from "react";
 import BoxSelect from "@/components/BoxSelect"; // ← added
 
@@ -183,6 +183,20 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
     setSessionLoading(false);
   }
 
+  async function handleRunDone(item: any) {
+    const t = localStorage.getItem("dragline_admin_token"); if (!t) return;
+    const newPrintedQty = (item.printed_qty || 0) + 1;
+    const res = await fetch(`/api/admin/orders/${id}/items/${item.id}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ printed_qty: newPrintedQty }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setOrder((o: any) => ({ ...o, order_items: o.order_items.map((i: any) => i.id === item.id ? { ...i, ...updated } : i) }));
+    }
+  }
+
   async function downloadFile(fileName: string) {
     const t = localStorage.getItem("dragline_admin_token") || "";
     const res = await fetch(`/api/admin/orders/${id}/file?fileName=${encodeURIComponent(fileName)}`, { headers: { Authorization: `Bearer ${t}` } });
@@ -196,7 +210,7 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
 
   if (loading) return <div className="max-w-4xl mx-auto px-6 py-16 text-center"><div className="inline-block w-8 h-8 border-2 border-white/10 border-t-amber rounded-full animate-spin" /></div>;
   if (!order) return <div className="max-w-4xl mx-auto px-6 py-16 text-center text-bone/50">Order not found</div>;
-  const completedQty = order.order_items?.filter((i: any) => i.completed).reduce((s: number, i: any) => s + (i.qty || 1), 0) || 0;
+  const completedQty = order.order_items?.reduce((s: number, i: any) => s + (i.printed_qty || 0), 0) || 0;
   const totalCount = order.order_items?.reduce((s: number, i: any) => s + (i.qty || 1), 0) || 0;
   const COST_PER_KG: Record<string, number> = { PLA: 16, PETG: 18, TPU: 24, ABS: 20, ASA: 22, "PET-GF15": 30, "PETG-ESD": 66, PA: 35, "ASA-CF": 40, "PETG-CF": 40, "PA-CF": 80, PCTG: 29.95 };
   const totalGrams = order.order_items?.reduce((s: number, i: any) => s + (i.grams || 0) * (i.qty || 1), 0) || 0;
@@ -457,10 +471,26 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
                       className="text-steel hover:text-amber transition-colors flex-shrink-0">
                       <Download size={15} />
                     </button>
+                    {/* Progress badge for multi-run items */}
+                    {qty > 1 && (
+                      <span className="font-mono text-xs px-2 py-1 rounded-xl"
+                        style={{ background: "rgba(255,255,255,0.05)", color: (item.printed_qty || 0) >= qty ? "#22c55e" : "#f59e0b" }}>
+                        {item.printed_qty || 0}/{qty} done
+                      </span>
+                    )}
                     <span className="font-mono text-xs px-2 py-1 rounded-xl border"
                       style={{ color: cfg.color, borderColor: `${cfg.color}44`, background: `${cfg.color}11` }}>
                       {cfg.label}
                     </span>
+                    {/* Mark run done — only show if not all runs finished */}
+                    {(item.printed_qty || 0) < qty && (
+                      <button onClick={() => handleRunDone(item)}
+                        title="Mark one run as finished"
+                        className="flex items-center gap-1 px-2 py-1 rounded-xl font-mono text-xs text-green-400 hover:bg-green-500/20 transition-colors cursor-pointer"
+                        style={{ border: "1px solid rgba(34,197,94,0.3)" }}>
+                        <PlusCircle size={12} /> RUN DONE
+                      </button>
+                    )}
                     <div className={`font-display font-bold text-amber ${item.completed ? "opacity-50" : ""}`}>
                       ${(item.price * qty).toFixed(2)}
                       {qty > 1 && <span className="font-mono text-xs text-steel font-normal ml-1">${item.price?.toFixed(2)} ea</span>}
