@@ -60,26 +60,43 @@ export async function POST(request: Request) {
   const descIdx  = headers.findIndex(h => h.includes("description") || h.includes("desc") || h.includes("memo"));
   const catIdx   = headers.findIndex(h => h.includes("category") || h.includes("type"));
   const idIdx    = headers.findIndex(h => h === "id" || h.includes("transaction_id"));
+  const balIdx   = headers.findIndex(h => h.includes("balance"));
 
   if (dateIdx === -1 || amtIdx === -1) {
     return Response.json({ error: "Could not find required date/amount columns", headers }, { status: 400 });
   }
 
-  const records = rows.slice(1).map((row, i) => {
+  // Track seen IDs within this upload to handle same-day/same-amount/same-desc collisions
+  const seenIds = new Map<string, number>();
+
+  const records = rows.slice(1).map((row) => {
     const rawDate = row[dateIdx] || "";
     const rawAmt  = row[amtIdx] || "0";
     const amount  = parseFloat(rawAmt.replace(/[^0-9.\-]/g, ""));
-    // Build a stable ID from date+amount+description if no explicit ID column
-    const txnId = idIdx !== -1
-      ? row[idIdx]
-      : `novo-${rawDate}-${rawAmt}-${i}`.replace(/\s+/g, "").slice(0, 64);
+    const desc    = descIdx !== -1 ? (row[descIdx] || "") : "";
+    const rawBal  = balIdx !== -1 ? row[balIdx] || "" : "";
+    const balance = rawBal ? parseFloat(rawBal.replace(/[^0-9.\-]/g, "")) : null;
+
+    let txnId: string;
+    if (idIdx !== -1 && row[idIdx]) {
+      txnId = row[idIdx];
+    } else {
+      // Stable ID: date + parsed amount + first 28 chars of cleaned description
+      const cleanDesc = desc.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 28);
+      const baseId = `novo-${rawDate.replace(/\//g, "-")}-${isNaN(amount) ? "0" : amount.toFixed(2)}-${cleanDesc}`;
+      // Handle duplicate base IDs in the same file (e.g. two identical transactions same day)
+      const count = (seenIds.get(baseId) || 0) + 1;
+      seenIds.set(baseId, count);
+      txnId = count === 1 ? baseId : `${baseId}-${count}`;
+    }
 
     return {
       id:          txnId,
       date:        rawDate,
       amount:      isNaN(amount) ? 0 : amount,
-      description: descIdx !== -1 ? row[descIdx] : null,
-      category:    catIdx  !== -1 ? row[catIdx]  : null,
+      description: desc || null,
+      category:    catIdx !== -1 ? row[catIdx] : null,
+      ...(balance !== null && !isNaN(balance) ? { balance } : {}),
     };
   }).filter(r => r.date);
 

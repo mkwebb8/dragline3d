@@ -579,8 +579,12 @@ export default function AnalyticsPage() {
   const pendingPayouts = payouts.filter(p => p.status !== "PAID" && p.status !== "SENT" && p.status !== "FAILED");
   const pendingAmount = pendingPayouts.reduce((s, p) => s + Number(p.amount || 0), 0);
 
-  // Novo balance (sum of all imported transactions)
-  const novoRunningBalance = novoTxns.reduce((s, t) => s + Number(t.amount || 0), 0);
+  // Novo balance: use the stored balance from the most recent transaction if available,
+  // otherwise fall back to summing all transaction amounts
+  const latestBalance = novoTxns.length > 0 && novoTxns[0].balance != null
+    ? Number(novoTxns[0].balance)
+    : null;
+  const novoRunningBalance = latestBalance ?? novoTxns.reduce((s, t) => s + Number(t.amount || 0), 0);
 
   if (loading) return (
     <div className="max-w-6xl mx-auto px-6 py-16 text-center">
@@ -757,7 +761,7 @@ export default function AnalyticsPage() {
               <div className="rounded-lg p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                 <div className="font-mono text-[9px] text-steel mb-1">RUNNING BALANCE</div>
                 <div className={`font-display font-bold text-lg ${novoRunningBalance >= 0 ? "text-emerald-400" : "text-red-400"}`}>{fc(novoRunningBalance)}</div>
-                <div className="font-mono text-[9px] text-steel">from {novoTxns.length} txns</div>
+                <div className="font-mono text-[9px] text-steel">{latestBalance != null ? "from Novo balance col" : `sum of ${novoTxns.length} txns`}</div>
               </div>
               <div className="rounded-lg p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                 <div className="font-mono text-[9px] text-steel mb-1">IN RESERVE</div>
