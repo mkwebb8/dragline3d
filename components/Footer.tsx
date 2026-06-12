@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { Facebook } from "lucide-react";
 import { DraglineMark } from "./DraglineMark";
+
+const FACEBOOK_URL = "https://www.facebook.com/profile.php?id=61575934810729";
 export function Footer() {
   return (
     <footer className="mt-24 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
@@ -51,6 +54,13 @@ export function Footer() {
               <li>info@dragline3d.com</li>
               <li>Louisville, KY</li>
               <li className="text-bone/30 text-xs pt-1">Local pickup available</li>
+              <li className="pt-1">
+                <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-bone/50 hover:text-bone transition-colors duration-150 cursor-pointer">
+                  <Facebook size={13} />
+                  Facebook
+                </a>
+              </li>
             </ul>
           </div>
         </div>
