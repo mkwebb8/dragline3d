@@ -1,8 +1,8 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { RefreshCw, Clock, CheckCircle2, Printer, Thermometer, Layers, List, Minus, Plus } from "lucide-react";
+import { RefreshCw, Clock, CheckCircle2, Printer, Thermometer, Layers, List, Minus, Plus, Zap } from "lucide-react";
 import type { CSSProperties } from "react";
 
 const glass: CSSProperties = {
@@ -46,20 +46,42 @@ function hmToHours(h: number, m: number): number {
 function PrinterWidget({ token }: { token: string }) {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState(false);
+  const [shellyData, setShellyData] = useState<any>(null);
+  const lastAutoRef = useRef<string>("");
 
   const fetchPrinter = useCallback(async () => {
     try {
       const res = await fetch("/api/printer", { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) { setError(true); return; }
-      setData(await res.json()); setError(false);
+      const json = await res.json();
+      setData(json); setError(false);
+      // Auto-status: if printing and filename changed, try to match order
+      const fname = json.print_stats?.filename?.split("/").pop() || "";
+      if (json.print_stats?.state === "printing" && fname && fname !== lastAutoRef.current) {
+        lastAutoRef.current = fname;
+        fetch("/api/admin/printer/auto-status", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: fname, state: "printing" }),
+        }).catch(() => {});
+      }
     } catch { setError(true); }
   }, [token]);
 
+  const fetchShelly = useCallback(async () => {
+    try {
+      const res = await fetch("/api/shelly/power");
+      if (res.ok) setShellyData(await res.json());
+    } catch { /* shelly optional */ }
+  }, []);
+
   useEffect(() => {
     fetchPrinter();
-    const interval = setInterval(fetchPrinter, 10000);
-    return () => clearInterval(interval);
-  }, [fetchPrinter]);
+    fetchShelly();
+    const p = setInterval(fetchPrinter, 10000);
+    const s = setInterval(fetchShelly, 15000);
+    return () => { clearInterval(p); clearInterval(s); };
+  }, [fetchPrinter, fetchShelly]);
 
   if (error || !data) {
     return (
@@ -75,6 +97,8 @@ function PrinterWidget({ token }: { token: string }) {
   const eta = progress > 0.01 ? (elapsed / progress - elapsed) : 0;
   const filename = stats?.filename?.split("/").pop()?.replace(".gcode", "") || "";
   const isActive = state === "printing";
+  const watts: number | null = shellyData?.apower ?? null;
+  const activeSession = shellyData?.active_session ?? null;
 
   return (
     <div className="mb-6 rounded-xl overflow-hidden" style={glass}>
@@ -86,6 +110,12 @@ function PrinterWidget({ token }: { token: string }) {
             style={isActive ? {} : innerCell}>
             {state.toUpperCase()}
           </span>
+          {watts !== null && (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-xs font-bold text-yellow-400"
+              style={{ background: "rgba(250,204,21,0.12)" }}>
+              <Zap size={9} /> {watts.toFixed(0)}W
+            </span>
+          )}
         </div>
         {isActive && filename && <span className="font-mono text-xs text-steel truncate max-w-xs">{filename}</span>}
       </div>
@@ -114,6 +144,18 @@ function PrinterWidget({ token }: { token: string }) {
               </div>
             ))}
           </div>
+          {activeSession && (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-xl" style={innerCell}>
+                <div className="font-mono text-xs text-steel mb-1 flex items-center gap-1"><Zap size={10} /> Session Wh</div>
+                <div className="font-display font-bold text-sm">{Number(activeSession.wh_accumulated).toFixed(1)} Wh</div>
+              </div>
+              <div className="p-3 rounded-xl" style={innerCell}>
+                <div className="font-mono text-xs text-steel mb-1 flex items-center gap-1"><Zap size={10} /> Elec. Cost</div>
+                <div className="font-display font-bold text-sm text-green-400">${Number(activeSession.electricity_cost).toFixed(4)}</div>
+              </div>
+            </div>
+          )}
           {vsd?.layer > 0 && (
             <div className="mt-2 font-mono text-xs text-steel flex items-center gap-1">
               <Layers size={10} /> Layer {vsd.layer} · Z {stats?.z_pos?.toFixed(2)}mm
@@ -123,9 +165,10 @@ function PrinterWidget({ token }: { token: string }) {
       )}
 
       {!isActive && (
-        <div className="px-4 py-3 grid grid-cols-2 gap-3">
+        <div className="px-4 py-3 flex flex-wrap gap-4">
           <div className="font-mono text-xs text-steel flex items-center gap-1.5"><Thermometer size={10} /> Nozzle: {extruder?.temperature?.toFixed(0)}°C</div>
           <div className="font-mono text-xs text-steel flex items-center gap-1.5"><Thermometer size={10} /> Bed: {bed?.temperature?.toFixed(0)}°C</div>
+          {watts !== null && <div className="font-mono text-xs text-yellow-400/70 flex items-center gap-1.5"><Zap size={10} /> {watts.toFixed(0)}W draw</div>}
         </div>
       )}
     </div>
