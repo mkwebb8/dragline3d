@@ -230,19 +230,15 @@ export default function QuotePage() {
               setStats({ dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: vol });
               setGeometry(geo);
               setIsStepFile(false);
-              if (isVolume) {
-                // Volume mode: use geometry volume for pricing instead of slicer estimate
-                if (Math.max(size.x, size.y, size.z) > 350) {
-                  setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (350×350×350mm)`);
-                } else {
-                  setCurrentQuote(quoteFromGeometry(vol, mat, q, inf, livePricing[mat]));
-                }
+              if (Math.max(size.x, size.y, size.z) > 350) {
+                setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (350×350×350mm)`);
               } else {
+                // STEP files: slicer already ran for conversion, use its accurate output regardless of pricing mode
                 setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
               }
             } catch(e) {
               console.warn("Could not parse converted STL for preview", e);
-              if (!isVolume) setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
+              setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
             }
           } else if (!isVolume) {
             setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
@@ -266,6 +262,37 @@ export default function QuotePage() {
     if (!isVolume && slicerComplete && file) runSlicer(file, mat, q, inf);
   }
 
+  async function convertStepForPreview(f: File, mat: MaterialKey, q: QualityKey, inf: number) {
+    setSlicerLoading(true); setSlicerFailed(false); setSlicerTooLarge(null);
+    try {
+      const form = new FormData();
+      form.append("step", f);
+      const r = await fetch("/api/convert-step", { method: "POST", body: form });
+      const data = await r.json();
+      if (!data.stl) {
+        setSlicerFailed(true); setParsing(false);
+        return;
+      }
+      const bytes = Uint8Array.from(atob(data.stl), c => c.charCodeAt(0));
+      const geo = parseSTL(bytes.buffer);
+      geo.computeBoundingBox();
+      const size = new THREE.Vector3(); geo.boundingBox!.getSize(size);
+      const vol = computeVolume(geo);
+      setStats({ dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: vol });
+      setGeometry(geo); setIsStepFile(false);
+      if (Math.max(size.x, size.y, size.z) > 350) {
+        setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (350×350×350mm)`);
+      } else {
+        setCurrentQuote(quoteFromGeometry(vol, mat, q, inf, livePricing[mat]));
+        setSlicerComplete(true);
+      }
+    } catch {
+      setSlicerFailed(true);
+    } finally {
+      setSlicerLoading(false); setParsing(false);
+    }
+  }
+
   async function handleFile(f: File | undefined) {
     if (!f) return;
     if (!/\.(stl|3mf|step|stp)$/i.test(f.name)) { setFileError("STL, 3MF, or STEP files only."); return; }
@@ -273,9 +300,10 @@ export default function QuotePage() {
     setCurrentQuote(null); setCurrentThumbnail(null); setSlicerFailed(false); setSlicerTooLarge(null); setSlicerComplete(false);
 
     if (/\.(step|stp)$/i.test(f.name)) {
-      setIsStepFile(true); setParsing(false);
+      setIsStepFile(true); setParsing(true);
       setStats({ dims: { x: 0, y: 0, z: 0 }, volumeMm3: 0 });
-      runSlicer(f, material, quality, infill);
+      // Fast path: convert STEP→STL only (no full slice), then price from volume
+      convertStepForPreview(f, material, quality, infill);
       return;
     }
 
