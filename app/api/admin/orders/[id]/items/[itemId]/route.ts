@@ -14,6 +14,15 @@ export async function PATCH(request:Request,{params}:{params:{id:string,itemId:s
   const updates:Record<string,any>={};
   for(const k of allowed)if(body[k]!==undefined)updates[k]=body[k];
 
+  // If printed_qty provided, auto-derive part_status and completed from qty
+  if(typeof updates.printed_qty==="number"){
+    const qRes=await sb(`order_items?id=eq.${params.itemId}&select=qty`);
+    if(qRes.ok){const[row]=await qRes.json();const totalQty=row?.qty||1;
+      if(updates.printed_qty>=totalQty){updates.part_status="completed";updates.completed=true;}
+      else if(updates.printed_qty>0&&!updates.part_status){updates.part_status="printing";}
+    }
+  }
+
   // Keep completed in sync with part_status
   if(updates.part_status==="completed")updates.completed=true;
   else if(updates.part_status&&updates.part_status!=="completed")updates.completed=false;
