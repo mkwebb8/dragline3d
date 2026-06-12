@@ -218,6 +218,7 @@ export default function AdminOrders() {
             { href: "/admin/inventory", label: "INVENTORY" },
             { href: "/admin/gallery", label: "GALLERY" },
             { href: "/admin/manual-quote", label: "MANUAL QUOTE" },
+            { href: "/admin/packing-slip/manual", label: "PACKING SLIP" },
           ].map(({ href, label }) => (
             <Link key={href} href={href}
               className="flex items-center gap-2 px-3 py-2 rounded-xl font-mono text-xs text-bone/60 hover:text-bone transition-colors cursor-pointer"

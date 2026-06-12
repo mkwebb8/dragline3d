@@ -109,8 +109,8 @@ function exportCSV(rows: any[], filename: string) {
 export default function AnalyticsPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [goveeWatts, setGoveeWatts] = useState<number | null>(null);
-  const [goveeOn, setGoveeOn] = useState<boolean | null>(null);
+  const [shellyWatts, setShellyWatts] = useState<number | null>(null);
+  const [shellyWhTotal, setShellyWhTotal] = useState<number | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [novoBalances, setNovoBalances] = useState({ profit: "", ownerComp: "", taxes: "", opex: "" });
@@ -147,9 +147,9 @@ export default function AnalyticsPage() {
       .then(r => r.ok ? r.json() : [])
       .then(data => setBoxes(data))
       .catch(() => {});
-    fetch("/api/admin/govee").then(r => r.ok ? r.json() : null).then(data => {
-      if (data?.watts !== undefined) setGoveeWatts(data.watts);
-      if (data?.on !== undefined) setGoveeOn(data.on);
+    fetch("/api/shelly/power").then(r => r.ok ? r.json() : null).then(data => {
+      if (data?.watts !== undefined) setShellyWatts(data.watts);
+      if (data?.wh_total !== undefined) setShellyWhTotal(data.wh_total);
     }).catch(() => {});
     const saved = localStorage.getItem("novo_balances");
     if (saved) setNovoBalances(JSON.parse(saved));
@@ -665,18 +665,19 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Govee */}
-      {(goveeWatts !== null || goveeOn !== null) && (
+      {/* Shelly */}
+      {shellyWatts !== null && (
         <div className="mb-6 rounded-xl p-4 flex items-center gap-4"
-          style={goveeOn
+          style={shellyWatts > 10
             ? { ...glass, border: "1px solid rgba(249,115,22,0.40)", background: "rgba(249,115,22,0.05)" }
             : glass}>
-          <Zap size={16} className={goveeOn ? "text-orange-400" : "text-steel"} />
+          <Zap size={16} className={shellyWatts > 10 ? "text-orange-400" : "text-steel"} />
           <div className="flex items-center gap-4 font-mono text-sm flex-wrap">
             <span className="text-steel">PRINTER OUTLET</span>
-            <span className={`font-bold ${goveeOn ? "text-orange-400" : "text-steel"}`}>{goveeOn ? "ON" : "STANDBY"}</span>
-            {goveeWatts !== null && goveeWatts > 0 && <span className="text-amber font-bold">{goveeWatts}W live</span>}
-            {goveeWatts !== null && goveeWatts > 0 && <span className="text-steel">{fc((goveeWatts / 1000) * ELECTRICITY_RATE)}/hr</span>}
+            <span className={`font-bold ${shellyWatts > 10 ? "text-orange-400" : "text-steel"}`}>{shellyWatts > 10 ? "PRINTING" : "STANDBY"}</span>
+            {shellyWatts > 0 && <span className="text-amber font-bold">{shellyWatts}W live</span>}
+            {shellyWatts > 0 && <span className="text-steel">{fc((shellyWatts / 1000) * ELECTRICITY_RATE)}/hr</span>}
+            {shellyWhTotal !== null && shellyWhTotal > 0 && <span className="text-steel">{(shellyWhTotal / 1000).toFixed(2)} kWh total · {fc((shellyWhTotal / 1000) * ELECTRICITY_RATE)}</span>}
           </div>
         </div>
       )}
