@@ -17,10 +17,14 @@ function supabase(path: string, opts: RequestInit = {}) {
   });
 }
 
-// Extract order ID from gcode filename (e.g. "DL-20260610-ABZY_part.gcode" → "DL-20260610-ABZY")
-function extractOrderId(filename: string): string | null {
-  const m = filename.match(/DL-\d{8}-[A-Z0-9]{4}/i);
-  return m ? m[0].toUpperCase() : null;
+// Normalize a filename for fuzzy comparison:
+// strip extension, lowercase, collapse non-alphanumeric runs to a single space
+function normalize(s: string) {
+  return s
+    .replace(/\.[^.]+$/, "")        // strip extension
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")    // non-alphanumeric → space
+    .trim();
 }
 
 export async function POST(request: Request) {
@@ -32,21 +36,37 @@ export async function POST(request: Request) {
   const { filename = "", state } = body;
   if (!filename || state !== "printing") return Response.json({ matched: false, reason: "not printing" });
 
-  const orderId = extractOrderId(filename);
-  if (!orderId) return Response.json({ matched: false, reason: "no order ID in filename", filename });
+  const normalizedGcode = normalize(filename);
 
   try {
-    // Fetch the order
-    const r = await supabase(`orders?id=eq.${orderId}&select=id,status&limit=1`);
+    // Fetch all order_items for active orders (queued or printing) with their order status
+    const r = await supabase(
+      "order_items?select=id,order_id,file_name,orders!inner(id,status)&orders.status=in.(queued,printing,received)",
+    );
     if (!r.ok) throw new Error(await r.text());
-    const rows = await r.json();
-    if (!rows.length) return Response.json({ matched: false, reason: "order not found", orderId });
+    const items: any[] = await r.json();
 
-    const order = rows[0];
+    // Find the item whose normalized file_name best matches the gcode filename
+    const matched = items.find((item) => {
+      const normalizedItem = normalize(item.file_name || "");
+      // Exact match after normalization, or one contains the other
+      return (
+        normalizedItem === normalizedGcode ||
+        normalizedItem.includes(normalizedGcode) ||
+        normalizedGcode.includes(normalizedItem)
+      );
+    });
+
+    if (!matched) {
+      return Response.json({ matched: false, reason: "no matching file_name", filename, normalized: normalizedGcode });
+    }
+
+    const orderId = matched.order_id;
+    const orderStatus = matched.orders?.status ?? matched.orders?.[0]?.status;
     const actions: string[] = [];
 
-    // Flip status to printing if it's still queued
-    if (order.status === "queued") {
+    // Flip order status to printing if still queued/received
+    if (orderStatus === "queued" || orderStatus === "received") {
       const upd = await supabase(`orders?id=eq.${orderId}`, {
         method: "PATCH",
         body: JSON.stringify({ status: "printing" }),
@@ -62,7 +82,6 @@ export async function POST(request: Request) {
     if (sessR.ok) {
       const sessions = await sessR.json();
       if (!sessions.length) {
-        // No active session — create one and tell the slicer worker to start tracking
         const newSess = await supabase("print_sessions", {
           method: "POST",
           body: JSON.stringify({ order_id: orderId, status: "active" }),
@@ -70,9 +89,8 @@ export async function POST(request: Request) {
         if (newSess.ok) {
           const [session] = await newSess.json();
           actions.push("session_created");
-          // Fire-and-forget to slicer worker to start Shelly tracking
           const workerUrl = process.env.SLICER_WORKER_URL;
-          if (workerUrl) {
+          if (workerUrl && session?.id) {
             fetch(`${workerUrl}/shelly/session/start`, {
               method: "POST",
               headers: {
@@ -81,13 +99,15 @@ export async function POST(request: Request) {
               },
               body: JSON.stringify({ sessionId: session.id, orderId }),
             }).catch(() => {});
+            actions.push("shelly_session_started");
           }
-          actions.push("shelly_session_started");
         }
+      } else {
+        actions.push("session_already_active");
       }
     }
 
-    return Response.json({ matched: true, orderId, previousStatus: order.status, actions });
+    return Response.json({ matched: true, orderId, matchedFile: matched.file_name, previousStatus: orderStatus, actions });
   } catch (e: any) {
     return Response.json({ error: e.message }, { status: 500 });
   }
