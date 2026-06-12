@@ -95,8 +95,13 @@ function PrinterWidget({ token }: { token: string }) {
   const stats = data.print_stats; const vsd = data.virtual_sdcard; const bed = data.heater_bed; const extruder = data.extruder;
   const state: string = stats?.state || "standby"; const progress = vsd?.progress || 0; const elapsed = stats?.print_duration || 0;
   const eta = progress > 0.01 ? (elapsed / progress - elapsed) : 0;
-  const filename = stats?.filename?.split("/").pop()?.replace(".gcode", "") || "";
-  const isActive = state === "printing";
+  const filename = (stats?.filename || vsd?.file_path || "").split("/").pop()?.replace(".gcode", "") || "";
+  // Creality touchscreen prints bypass Moonraker job tracking — infer from progress + nozzle temp
+  const isActive = state === "printing" || (
+    (state === "standby" || state === "ready") &&
+    (vsd?.progress || 0) > 0.005 &&
+    (extruder?.target || 0) > 100
+  );
   const watts: number | null = shellyData?.apower ?? null;
   const activeSession = shellyData?.active_session ?? null;
 

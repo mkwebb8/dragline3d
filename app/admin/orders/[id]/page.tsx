@@ -398,12 +398,21 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
               <span><span className="text-steel">Energy: </span><span className="text-yellow-300">{Number(printSession.wh_accumulated || 0).toFixed(1)} Wh</span></span>
               <span><span className="text-steel">Cost: </span><span className="text-yellow-300">${Number(printSession.electricity_cost || 0).toFixed(4)}</span></span>
             </div>
-            {printSession.status === "active" && (
-              <button onClick={handleStopPrint} disabled={sessionLoading}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl font-display font-bold text-sm text-white bg-red-600 hover:bg-red-500 transition-colors cursor-pointer disabled:opacity-50 mt-2">
-                <ZapOff size={14} />{sessionLoading ? "STOPPING…" : "STOP PRINT"}
-              </button>
-            )}
+            <div className="flex gap-2 mt-2">
+              {printSession.status === "active" && (
+                <button onClick={handleStopPrint} disabled={sessionLoading}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl font-display font-bold text-sm text-white bg-red-600 hover:bg-red-500 transition-colors cursor-pointer disabled:opacity-50">
+                  <ZapOff size={14} />{sessionLoading ? "STOPPING…" : "STOP PRINT"}
+                </button>
+              )}
+              {printSession.status !== "active" && (
+                <button onClick={handleStartPrint} disabled={sessionLoading}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl font-display font-bold text-sm text-ironworks cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-50"
+                  style={{ background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)" }}>
+                  <Zap size={14} />{sessionLoading ? "STARTING…" : "NEW SESSION"}
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="flex items-center gap-4">
@@ -412,7 +421,7 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
               style={{ background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)" }}>
               <Zap size={14} />{sessionLoading ? "STARTING…" : "START PRINT"}
             </button>
-            <span className="text-xs font-mono text-steel">Tracks electricity via Shelly at {/* ip masked */}192.168.68.83</span>
+            <span className="text-xs font-mono text-steel">Tracks electricity via Shelly at 192.168.68.83</span>
           </div>
         )}
         {sessionError && <div className="text-xs text-red-400 font-mono mt-2">{sessionError}</div>}
