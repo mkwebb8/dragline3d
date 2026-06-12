@@ -488,7 +488,7 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
                         {qty > 1 && <span className="font-mono text-amber font-bold mr-1.5">{qty}×</span>}
                         {item.file_name}
                       </div>
-                      <div className="font-mono text-xs text-steel mt-1">{item.material} · {item.quality} · {item.infill}% · {item.grams}g ea · {item.hours}h ea</div>
+                      <div className="font-mono text-xs text-steel mt-1">{item.material} · {item.quality} · {item.infill}% · {item.grams}g ea · {(item.print_hours || item.hours || 0).toFixed(2)}h ea{item.print_hours ? <span className="text-amber ml-1">✓actual</span> : null}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
