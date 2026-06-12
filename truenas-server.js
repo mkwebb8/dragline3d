@@ -163,7 +163,7 @@ async function runSlice(stlPath, material, quality, infill, workDir) {
   const processPro = resolveProfile(PROCESS_PROFILES[quality]);
   if (!processPro) throw new Error(`Process profile for '${quality}' not found`);
   const gcodeOut = path.join(workDir, "plate_1.gcode");
-  const walls = infill > 30 ? 3 : 2;
+  const walls = Math.round(infill / 10); // 20%→2, 40%→4, 60%→6, 80%→8, 100%→10
   const args = [
     "--slice", "0",
     "--arrange", "1",

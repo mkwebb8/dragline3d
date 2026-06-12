@@ -70,7 +70,7 @@ export default function QuotePage() {
   const [stats, setStats]                   = useState<Stats | null>(null);
   const [material, setMaterial]             = useState<MaterialKey>("PLA");
   const [quality, setQuality]               = useState<QualityKey>("standard");
-  const [infill, setInfill]                 = useState(15);
+  const [infill, setInfill]                 = useState(20);
   const [qty, setQty]                       = useState(1);
   const [color, setColor]                   = useState("Midnight Black");
   const [currentQuote, setCurrentQuote]     = useState<Quote | null>(null);
@@ -270,7 +270,7 @@ export default function QuotePage() {
     setCartItems(prev => [...prev, { id: genId(), file, fileName: file.name, material, quality, infill, qty, color, stats, quote: currentQuote, geometry: geometry || null, thumbnail: currentThumbnail || undefined }]);
     setCurrentThumbnail(null);
     setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null); setIsStepFile(false);
-    setMaterial("PLA"); setQuality("standard"); setInfill(15); setQty(1); setColor("Midnight Black");
+    setMaterial("PLA"); setQuality("standard"); setInfill(20); setQty(1); setColor("Midnight Black");
     setSlicerComplete(false); setSlicerFailed(false); setSlicerTooLarge(null);
     setShippingRates([]); setSelectedRateId(null);
   }
@@ -491,12 +491,12 @@ export default function QuotePage() {
                 <div className="mb-6">
                   <div className="flex justify-between items-baseline mb-3">
                     <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel">Infill</div>
-                    <div className="font-mono text-sm font-bold" style={{ color: "#ffb547" }}>{infill}%</div>
+                    <div className="font-mono text-sm font-bold" style={{ color: "#ffb547" }}>{infill}% · {infill / 10} walls</div>
                   </div>
-                  <input type="range" min="5" max="100" step="5" value={infill}
+                  <input type="range" min="20" max="100" step="20" value={infill}
                     onChange={e => { const v = +e.target.value; setInfill(v); recalc(stats, material, quality, v); }}
                     className="w-full" />
-                  <div className="flex justify-between font-mono text-[9px] mt-1.5 text-steel"><span>LIGHT</span><span>SOLID</span></div>
+                  <div className="flex justify-between font-mono text-[9px] mt-1.5 text-steel"><span>20% · 2w</span><span>60% · 6w</span><span>100% · 10w</span></div>
                 </div>
                 <div className="mb-7">
                   <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-3">Quantity</div>
@@ -661,9 +661,9 @@ export default function QuotePage() {
                             <div>
                               <div className="flex justify-between items-baseline mb-1">
                                 <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel">Infill</div>
-                                <div className="font-mono text-xs font-bold" style={{ color: "#ffb547" }}>{item.infill}%</div>
+                                <div className="font-mono text-xs font-bold" style={{ color: "#ffb547" }}>{item.infill}% · {item.infill / 10} walls</div>
                               </div>
-                              <input type="range" min="5" max="100" step="5" value={item.infill}
+                              <input type="range" min="20" max="100" step="20" value={item.infill}
                                 onChange={e => {
                                   const v = +e.target.value;
                                   setCartItems(prev => prev.map(i => i.id === item.id ? { ...i, infill: v } : i));
@@ -671,7 +671,7 @@ export default function QuotePage() {
                                 onMouseUp={e => resliceCartItem(item.id, item.material, item.quality, +(e.target as HTMLInputElement).value)}
                                 onTouchEnd={e => resliceCartItem(item.id, item.material, item.quality, +(e.currentTarget as HTMLInputElement).value)}
                                 className="w-full" />
-                              <div className="flex justify-between font-mono text-[9px] mt-1 text-steel"><span>LIGHT</span><span>SOLID</span></div>
+                              <div className="flex justify-between font-mono text-[9px] mt-1 text-steel"><span>20% · 2w</span><span>60% · 6w</span><span>100% · 10w</span></div>
                             </div>
                             {isReslicing && (
                               <div className="flex items-center gap-2 text-amber/60 font-mono text-[10px]">
