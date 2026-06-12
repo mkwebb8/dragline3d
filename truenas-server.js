@@ -757,7 +757,7 @@ const server = http.createServer(async (req, res) => {
     const secret = req.headers["x-worker-secret"];
     if (WORKER_SECRET && secret !== WORKER_SECRET) return send(res, 401, { error: "Unauthorized" });
     try {
-      const r = await fetch(`${MOONRAKER_URL}/printer/objects/query?print_stats&virtual_sdcard&heater_bed&extruder`);
+      const r = await fetch("http://192.168.68.59:7125/printer/objects/query?print_stats&virtual_sdcard&heater_bed&extruder");
       const data = await r.json();
       return send(res, 200, data.result?.status || {});
     } catch(e) { return send(res, 503, { error: "Printer unreachable" }); }
