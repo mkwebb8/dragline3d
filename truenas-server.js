@@ -512,7 +512,11 @@ async function handleGetThumb(req, res) {
   }
 }
 // ── Shelly power monitoring ────────────────────────────────────────────────
-let shellySession = null; // { sessionId, orderId, lastWhReading, whAccumulated, intervalId, lowWattCount }
+// Always-on: polls every 30s regardless of session state so live watts are
+// available in the admin UI at all times. Session tracking is optional on top.
+let shellySession = null; // { sessionId, orderId, lastWhReading, whAccumulated, lowWattCount }
+let shellyLiveWatts = null;  // last known wattage, for /shelly/power responses
+let shellyLiveWh = 0;        // last known total Wh counter
 
 async function getShellyStatus() {
   const r = await fetch(`http://${SHELLY_IP}/rpc/Switch.GetStatus?id=0`, { signal: AbortSignal.timeout(5000) });
@@ -535,21 +539,24 @@ async function supabasePatch(table, id, data) {
 }
 
 async function pollShelly() {
-  if (!shellySession) return;
   try {
     const data = await getShellyStatus();
     const currentWh = data.aenergy?.total ?? 0;
-    // Use null check — don't treat a missing/null apower as 0W for auto-end purposes
     const watts = typeof data.apower === "number" ? data.apower : null;
-    // accumulate delta (handle counter reset)
+    shellyLiveWatts = watts;
+    shellyLiveWh = currentWh;
+
+    if (!shellySession) return; // no session — just update live readings and stop
+
+    // Accumulate session Wh (handle counter reset)
     const delta = currentWh >= shellySession.lastWhReading
       ? currentWh - shellySession.lastWhReading
       : currentWh;
     shellySession.whAccumulated += delta;
     shellySession.lastWhReading = currentWh;
     const cost = (shellySession.whAccumulated / 1000) * ELECTRICITY_RATE_KWH;
-    // Track consecutive low-watt readings — require 3 in a row before auto-ending.
-    // Prevents false stops from heater cycles, momentary dips, or bad Shelly reads.
+
+    // Require 3 consecutive low-watt reads before auto-ending (avoids heater-cycle false stops)
     if (watts !== null && watts < 20 && shellySession.whAccumulated > 5) {
       shellySession.lowWattCount = (shellySession.lowWattCount || 0) + 1;
     } else {
@@ -563,13 +570,16 @@ async function pollShelly() {
     });
     if (autoEnd) {
       console.log(`[shelly] auto-ended session ${shellySession.sessionId} — ${shellySession.whAccumulated.toFixed(1)}Wh $${cost.toFixed(4)}`);
-      clearInterval(shellySession.intervalId);
       shellySession = null;
     }
   } catch (e) {
     console.error("[shelly] poll error:", e.message);
   }
 }
+
+// Start always-on poll at server boot
+setInterval(pollShelly, 30_000);
+pollShelly(); // immediate first read
 
 async function readJsonBody(req) {
   return new Promise((resolve, reject) => {
@@ -582,33 +592,26 @@ async function readJsonBody(req) {
 
 async function handleShellyPower(req, res) {
   if (WORKER_SECRET && req.headers["x-worker-secret"] !== WORKER_SECRET) return send(res, 401, { error: "Unauthorized" });
-  try {
-    const data = await getShellyStatus();
-    return send(res, 200, {
-      watts: data.apower ?? 0,
-      voltage: data.voltage ?? 0,
-      current: data.current ?? 0,
-      wh_total: data.aenergy?.total ?? 0,
-      active_session: shellySession ? { sessionId: shellySession.sessionId, orderId: shellySession.orderId, wh_accumulated: shellySession.whAccumulated } : null,
-    });
-  } catch (e) {
-    return send(res, 503, { error: "Shelly unreachable", detail: e.message });
-  }
+  // Return cached values from always-on poll — no live fetch needed here
+  return send(res, 200, {
+    apower: shellyLiveWatts,
+    watts: shellyLiveWatts ?? 0,
+    wh_total: shellyLiveWh,
+    active_session: shellySession ? { sessionId: shellySession.sessionId, orderId: shellySession.orderId, wh_accumulated: shellySession.whAccumulated } : null,
+  });
 }
 
 async function handleShellySessionStart(req, res) {
   if (WORKER_SECRET && req.headers["x-worker-secret"] !== WORKER_SECRET) return send(res, 401, { error: "Unauthorized" });
   const { sessionId, orderId } = await readJsonBody(req);
   if (!sessionId || !orderId) return send(res, 400, { error: "sessionId and orderId required" });
-  // clear any existing session
-  if (shellySession?.intervalId) clearInterval(shellySession.intervalId);
+  // clear any existing session (global poll keeps running)
+  shellySession = null;
   try {
-    const data = await getShellyStatus();
-    const startWh = data.aenergy?.total ?? 0;
-    const intervalId = setInterval(pollShelly, 60_000);
-    shellySession = { sessionId, orderId, lastWhReading: startWh, whAccumulated: 0, lowWattCount: 0, intervalId };
+    const startWh = shellyLiveWh; // use cached value — no extra fetch needed
+    shellySession = { sessionId, orderId, lastWhReading: startWh, whAccumulated: 0, lowWattCount: 0 };
     console.log(`[shelly] session started — order ${orderId} session ${sessionId} startWh=${startWh}`);
-    return send(res, 200, { ok: true, startWh, watts: data.apower ?? 0 });
+    return send(res, 200, { ok: true, startWh, watts: shellyLiveWatts ?? 0 });
   } catch (e) {
     return send(res, 503, { error: "Shelly unreachable", detail: e.message });
   }
@@ -619,7 +622,6 @@ async function handleShellySessionStop(req, res) {
   if (!shellySession) return send(res, 200, { ok: true, wh_accumulated: 0, electricity_cost: 0, message: "No active session" });
   const wh = shellySession.whAccumulated;
   const cost = (wh / 1000) * ELECTRICITY_RATE_KWH;
-  clearInterval(shellySession.intervalId);
   const stoppedSessionId = shellySession.sessionId;
   await supabasePatch("print_sessions", stoppedSessionId, {
     wh_accumulated: Math.round(wh * 100) / 100,
@@ -667,15 +669,4 @@ const server = http.createServer(async (req, res) => {
   if (req.url.startsWith("/get-file") && req.method === "GET") return handleGetFile(req, res);
   if (req.url.startsWith("/get-thumb") && req.method === "GET") return handleGetThumb(req, res);
   if (req.url === "/shelly/power" && req.method === "GET") return handleShellyPower(req, res);
-  if (req.url === "/shelly/session/start" && req.method === "POST") return handleShellySessionStart(req, res);
-  if (req.url === "/shelly/session/stop" && req.method === "POST") return handleShellySessionStop(req, res);
-  if (req.url === "/shelly/session/status" && req.method === "GET") return handleShellySessionStatus(req, res);
-  send(res, 404, { error: "Not found" });
-});
-server.listen(PORT, () => {
-  console.log(`Dragline slicer worker on :${PORT}`);
-  console.log(`OrcaSlicer: ${ORCA_BIN}`);
-  console.log(`Profiles: ${PROFILES_ROOT}`);
-  console.log(`Files root: ${FILES_ROOT}`);
-  if (WORKER_SECRET) console.log("Secret: set");
-});
+  if (req.url === "/shelly/session/start" && req.method === "POST") return 
