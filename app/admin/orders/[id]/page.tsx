@@ -3,7 +3,7 @@ export const runtime = "edge";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Save, ExternalLink, FileText, Receipt, Package, CheckCircle2, Circle, Scissors, Printer, PlayCircle, Download, Upload, Zap, ZapOff, Activity, PlusCircle } from "lucide-react";
+import { ArrowLeft, Save, ExternalLink, FileText, Receipt, Package, CheckCircle2, Circle, Scissors, Printer, PlayCircle, Download, Upload, PlusCircle } from "lucide-react";
 import type { CSSProperties } from "react";
 import BoxSelect from "@/components/BoxSelect"; // ← added
 
@@ -62,11 +62,10 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
   const [labelError, setLabelError] = useState<string | null>(null);
   const [token, setToken] = useState(""); // ← added for BoxSelect
   const [boxes, setBoxes] = useState<any[]>([]);
-  // print session / shelly
-  const [printSession, setPrintSession] = useState<any>(null); // active session from Supabase
-  const [sessionLoading, setSessionLoading] = useState(false);
-  const [liveWatts, setLiveWatts] = useState<number | null>(null);
-  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [showAddPart, setShowAddPart] = useState(false);
+  const [addingPart, setAddingPart] = useState(false);
+  const [addPartFile, setAddPartFile] = useState<File | null>(null);
+  const [addPartFields, setAddPartFields] = useState({ material: "PETG", color: "", quality: "Standard", infill: "15", qty: "1", grams: "", hours: "", price: "" });
   const router = useRouter();
 
   useEffect(() => {
@@ -83,34 +82,7 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
       .finally(() => setLoading(false));
     fetch("/api/admin/inventory/boxes", { headers: { Authorization: `Bearer ${t}` } })
       .then(r => r.ok ? r.json() : []).then(setBoxes).catch(() => {});
-    // load most recent print session for this order
-    fetch(`/api/admin/orders/${id}/print-sessions`, { headers: { Authorization: `Bearer ${t}` } })
-      .then(r => r.ok ? r.json() : null).then(d => { if (d) setPrintSession(d); }).catch(() => {});
   }, [id, router]);
-
-  // poll live watts every 15s when a session is active
-  useEffect(() => {
-    if (!printSession || printSession.status !== "active") return;
-    const tick = async () => {
-      try {
-        const r = await fetch("/api/shelly/session/status");
-        if (r.ok) {
-          const d = await r.json();
-          if (d.active) {
-            setLiveWatts(d.watts);
-            setPrintSession((s: any) => s ? { ...s, wh_accumulated: d.wh_accumulated, electricity_cost: d.electricity_cost } : s);
-          } else {
-            // session ended (auto-detect)
-            setLiveWatts(null);
-            setPrintSession((s: any) => s ? { ...s, status: "completed" } : s);
-          }
-        }
-      } catch {}
-    };
-    tick();
-    const interval = setInterval(tick, 15_000);
-    return () => clearInterval(interval);
-  }, [printSession?.status]);
 
   function selectPreset(i: number) {
     setBoxPreset(i);
@@ -143,46 +115,6 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
     } else { const err = await res.json(); setLabelError(err.error || "Label creation failed"); }
     setCreatingLabel(false);
   }
-  async function handleStartPrint() {
-    const t = localStorage.getItem("dragline_admin_token"); if (!t) return;
-    setSessionLoading(true); setSessionError(null);
-    try {
-      // create session row in Supabase via admin API
-      const createRes = await fetch(`/api/admin/orders/${id}/print-sessions`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ order_id: id }),
-      });
-      if (!createRes.ok) throw new Error("Failed to create session");
-      const session = await createRes.json();
-      // tell worker to start tracking
-      const startRes = await fetch("/api/shelly/session/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: session.id, orderId: id }),
-      });
-      if (!startRes.ok) throw new Error("Shelly unreachable — session created but tracking not started");
-      setPrintSession(session);
-    } catch (e: any) {
-      setSessionError(e.message);
-    }
-    setSessionLoading(false);
-  }
-
-  async function handleStopPrint() {
-    const t = localStorage.getItem("dragline_admin_token"); if (!t) return;
-    setSessionLoading(true); setSessionError(null);
-    try {
-      const stopRes = await fetch("/api/shelly/session/stop", { method: "POST" });
-      const result = stopRes.ok ? await stopRes.json() : { wh_accumulated: 0, electricity_cost: 0 };
-      setPrintSession((s: any) => s ? { ...s, status: "completed", wh_accumulated: result.wh_accumulated, electricity_cost: result.electricity_cost, ended_at: new Date().toISOString() } : s);
-      setLiveWatts(null);
-    } catch (e: any) {
-      setSessionError(e.message);
-    }
-    setSessionLoading(false);
-  }
-
   async function handleRunDone(item: any) {
     const t = localStorage.getItem("dragline_admin_token"); if (!t) return;
     const newPrintedQty = (item.printed_qty || 0) + 1;
@@ -195,6 +127,23 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
       const updated = await res.json();
       setOrder((o: any) => ({ ...o, order_items: o.order_items.map((i: any) => i.id === item.id ? { ...i, ...updated } : i) }));
     }
+  }
+
+  async function handleAddPart() {
+    const t = localStorage.getItem("dragline_admin_token") || "";
+    setAddingPart(true);
+    const fd = new FormData();
+    if (addPartFile) fd.append("file", addPartFile);
+    Object.entries(addPartFields).forEach(([k, v]) => { if (v) fd.append(k, v); });
+    const res = await fetch(`/api/admin/orders/${id}/items`, { method: "POST", headers: { Authorization: `Bearer ${t}` }, body: fd });
+    if (res.ok) {
+      const newItem = await res.json();
+      setOrder((o: any) => ({ ...o, order_items: [...(o.order_items || []), newItem] }));
+      setShowAddPart(false);
+      setAddPartFile(null);
+      setAddPartFields({ material: "PETG", color: "", quality: "Standard", infill: "15", qty: "1", grams: "", hours: "", price: "" });
+    } else { alert("Failed to add part"); }
+    setAddingPart(false);
   }
 
   async function downloadFile(fileName: string, itemId?: string) {
@@ -233,8 +182,7 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
   const filamentCost = order.order_items?.reduce((s: number, i: any) => s + ((i.grams || 0) * (i.qty || 1) / 1000) * (COST_PER_KG[i.material] || 16), 0) || 0;
   const selectedBox = order.box_id ? boxes.find((b: any) => b.id === order.box_id) : null;
   const packagingCost = selectedBox ? Number(selectedBox.cost_each) || 0 : 0;
-  const electricityCost = printSession ? Number(printSession.electricity_cost || 0) : 0;
-  const matCost = filamentCost + packagingCost + electricityCost;
+  const matCost = filamentCost + packagingCost;
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
@@ -345,9 +293,7 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
             {packagingCost > 0 && (
               <div><span className="text-steel">Packaging cost:</span> <span className="text-pink-400">${packagingCost.toFixed(2)}</span> <span className="text-steel/50">({selectedBox?.name})</span></div>
             )}
-            {electricityCost > 0 && (
-              <div><span className="text-steel">Electricity:</span> <span className="text-yellow-400">${electricityCost.toFixed(4)}</span> <span className="text-steel/50">({printSession?.wh_accumulated?.toFixed(1)}Wh)</span></div>
-            )}
+
             <div><span className="text-steel">Total COGS:</span> <span className="font-bold text-red-400">${matCost.toFixed(2)}</span></div>
             <div className="font-mono text-xs text-steel pt-1">{new Date(order.created_at).toLocaleString("en-US")}</div>
           </div>
@@ -388,61 +334,6 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
         </div>
       </div>
 
-      {/* ── Print Session / Power Tracking ── */}
-      <div className="rounded-xl p-5 mb-4" style={glass}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="font-mono text-xs text-amber tracking-widest flex items-center gap-2">
-            <Activity size={13} />PRINT SESSION
-          </div>
-          {printSession?.status === "active" && liveWatts !== null && (
-            <div className="flex items-center gap-1.5 font-mono text-xs text-yellow-400">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
-              {liveWatts.toFixed(0)}W live
-            </div>
-          )}
-        </div>
-        {printSession ? (
-          <div className="space-y-2">
-            <div className="flex items-center gap-4 text-sm flex-wrap">
-              <span className={`font-mono text-xs px-2 py-1 rounded-xl border ${printSession.status === "active" ? "text-yellow-400 border-yellow-400/40 bg-yellow-400/10" : "text-green-400 border-green-400/40 bg-green-400/10"}`}>
-                {printSession.status === "active" ? "● PRINTING" : "✓ COMPLETED"}
-              </span>
-              <span className="text-steel text-xs font-mono">{new Date(printSession.started_at).toLocaleString("en-US")}</span>
-              {printSession.ended_at && <span className="text-steel text-xs font-mono">→ {new Date(printSession.ended_at).toLocaleString("en-US")}</span>}
-            </div>
-            <div className="flex gap-6 font-mono text-xs mt-1">
-              <span><span className="text-steel">Energy: </span><span className="text-yellow-300">{Number(printSession.wh_accumulated || 0).toFixed(1)} Wh</span></span>
-              <span><span className="text-steel">Cost: </span><span className="text-yellow-300">${Number(printSession.electricity_cost || 0).toFixed(4)}</span></span>
-            </div>
-            <div className="flex gap-2 mt-2">
-              {printSession.status === "active" && (
-                <button onClick={handleStopPrint} disabled={sessionLoading}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl font-display font-bold text-sm text-white bg-red-600 hover:bg-red-500 transition-colors cursor-pointer disabled:opacity-50">
-                  <ZapOff size={14} />{sessionLoading ? "STOPPING…" : "STOP PRINT"}
-                </button>
-              )}
-              {printSession.status !== "active" && (
-                <button onClick={handleStartPrint} disabled={sessionLoading}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl font-display font-bold text-sm text-ironworks cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-50"
-                  style={{ background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)" }}>
-                  <Zap size={14} />{sessionLoading ? "STARTING…" : "NEW SESSION"}
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-4">
-            <button onClick={handleStartPrint} disabled={sessionLoading}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-display font-bold text-sm text-ironworks cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-50"
-              style={{ background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)" }}>
-              <Zap size={14} />{sessionLoading ? "STARTING…" : "START PRINT"}
-            </button>
-            <span className="text-xs font-mono text-steel">Tracks electricity via Shelly at 192.168.68.83</span>
-          </div>
-        )}
-        {sessionError && <div className="text-xs text-red-400 font-mono mt-2">{sessionError}</div>}
-      </div>
-
       {token && (
         <div className="mb-6">
           <BoxSelect
@@ -458,6 +349,11 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
         <div className="rounded-xl overflow-hidden" style={glass}>
           <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
             <div className="font-mono text-xs text-amber tracking-widest">PARTS ({completedQty}/{totalCount} done)</div>
+            <button onClick={() => setShowAddPart(v => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono text-xs text-bone/60 hover:text-bone transition-colors cursor-pointer"
+              style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+              <PlusCircle size={12} /> ADD PART
+            </button>
             <div className="flex items-center gap-3">
               {completedQty === totalCount && totalCount > 0 && (
                 <div className="font-mono text-xs text-green-400">All parts complete</div>
@@ -505,34 +401,4 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
                     {/* Progress badge for multi-run items */}
                     {qty > 1 && (
                       <span className="font-mono text-xs px-2 py-1 rounded-xl"
-                        style={{ background: "rgba(255,255,255,0.05)", color: (item.printed_qty || 0) >= qty ? "#22c55e" : "#f59e0b" }}>
-                        {item.printed_qty || 0}/{qty} done
-                      </span>
-                    )}
-                    <span className="font-mono text-xs px-2 py-1 rounded-xl border"
-                      style={{ color: cfg.color, borderColor: `${cfg.color}44`, background: `${cfg.color}11` }}>
-                      {cfg.label}
-                    </span>
-                    {/* Mark run done — only show if not all runs finished */}
-                    {(item.printed_qty || 0) < qty && (
-                      <button onClick={() => handleRunDone(item)}
-                        title="Mark one run as finished"
-                        className="flex items-center gap-1 px-2 py-1 rounded-xl font-mono text-xs text-green-400 hover:bg-green-500/20 transition-colors cursor-pointer"
-                        style={{ border: "1px solid rgba(34,197,94,0.3)" }}>
-                        <PlusCircle size={12} /> RUN DONE
-                      </button>
-                    )}
-                    <div className={`font-display font-bold text-amber ${item.completed ? "opacity-50" : ""}`}>
-                      ${(item.price * qty).toFixed(2)}
-                      {qty > 1 && <span className="font-mono text-xs text-steel font-normal ml-1">${item.price?.toFixed(2)} ea</span>}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+                        style={{ background: "rgba(
