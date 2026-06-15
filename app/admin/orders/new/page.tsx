@@ -33,6 +33,7 @@ type CartItem = { id: string; file: File | null; fileName: string; material: Mat
 type ShippingRate = { id: string; provider: string; service: string; amount: number; days?: number };
 
 function genId() { return Math.random().toString(36).slice(2, 10); }
+function formatHours(h: number) { const hrs = Math.floor(h); const mins = Math.round((h-hrs)*60); if (hrs > 0 && mins > 0) return `${hrs}h ${mins}m`; if (hrs > 0) return `${hrs}h`; return `${mins}m`; }
 
 const MATERIALS_LIST = Object.entries(MATERIALS) as [MaterialKey, any][];
 
@@ -295,7 +296,7 @@ export default function NewOrderPage() {
                   <div key={item.id} className="px-5 py-3 flex items-center justify-between gap-4 border-b last:border-b-0" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm truncate">{item.fileName.replace(/\.(stl|3mf)$/i, "")}</div>
-                      <div className="font-mono text-xs text-steel">{item.material} · {item.color} · {item.quality} · {item.infill}% · {item.quote.grams}g · {item.quote.hours}h</div>
+                      <div className="font-mono text-xs text-steel">{item.material} · {item.color} · {item.quality} · {item.infill}% · {item.quote.grams}g · {formatHours(item.quote.hours)}</div>
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <span className="font-display font-bold text-amber">${(item.quote.price * item.qty).toFixed(2)}</span>

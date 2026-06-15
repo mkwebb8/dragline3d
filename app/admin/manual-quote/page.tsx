@@ -33,6 +33,16 @@ const MATERIALS: Record<string, number> = {
 
 const COLORS = ["Black", "White", "Gray", "Red", "Blue", "Green", "Yellow", "Orange", "Purple", "Natural", "Custom"];
 
+function formatHours(h: number) {
+  const hrs = Math.floor(h); const mins = Math.round((h - hrs) * 60);
+  if (hrs > 0 && mins > 0) return `${hrs}h ${mins}m`;
+  if (hrs > 0) return `${hrs}h`;
+  return `${mins}m`;
+}
+function hToH(h: number) { return Math.floor(h); }
+function hToM(h: number) { return Math.round((h - Math.floor(h)) * 60); }
+function hmToDecimal(h: number, m: number) { return h + m / 60; }
+
 function calcItemPrice(grams: number, hours: number, material: string): number {
   const cpk = MATERIALS[material] ?? 16;
   return Math.max(8, Math.round(((grams / 1000) * cpk * 2.5 + hours * 0.50 + 12) * 100) / 100);
@@ -274,9 +284,13 @@ export default function ManualQuotePage() {
                       placeholder="0" className={`${inputBase}`} style={inputSt} onFocus={focus} onBlur={blur} />
                   </div>
                   <div>
-                    <label className={labelBase}>Hours</label>
-                    <input type="number" min="0" step="0.1" value={p.hours || ""} onChange={e => updatePart(p.id, "hours", parseFloat(e.target.value) || 0)}
-                      placeholder="0.0" className={`${inputBase}`} style={inputSt} onFocus={focus} onBlur={blur} />
+                    <label className={labelBase}>Print Time</label>
+                    <div className="flex gap-1">
+                      <input type="number" min="0" value={hToH(p.hours) || ""} onChange={e => updatePart(p.id, "hours", hmToDecimal(parseInt(e.target.value) || 0, hToM(p.hours)))}
+                        placeholder="0h" className={`${inputBase} w-14`} style={inputSt} onFocus={focus} onBlur={blur} />
+                      <input type="number" min="0" max="59" value={hToM(p.hours) || ""} onChange={e => updatePart(p.id, "hours", hmToDecimal(hToH(p.hours), parseInt(e.target.value) || 0))}
+                        placeholder="0m" className={`${inputBase} w-14`} style={inputSt} onFocus={focus} onBlur={blur} />
+                    </div>
                   </div>
                   <div>
                     <label className={labelBase}>Infill %</label>
