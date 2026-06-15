@@ -319,7 +319,7 @@ export default function InvoicePage({ params }: { params: { id: string } }) {
                       {item.material && grams > 0 && <span style={{ color: "#6a6050" }}> · </span>}
                       {grams > 0 && <span>{grams.toFixed(0)}g filament</span>}
                       {(item.print_hours || item.hours) ? (
-                        <span style={{ color: "#6a6050" }}> · {((item.print_hours || item.hours || 0) * qty).toFixed(1)}h print time</span>
+                        <span style={{ color: "#6a6050" }}> · {(() => { const h = (item.print_hours || item.hours || 0) * qty; const hrs = Math.floor(h); const mins = Math.round((h-hrs)*60); return hrs > 0 && mins > 0 ? `${hrs}h ${mins}m` : hrs > 0 ? `${hrs}h` : `${mins}m`; })()} print time</span>
                       ) : null}
                     </div>
                   </div>

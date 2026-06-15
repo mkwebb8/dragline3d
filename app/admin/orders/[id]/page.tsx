@@ -65,7 +65,7 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
   const [showAddPart, setShowAddPart] = useState(false);
   const [addingPart, setAddingPart] = useState(false);
   const [addPartFile, setAddPartFile] = useState<File | null>(null);
-  const [addPartFields, setAddPartFields] = useState({ material: "PETG", color: "", quality: "Standard", infill: "15", qty: "1", grams: "", hours: "", price: "" });
+  const [addPartFields, setAddPartFields] = useState({ material: "PETG", color: "", quality: "Standard", infill: "15", qty: "1", grams: "", hoursH: "", hoursM: "", price: "" });
   const router = useRouter();
 
   useEffect(() => {
@@ -134,14 +134,17 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
     setAddingPart(true);
     const fd = new FormData();
     if (addPartFile) fd.append("file", addPartFile);
-    Object.entries(addPartFields).forEach(([k, v]) => { if (v) fd.append(k, v); });
+    const { hoursH, hoursM, ...rest } = addPartFields;
+    const hours = (parseInt(hoursH) || 0) + (parseInt(hoursM) || 0) / 60;
+    Object.entries(rest).forEach(([k, v]) => { if (v) fd.append(k, v); });
+    if (hours > 0) fd.append("hours", String(hours));
     const res = await fetch(`/api/admin/orders/${id}/items`, { method: "POST", headers: { Authorization: `Bearer ${t}` }, body: fd });
     if (res.ok) {
       const newItem = await res.json();
       setOrder((o: any) => ({ ...o, order_items: [...(o.order_items || []), newItem] }));
       setShowAddPart(false);
       setAddPartFile(null);
-      setAddPartFields({ material: "PETG", color: "", quality: "Standard", infill: "15", qty: "1", grams: "", hours: "", price: "" });
+      setAddPartFields({ material: "PETG", color: "", quality: "Standard", infill: "15", qty: "1", grams: "", hoursH: "", hoursM: "", price: "" });
     } else { alert("Failed to add part"); }
     setAddingPart(false);
   }
@@ -384,7 +387,7 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
                         {qty > 1 && <span className="font-mono text-amber font-bold mr-1.5">{qty}×</span>}
                         {item.file_name}
                       </div>
-                      <div className="font-mono text-xs text-steel mt-1">{item.material} · {item.quality} · {item.infill}% · {item.grams}g ea · {(item.print_hours || item.hours || 0).toFixed(2)}h ea{item.print_hours ? <span className="text-amber ml-1">✓actual</span> : null}</div>
+                      <div className="font-mono text-xs text-steel mt-1">{item.material} · {item.quality} · {item.infill}% · {item.grams}g ea · {(() => { const h = item.print_hours || item.hours || 0; const hrs = Math.floor(h); const mins = Math.round((h-hrs)*60); return hrs > 0 && mins > 0 ? `${hrs}h ${mins}m` : hrs > 0 ? `${hrs}h` : `${mins}m`; })()} ea{item.print_hours ? <span className="text-amber ml-1">✓actual</span> : null}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
@@ -469,9 +472,13 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
                   className="w-full px-3 py-2 rounded-xl text-bone text-sm font-mono transition-colors" style={inputSt} onFocus={focusOn} onBlur={focusOff} />
               </div>
               <div>
-                <label className="block font-mono text-xs text-steel mb-1">HOURS</label>
-                <input type="number" value={addPartFields.hours} onChange={e => setAddPartFields(f => ({ ...f, hours: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl text-bone text-sm font-mono transition-colors" style={inputSt} onFocus={focusOn} onBlur={focusOff} />
+                <label className="block font-mono text-xs text-steel mb-1">PRINT TIME</label>
+                <div className="flex gap-1">
+                  <input type="number" min="0" value={addPartFields.hoursH} onChange={e => setAddPartFields(f => ({ ...f, hoursH: e.target.value }))}
+                    placeholder="0h" className="w-full px-2 py-2 rounded-xl text-bone text-sm font-mono transition-colors" style={inputSt} onFocus={focusOn} onBlur={focusOff} />
+                  <input type="number" min="0" max="59" value={addPartFields.hoursM} onChange={e => setAddPartFields(f => ({ ...f, hoursM: e.target.value }))}
+                    placeholder="0m" className="w-full px-2 py-2 rounded-xl text-bone text-sm font-mono transition-colors" style={inputSt} onFocus={focusOn} onBlur={focusOff} />
+                </div>
               </div>
               <div>
                 <label className="block font-mono text-xs text-steel mb-1">PRICE $</label>
