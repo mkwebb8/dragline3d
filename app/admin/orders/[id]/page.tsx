@@ -401,4 +401,106 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
                     {/* Progress badge for multi-run items */}
                     {qty > 1 && (
                       <span className="font-mono text-xs px-2 py-1 rounded-xl"
-                        style={{ background: "rgba(
+                        style={{ background: "rgba(255,255,255,0.05)", color: (item.printed_qty || 0) >= qty ? "#22c55e" : "#f59e0b" }}>
+                        {item.printed_qty || 0}/{qty} done
+                      </span>
+                    )}
+                    <span className="font-mono text-xs px-2 py-1 rounded-xl border"
+                      style={{ color: cfg.color, borderColor: `${cfg.color}44`, background: `${cfg.color}11` }}>
+                      {cfg.label}
+                    </span>
+                    {/* Mark run done — only show if not all runs finished */}
+                    {(item.printed_qty || 0) < qty && (
+                      <button onClick={() => handleRunDone(item)}
+                        title="Mark one run as finished"
+                        className="flex items-center gap-1 px-2 py-1 rounded-xl font-mono text-xs text-green-400 hover:bg-green-500/20 transition-colors cursor-pointer"
+                        style={{ border: "1px solid rgba(34,197,94,0.3)" }}>
+                        <PlusCircle size={12} /> RUN DONE
+                      </button>
+                    )}
+                    <div className={`font-display font-bold text-amber ${item.completed ? "opacity-50" : ""}`}>
+                      ${(item.price * qty).toFixed(2)}
+                      {qty > 1 && <span className="font-mono text-xs text-steel font-normal ml-1">${item.price?.toFixed(2)} ea</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+        {showAddPart && (
+          <div className="px-5 py-4 border-t" style={{ borderColor: "rgba(255,181,71,0.25)", background: "rgba(255,181,71,0.03)" }}>
+            <div className="font-mono text-xs text-amber tracking-widest mb-4">ADD PART MANUALLY</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+              <div>
+                <label className="block font-mono text-xs text-steel mb-1">MATERIAL</label>
+                <select value={addPartFields.material} onChange={e => setAddPartFields(f => ({ ...f, material: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl text-bone text-sm transition-colors cursor-pointer" style={inputSt} onFocus={focusOn} onBlur={focusOff}>
+                  {["PLA","PETG","TPU","ABS","ASA","PET-GF15","PETG-ESD","PA","ASA-CF","PETG-CF","PA-CF","PCTG"].map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block font-mono text-xs text-steel mb-1">COLOR</label>
+                <input value={addPartFields.color} onChange={e => setAddPartFields(f => ({ ...f, color: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl text-bone text-sm font-mono transition-colors" style={inputSt} onFocus={focusOn} onBlur={focusOff} />
+              </div>
+              <div>
+                <label className="block font-mono text-xs text-steel mb-1">QUALITY</label>
+                <select value={addPartFields.quality} onChange={e => setAddPartFields(f => ({ ...f, quality: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl text-bone text-sm transition-colors cursor-pointer" style={inputSt} onFocus={focusOn} onBlur={focusOff}>
+                  {["Draft (0.3mm)","Standard (0.2mm)","Fine (0.15mm)","Ultra (0.1mm)"].map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block font-mono text-xs text-steel mb-1">INFILL %</label>
+                <input type="number" value={addPartFields.infill} onChange={e => setAddPartFields(f => ({ ...f, infill: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl text-bone text-sm font-mono transition-colors" style={inputSt} onFocus={focusOn} onBlur={focusOff} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+              <div>
+                <label className="block font-mono text-xs text-steel mb-1">QTY</label>
+                <input type="number" value={addPartFields.qty} onChange={e => setAddPartFields(f => ({ ...f, qty: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl text-bone text-sm font-mono transition-colors" style={inputSt} onFocus={focusOn} onBlur={focusOff} />
+              </div>
+              <div>
+                <label className="block font-mono text-xs text-steel mb-1">GRAMS</label>
+                <input type="number" value={addPartFields.grams} onChange={e => setAddPartFields(f => ({ ...f, grams: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl text-bone text-sm font-mono transition-colors" style={inputSt} onFocus={focusOn} onBlur={focusOff} />
+              </div>
+              <div>
+                <label className="block font-mono text-xs text-steel mb-1">HOURS</label>
+                <input type="number" value={addPartFields.hours} onChange={e => setAddPartFields(f => ({ ...f, hours: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl text-bone text-sm font-mono transition-colors" style={inputSt} onFocus={focusOn} onBlur={focusOff} />
+              </div>
+              <div>
+                <label className="block font-mono text-xs text-steel mb-1">PRICE $</label>
+                <input type="number" value={addPartFields.price} onChange={e => setAddPartFields(f => ({ ...f, price: e.target.value }))} placeholder="0.00"
+                  className="w-full px-3 py-2 rounded-xl text-bone text-sm font-mono transition-colors" style={inputSt} onFocus={focusOn} onBlur={focusOff} />
+              </div>
+            </div>
+            <div className="mb-4">
+              <label className="block font-mono text-xs text-steel mb-1">FILE <span className="text-steel/50">(optional — attach STL/STEP/3MF)</span></label>
+              <label className="flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer w-fit transition-colors hover:opacity-80"
+                style={{ border: "1px solid rgba(255,255,255,0.09)", background: "rgba(255,255,255,0.04)" }}>
+                <Upload size={13} className="text-steel" />
+                <span className="font-mono text-xs text-bone">{addPartFile ? addPartFile.name : "Choose file…"}</span>
+                <input type="file" className="hidden" accept=".stl,.step,.stp,.3mf,.obj"
+                  onChange={e => setAddPartFile(e.target.files?.[0] || null)} />
+              </label>
+            </div>
+            <div className="flex items-center gap-3">
+              <button onClick={handleAddPart} disabled={addingPart || !addPartFields.price}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-display font-bold text-sm text-ironworks cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)" }}>
+                <PlusCircle size={14} />{addingPart ? "ADDING…" : "ADD TO ORDER"}
+              </button>
+              <button onClick={() => setShowAddPart(false)} className="text-xs font-mono text-steel hover:text-bone cursor-pointer">cancel</button>
+            </div>
+          </div>
+        )}
+        </div>
+      )}
+    </div>
+  );
+}
