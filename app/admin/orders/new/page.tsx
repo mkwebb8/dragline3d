@@ -160,6 +160,22 @@ export default function NewOrderPage() {
         body: JSON.stringify({ id: orderId, customer_name: customerName, customer_email: email, address, city, state: stateField, zip, shipping_service: selectedRate?.service || "", shipping_cost: shipping, subtotal, total, status: "received", items: dbItems }),
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed to create order"); }
+
+      // Save files to NAS via slicer worker
+      const filesWithFile = cartItems.filter(i => i.file);
+      if (filesWithFile.length > 0) {
+        try {
+          const saveForm = new FormData();
+          saveForm.append("orderId", orderId);
+          saveForm.append("customerName", customerName);
+          for (const item of filesWithFile) {
+            if (item.file) saveForm.append("file", item.file, item.fileName);
+          }
+          saveForm.append("items", JSON.stringify(dbItems.map(i => ({ id: i.file_name, thumbnail: null }))));
+          await fetch("/api/admin/orders/save-files", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: saveForm });
+        } catch { /* NAS save non-fatal — order is created */ }
+      }
+
       router.push(`/admin/orders/${orderId}`);
     } catch (e: any) { setSubmitError(e.message || "Something went wrong."); }
     setSubmitting(false);

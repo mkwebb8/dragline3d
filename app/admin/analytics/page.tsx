@@ -675,7 +675,7 @@ export default function AnalyticsPage() {
           <div className="flex items-center gap-4 font-mono text-sm flex-wrap">
             <span className="text-steel">PRINTER OUTLET</span>
             <span className={`font-bold ${shellyWatts > 10 ? "text-orange-400" : "text-steel"}`}>{shellyWatts > 10 ? "PRINTING" : "STANDBY"}</span>
-            {shellyWatts > 0 && <span className="text-amber font-bold">{shellyWatts}W live</span>}
+            <span className={`font-bold ${shellyWatts > 10 ? "text-amber" : "text-steel/60"}`}>{shellyWatts}W</span>
             {shellyWatts > 0 && <span className="text-steel">{fc((shellyWatts / 1000) * ELECTRICITY_RATE)}/hr</span>}
             {shellyWhTotal !== null && shellyWhTotal > 0 && <span className="text-steel">{(shellyWhTotal / 1000).toFixed(2)} kWh total · {fc((shellyWhTotal / 1000) * ELECTRICITY_RATE)}</span>}
           </div>
