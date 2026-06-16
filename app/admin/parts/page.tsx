@@ -103,7 +103,8 @@ function PrinterWidget({ token }: { token: string }) {
   const displayState = state === "printing" ? "PRINTING"
     : tempInferred ? "PRINTING*"
     : state.toUpperCase();
-  const watts: number | null = shellyData?.apower ?? null;
+  const watts: number | null = shellyData?.watts !== undefined ? shellyData.watts : (shellyData?.apower !== undefined ? shellyData.apower : null);
+  const pollError: string | null = shellyData?.poll_error ?? null;
   const activeSession = shellyData?.active_session ?? null;
 
   return (
@@ -117,12 +118,18 @@ function PrinterWidget({ token }: { token: string }) {
             title={tempInferred ? "Detected via nozzle temp — touchscreen print bypasses Moonraker" : undefined}>
             {displayState}
           </span>
-          {watts !== null && (
+          {watts !== null ? (
             <span className="flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-xs font-bold text-yellow-400"
               style={{ background: "rgba(250,204,21,0.12)" }}>
               <Zap size={9} /> {watts.toFixed(0)}W
             </span>
-          )}
+          ) : pollError ? (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-xs text-red-400"
+              title={`Shelly unreachable: ${pollError}`}
+              style={{ background: "rgba(239,68,68,0.10)" }}>
+              <Zap size={9} /> ?W
+            </span>
+          ) : null}
         </div>
         {isActive && filename && <span className="font-mono text-xs text-steel truncate max-w-xs">{filename}</span>}
       </div>
