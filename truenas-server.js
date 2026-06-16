@@ -822,5 +822,4 @@ const server = http.createServer(async (req, res) => {
   return send(res, 404, { error: "Not found" });
 });
 
-const PORT = process.env.PORT || 3100;
 server.listen(PORT, () => console.log(`Dragline slicer worker on :${PORT}`));
