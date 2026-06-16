@@ -740,7 +740,7 @@ async function handleShellyPower(req, res) {
     apower: shellyLiveWatts,
     watts: shellyLiveWatts,     // null = poll failing; 0 = genuine standby
     wh_total: shellyLiveWh,
-    active_session: shellySession ? { sessionId: shellySession.sessionId, orderId: shellySession.orderId, wh_accumulated: shellySession.whAccumulated } : null,
+    active_session: shellySession ? { sessionId: shellySession.sessionId, orderId: shellySession.orderId, wh_accumulated: shellySession.whAccumulated, electricity_cost: Math.round((shellySession.whAccumulated / 1000) * ELECTRICITY_RATE_KWH * 10000) / 10000 } : null,
     poll_ok: shellyLastError === null && shellyLastPollOk !== null,
     poll_error: shellyLastError,
     poll_age_sec: pollAgeSec,
