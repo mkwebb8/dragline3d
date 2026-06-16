@@ -553,6 +553,8 @@ async function handleGetThumb(req, res) {
 let shellySession = null; // { sessionId, orderId, lastWhReading, whAccumulated, lowWattCount }
 let shellyLiveWatts = null;  // last known wattage, for /shelly/power responses
 let shellyLiveWh = 0;        // last known total Wh counter
+let shellyLastPollOk = null; // timestamp (ms) of last successful poll, null if never succeeded
+let shellyLastError = null;  // last poll error message
 
 async function getShellyStatus() {
   const r = await fetch(`http://${SHELLY_IP}/rpc/Switch.GetStatus?id=0`, { signal: AbortSignal.timeout(5000) });
@@ -581,6 +583,8 @@ async function pollShelly() {
     const watts = typeof data.apower === "number" ? data.apower : null;
     shellyLiveWatts = watts;
     shellyLiveWh = currentWh;
+    shellyLastPollOk = Date.now();
+    shellyLastError = null;
 
     if (!shellySession) return; // no session — just update live readings and stop
 
@@ -609,6 +613,7 @@ async function pollShelly() {
       shellySession = null;
     }
   } catch (e) {
+    shellyLastError = e.message;
     console.error("[shelly] poll error:", e.message);
   }
 }
@@ -729,11 +734,16 @@ async function readJsonBody(req) {
 async function handleShellyPower(req, res) {
   if (WORKER_SECRET && req.headers["x-worker-secret"] !== WORKER_SECRET) return send(res, 401, { error: "Unauthorized" });
   // Return cached values from always-on poll — no live fetch needed here
+  // watts/apower are null when polls are failing (distinct from genuine 0W standby)
+  const pollAgeSec = shellyLastPollOk ? Math.round((Date.now() - shellyLastPollOk) / 1000) : null;
   return send(res, 200, {
     apower: shellyLiveWatts,
-    watts: shellyLiveWatts ?? 0,
+    watts: shellyLiveWatts,     // null = poll failing; 0 = genuine standby
     wh_total: shellyLiveWh,
     active_session: shellySession ? { sessionId: shellySession.sessionId, orderId: shellySession.orderId, wh_accumulated: shellySession.whAccumulated } : null,
+    poll_ok: shellyLastError === null && shellyLastPollOk !== null,
+    poll_error: shellyLastError,
+    poll_age_sec: pollAgeSec,
   });
 }
 
