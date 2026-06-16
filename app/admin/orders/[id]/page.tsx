@@ -3,7 +3,7 @@ export const runtime = "edge";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Save, ExternalLink, FileText, Receipt, Package, CheckCircle2, Circle, Scissors, Printer, PlayCircle, Download, Upload, PlusCircle } from "lucide-react";
+import { ArrowLeft, Save, ExternalLink, FileText, Receipt, Package, CheckCircle2, Circle, Scissors, Printer, PlayCircle, Download, Upload, PlusCircle, Pencil, X, Check } from "lucide-react";
 import type { CSSProperties } from "react";
 import BoxSelect from "@/components/BoxSelect"; // ← added
 
@@ -66,6 +66,9 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
   const [addingPart, setAddingPart] = useState(false);
   const [addPartFile, setAddPartFile] = useState<File | null>(null);
   const [addPartFields, setAddPartFields] = useState({ material: "PETG", color: "", quality: "Standard", infill: "15", qty: "1", grams: "", hoursH: "", hoursM: "", price: "" });
+  const [spools, setSpools] = useState<any[]>([]);
+  const [editingColor, setEditingColor] = useState<Record<string, string | null>>({});
+  const [colorSaving, setColorSaving] = useState<Record<string, boolean>>({});
   const router = useRouter();
 
   useEffect(() => {
@@ -82,6 +85,8 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
       .finally(() => setLoading(false));
     fetch("/api/admin/inventory/boxes", { headers: { Authorization: `Bearer ${t}` } })
       .then(r => r.ok ? r.json() : []).then(setBoxes).catch(() => {});
+    fetch("/api/admin/inventory", { headers: { Authorization: `Bearer ${t}` } })
+      .then(r => r.ok ? r.json() : []).then(setSpools).catch(() => {});
   }, [id, router]);
 
   function selectPreset(i: number) {
@@ -174,6 +179,23 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
     if (!res.ok) { alert("Upload failed"); return; }
     const updated = await res.json();
     setOrder((o: any) => ({ ...o, order_items: o.order_items.map((i: any) => i.id === item.id ? { ...i, ...updated } : i) }));
+  }
+
+  async function handleColorSave(item: any, newColor: string) {
+    if (newColor === (item.color || "")) { setEditingColor(ec => ({ ...ec, [item.id]: null })); return; }
+    const t = localStorage.getItem("dragline_admin_token") || "";
+    setColorSaving(s => ({ ...s, [item.id]: true }));
+    const res = await fetch(`/api/admin/orders/${id}/items/${item.id}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ color: newColor }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setOrder((o: any) => ({ ...o, order_items: o.order_items.map((i: any) => i.id === item.id ? { ...i, ...updated } : i) }));
+    }
+    setEditingColor(ec => ({ ...ec, [item.id]: null }));
+    setColorSaving(s => ({ ...s, [item.id]: false }));
   }
 
   if (loading) return <div className="max-w-4xl mx-auto px-6 py-16 text-center"><div className="inline-block w-8 h-8 border-2 border-white/10 border-t-amber rounded-full animate-spin" /></div>;
@@ -387,7 +409,33 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
                         {qty > 1 && <span className="font-mono text-amber font-bold mr-1.5">{qty}×</span>}
                         {item.file_name}
                       </div>
-                      <div className="font-mono text-xs text-steel mt-1">{item.material} · {item.quality} · {item.infill}% · {item.grams}g ea · {(() => { const h = item.print_hours || item.hours || 0; const hrs = Math.floor(h); const mins = Math.round((h-hrs)*60); return hrs > 0 && mins > 0 ? `${hrs}h ${mins}m` : hrs > 0 ? `${hrs}h` : `${mins}m`; })()} ea{item.print_hours ? <span className="text-amber ml-1">✓actual</span> : null}</div>
+                      <div className="font-mono text-xs text-steel mt-1 flex items-center flex-wrap gap-x-1">
+                        <span>{item.material} · {item.quality} · {item.infill}% · {item.grams}g ea · {(() => { const h = item.print_hours || item.hours || 0; const hrs = Math.floor(h); const mins = Math.round((h-hrs)*60); return hrs > 0 && mins > 0 ? `${hrs}h ${mins}m` : hrs > 0 ? `${hrs}h` : `${mins}m`; })()} ea{item.print_hours ? <span className="text-amber ml-1">✓actual</span> : null}</span>
+                        {editingColor[item.id] !== undefined && editingColor[item.id] !== null ? (
+                          <span className="flex items-center gap-1 mt-0.5">
+                            <span className="text-steel/50">·</span>
+                            <input
+                              autoFocus
+                              value={editingColor[item.id] as string}
+                              onChange={e => setEditingColor(ec => ({ ...ec, [item.id]: e.target.value }))}
+                              onKeyDown={e => { if (e.key === "Enter") handleColorSave(item, editingColor[item.id] as string); if (e.key === "Escape") setEditingColor(ec => ({ ...ec, [item.id]: null })); }}
+                              className="px-1.5 py-0.5 rounded text-bone text-xs font-mono w-28"
+                              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,181,71,0.5)", outline: "none" }}
+                            />
+                            <button onClick={() => handleColorSave(item, editingColor[item.id] as string)} className="text-green-400 hover:text-green-300"><Check size={11} /></button>
+                            <button onClick={() => setEditingColor(ec => ({ ...ec, [item.id]: null }))} className="text-steel hover:text-bone"><X size={11} /></button>
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 group/color">
+                            <span className="text-steel/50">·</span>
+                            <span className={item.color ? "text-bone/70" : "text-steel/40"}>{item.color || "no color"}</span>
+                            <button onClick={() => setEditingColor(ec => ({ ...ec, [item.id]: item.color || "" }))}
+                              className="opacity-0 group-hover/color:opacity-100 transition-opacity text-steel hover:text-amber">
+                              <Pencil size={10} />
+                            </button>
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
@@ -508,6 +556,63 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
         )}
         </div>
       )}
+
+      {/* Inventory check panel */}
+      {order.order_items?.length > 0 && spools.length > 0 && (() => {
+        // Aggregate needed grams per material (including color in key for detail)
+        const neededByMat: Record<string, number> = {};
+        const neededByMatColor: Record<string, { color: string; grams: number }[]> = {};
+        for (const item of order.order_items) {
+          const mat = item.material || "Unknown";
+          const g = (item.grams || 0) * (item.qty || 1);
+          neededByMat[mat] = (neededByMat[mat] || 0) + g;
+          if (!neededByMatColor[mat]) neededByMatColor[mat] = [];
+          const existing = neededByMatColor[mat].find(x => x.color === (item.color || ""));
+          if (existing) existing.grams += g; else neededByMatColor[mat].push({ color: item.color || "", grams: g });
+        }
+        // Aggregate on-hand grams per material
+        const onHandByMat: Record<string, number> = {};
+        for (const spool of spools) {
+          const mat = spool.material || "Unknown";
+          onHandByMat[mat] = (onHandByMat[mat] || 0) + (spool.weight_remaining_g || 0);
+        }
+        const materials = Object.keys(neededByMat).sort();
+        const anyShortfall = materials.some(m => (neededByMat[m] || 0) > (onHandByMat[m] || 0));
+        return (
+          <div className="mt-4 rounded-xl p-5" style={{ ...glass, border: anyShortfall ? "1px solid rgba(239,68,68,0.35)" : "1px solid rgba(34,197,94,0.25)" }}>
+            <div className="font-mono text-xs tracking-widest mb-3" style={{ color: anyShortfall ? "#f87171" : "#4ade80" }}>
+              INVENTORY CHECK {anyShortfall ? "— ORDER MATERIALS NEEDED" : "— SUFFICIENT STOCK"}
+            </div>
+            <div className="space-y-2">
+              {materials.map(mat => {
+                const needed = neededByMat[mat] || 0;
+                const onHand = onHandByMat[mat] || 0;
+                const shortfall = needed - onHand;
+                const spoolsNeeded = Math.ceil(shortfall / 1000);
+                return (
+                  <div key={mat} className="flex items-center gap-3 text-sm flex-wrap">
+                    <span className="font-mono text-xs font-bold w-20 flex-shrink-0" style={{ color: shortfall > 0 ? "#f87171" : "#4ade80" }}>{mat}</span>
+                    <span className="text-steel text-xs">need <span className="text-bone">{needed.toFixed(0)}g</span></span>
+                    <span className="text-steel text-xs">on hand <span className={onHand >= needed ? "text-green-400" : "text-red-400"}>{onHand.toFixed(0)}g</span></span>
+                    {shortfall > 0 ? (
+                      <span className="font-mono text-xs px-2 py-0.5 rounded-lg" style={{ background: "rgba(239,68,68,0.12)", color: "#f87171", border: "1px solid rgba(239,68,68,0.25)" }}>
+                        order ~{shortfall.toFixed(0)}g ({spoolsNeeded} spool{spoolsNeeded !== 1 ? "s" : ""})
+                      </span>
+                    ) : (
+                      <span className="font-mono text-xs text-green-400/60">✓ ok</span>
+                    )}
+                    {neededByMatColor[mat].filter(x => x.color).length > 0 && (
+                      <span className="text-steel/50 text-xs">
+                        [{neededByMatColor[mat].filter(x => x.color).map(x => `${x.color} ${x.grams.toFixed(0)}g`).join(", ")}]
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
