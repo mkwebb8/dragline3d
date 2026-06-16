@@ -816,4 +816,11 @@ const server = http.createServer(async (req, res) => {
   if (req.url.startsWith("/get-file") && req.method === "GET") return handleGetFile(req, res);
   if (req.url.startsWith("/get-thumb") && req.method === "GET") return handleGetThumb(req, res);
   if (req.url === "/shelly/power" && req.method === "GET") return handleShellyPower(req, res);
-  if (req.url === "/shelly/session/start" && req.method === "POST") return 
+  if (req.url === "/shelly/session/start" && req.method === "POST") return handleShellySessionStart(req, res);
+  if (req.url === "/shelly/session/stop" && req.method === "POST") return handleShellySessionStop(req, res);
+  if (req.url === "/shelly/session/status" && req.method === "GET") return handleShellySessionStatus(req, res);
+  return send(res, 404, { error: "Not found" });
+});
+
+const PORT = process.env.PORT || 3100;
+server.listen(PORT, () => console.log(`Dragline slicer worker on :${PORT}`));
