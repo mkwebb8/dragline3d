@@ -96,14 +96,15 @@ function PrinterWidget({ token }: { token: string }) {
   const state: string = stats?.state || "standby"; const progress = vsd?.progress || 0; const elapsed = stats?.print_duration || 0;
   const eta = progress > 0.01 ? (elapsed / progress - elapsed) : 0;
   const filename = (stats?.filename || vsd?.file_path || "").split("/").pop()?.replace(".gcode", "") || "";
-  // Touchscreen prints bypass Moonraker entirely — target stays 0, only temperature rises
-  const tempInferred = state !== "printing" &&
-    (extruder?.temperature || 0) > 150;
-  const isActive = state === "printing" || tempInferred;
+  const watts: number | null = shellyData?.watts !== undefined ? shellyData.watts : (shellyData?.apower !== undefined ? shellyData.apower : null);
+  // Touchscreen prints bypass Moonraker — infer from nozzle temp or Shelly draw
+  const tempInferred = state !== "printing" && (extruder?.temperature || 0) > 150;
+  const shellyInferred = state !== "printing" && (watts ?? 0) > 100;
+  const isActive = state === "printing" || tempInferred || shellyInferred;
   const displayState = state === "printing" ? "PRINTING"
     : tempInferred ? "PRINTING*"
+    : shellyInferred ? "PRINTING~"
     : state.toUpperCase();
-  const watts: number | null = shellyData?.watts !== undefined ? shellyData.watts : (shellyData?.apower !== undefined ? shellyData.apower : null);
   const pollError: string | null = shellyData?.poll_error ?? null;
   const activeSession = shellyData?.active_session ?? null;
 
