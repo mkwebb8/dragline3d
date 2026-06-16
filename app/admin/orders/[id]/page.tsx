@@ -32,6 +32,7 @@ const BOX_PRESETS = [
   { label: "XL (24×18×10)", l: 24, w: 18, h: 10 },
   { label: "Custom", l: 0, w: 0, h: 0 },
 ];
+const COLOR_OPTIONS = ["Black","White","Gray","Silver","Red","Orange","Yellow","Green","Blue","Navy","Purple","Pink","Brown","Natural","Translucent","Clear"];
 const PART_STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   pending: { label: "Pending", color: "#6b7280", icon: Circle },
   sliced: { label: "Sliced", color: "#3b82f6", icon: Scissors },
@@ -414,15 +415,17 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
                         {editingColor[item.id] !== undefined && editingColor[item.id] !== null ? (
                           <span className="flex items-center gap-1 mt-0.5">
                             <span className="text-steel/50">·</span>
-                            <input
+                            <select
                               autoFocus
                               value={editingColor[item.id] as string}
-                              onChange={e => setEditingColor(ec => ({ ...ec, [item.id]: e.target.value }))}
-                              onKeyDown={e => { if (e.key === "Enter") handleColorSave(item, editingColor[item.id] as string); if (e.key === "Escape") setEditingColor(ec => ({ ...ec, [item.id]: null })); }}
-                              className="px-1.5 py-0.5 rounded text-bone text-xs font-mono w-28"
-                              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,181,71,0.5)", outline: "none" }}
-                            />
-                            <button onClick={() => handleColorSave(item, editingColor[item.id] as string)} className="text-green-400 hover:text-green-300"><Check size={11} /></button>
+                              onChange={e => { setEditingColor(ec => ({ ...ec, [item.id]: e.target.value })); handleColorSave(item, e.target.value); }}
+                              onKeyDown={e => { if (e.key === "Escape") setEditingColor(ec => ({ ...ec, [item.id]: null })); }}
+                              className="px-1.5 py-0.5 rounded text-bone text-xs font-mono cursor-pointer"
+                              style={{ background: "rgba(30,30,35,0.95)", border: "1px solid rgba(255,181,71,0.5)", outline: "none" }}
+                            >
+                              <option value="">— no color —</option>
+                              {COLOR_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
                             <button onClick={() => setEditingColor(ec => ({ ...ec, [item.id]: null }))} className="text-steel hover:text-bone"><X size={11} /></button>
                           </span>
                         ) : (
@@ -492,8 +495,11 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
               </div>
               <div>
                 <label className="block font-mono text-xs text-steel mb-1">COLOR</label>
-                <input value={addPartFields.color} onChange={e => setAddPartFields(f => ({ ...f, color: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl text-bone text-sm font-mono transition-colors" style={inputSt} onFocus={focusOn} onBlur={focusOff} />
+                <select value={addPartFields.color} onChange={e => setAddPartFields(f => ({ ...f, color: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl text-bone text-sm transition-colors cursor-pointer" style={inputSt} onFocus={focusOn} onBlur={focusOff}>
+                  <option value="">— select —</option>
+                  {COLOR_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
               <div>
                 <label className="block font-mono text-xs text-steel mb-1">QUALITY</label>
