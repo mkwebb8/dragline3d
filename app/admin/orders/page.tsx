@@ -91,7 +91,7 @@ function PrinterWidget({ token }: { token: string }) {
   const displayState = state === "printing" ? "PRINTING"
     : tempInferred ? "PRINTING*"
     : state.toUpperCase();
-  const watts: number | null = shellyData?.apower ?? null;
+  const watts: number | null = shellyData?.watts ?? shellyData?.apower ?? null;
   const activeSession = shellyData?.active_session ?? null;
 
   return (
