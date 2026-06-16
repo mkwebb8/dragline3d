@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { RefreshCw, Clock, CheckCircle2, Printer, Thermometer, Layers, List, Minus, Plus, Zap } from "lucide-react";
+import { RefreshCw, Clock, CheckCircle2, Printer, Thermometer, Layers, List, Minus, Plus, Zap, PrinterCheck } from "lucide-react";
 import type { CSSProperties } from "react";
 
 const glass: CSSProperties = {
@@ -301,6 +301,7 @@ export default function PartsPage() {
         </div>
         <div className="flex items-center gap-3">
           <button onClick={fetchParts} className="p-2 rounded-xl text-bone/60 hover:text-bone transition-colors cursor-pointer" style={{ border: "1px solid rgba(255,255,255,0.07)" }}><RefreshCw size={16} /></button>
+          <button onClick={() => window.print()} className="flex items-center gap-2 px-3 py-2 rounded-xl font-mono text-xs text-bone/60 hover:text-bone transition-colors cursor-pointer" style={{ border: "1px solid rgba(255,255,255,0.07)" }}><PrinterCheck size={14} />PRINT</button>
           <Link href="/admin/orders" className="flex items-center gap-2 px-3 py-2 rounded-xl font-mono text-xs text-bone/60 hover:text-bone transition-colors cursor-pointer" style={{ border: "1px solid rgba(255,255,255,0.07)" }}><List size={14} />ORDER QUEUE</Link>
           <Link href="/admin/plates" className="flex items-center gap-2 px-3 py-2 rounded-xl font-mono text-xs text-bone/60 hover:text-bone transition-colors cursor-pointer" style={{ border: "1px solid rgba(255,255,255,0.07)" }}><Layers size={14} />PLATE BUILDER</Link>
         </div>
@@ -502,6 +503,101 @@ export default function PartsPage() {
           </div>
         </div>
       )}
+
+      {/* ── PRINT-ONLY CHECKLIST ── hidden on screen, shown when printing */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          .print-sheet, .print-sheet * { visibility: visible !important; }
+          .print-sheet {
+            position: fixed !important;
+            inset: 0 !important;
+            padding: 24px 32px !important;
+            background: #fff !important;
+            color: #000 !important;
+            font-family: monospace !important;
+            font-size: 11px !important;
+          }
+        }
+        @media screen { .print-sheet { display: none; } }
+      `}</style>
+
+      <div className="print-sheet">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 12, borderBottom: "2px solid #000", paddingBottom: 8 }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: 2 }}>DRAGLINE 3D — PARTS QUEUE</div>
+            <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>
+              {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+              {" · "}{incompleteParts.length} active part{incompleteParts.length !== 1 ? "s" : ""}
+              {" · "}{incompleteParts.reduce((s, p) => s + (p.qty || 1), 0)} pcs
+              {backlogHours > 0 && ` · ~${formatHours(backlogHours)} backlog`}
+            </div>
+          </div>
+          <div style={{ fontSize: 10, color: "#555", textAlign: "right" }}>
+            Printed {new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+          </div>
+        </div>
+
+        {statusGroups.filter(g => g.parts.length > 0).map(group => (
+          <div key={group.value} style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "#444", marginBottom: 4, borderBottom: "1px solid #ddd", paddingBottom: 2 }}>
+              {group.label} ({group.parts.length})
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid #ccc" }}>
+                  <th style={{ width: 20, paddingRight: 6 }}></th>
+                  <th style={{ textAlign: "left", paddingBottom: 3, fontWeight: 700 }}>File / Customer</th>
+                  <th style={{ textAlign: "left", paddingBottom: 3, fontWeight: 700 }}>Material · Color</th>
+                  <th style={{ textAlign: "left", paddingBottom: 3, fontWeight: 700 }}>Quality · Infill</th>
+                  <th style={{ textAlign: "right", paddingBottom: 3, fontWeight: 700 }}>Qty</th>
+                  <th style={{ textAlign: "right", paddingBottom: 3, fontWeight: 700 }}>Grams</th>
+                  <th style={{ textAlign: "right", paddingBottom: 3, fontWeight: 700 }}>Time</th>
+                  <th style={{ textAlign: "right", paddingBottom: 3, fontWeight: 700 }}>Runs</th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.parts.map((part, i) => {
+                  const hoursPerPiece = part.print_hours || part.hours || 0;
+                  const qty = part.qty || 1;
+                  const runs = part.runs || 1;
+                  const printedRuns = part.printed_qty || 0;
+                  const totalGrams = Number(part.grams || 0) * qty;
+                  const totalHours = hoursPerPiece * qty;
+                  return (
+                    <tr key={part.id} style={{ borderBottom: "1px solid #eee", background: i % 2 === 0 ? "#fafafa" : "#fff" }}>
+                      <td style={{ paddingTop: 5, paddingBottom: 5, paddingRight: 6 }}>
+                        <div style={{ width: 14, height: 14, border: "1.5px solid #000", borderRadius: 3, display: "inline-block" }} />
+                      </td>
+                      <td style={{ paddingTop: 5, paddingBottom: 5 }}>
+                        <div style={{ fontWeight: 700 }}>{part.file_name}</div>
+                        <div style={{ color: "#555" }}>{part.customer_name} · {part.order_id}</div>
+                      </td>
+                      <td style={{ paddingTop: 5, paddingBottom: 5 }}>{part.material} · {part.color || "Black"}</td>
+                      <td style={{ paddingTop: 5, paddingBottom: 5 }}>{part.quality} · {part.infill}%</td>
+                      <td style={{ textAlign: "right", paddingTop: 5, paddingBottom: 5, fontWeight: 700 }}>{qty}</td>
+                      <td style={{ textAlign: "right", paddingTop: 5, paddingBottom: 5 }}>{totalGrams.toFixed(1)}g</td>
+                      <td style={{ textAlign: "right", paddingTop: 5, paddingBottom: 5 }}>{formatHours(totalHours)}</td>
+                      <td style={{ textAlign: "right", paddingTop: 5, paddingBottom: 5 }}>{printedRuns}/{runs}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ))}
+
+        {completedParts.length > 0 && (
+          <div style={{ marginTop: 16, borderTop: "1px solid #ccc", paddingTop: 8 }}>
+            <div style={{ fontWeight: 700, fontSize: 10, letterSpacing: 2, color: "#444", marginBottom: 4 }}>COMPLETED ({completedParts.length})</div>
+            {completedParts.map(part => (
+              <div key={part.id} style={{ fontSize: 10, color: "#888", textDecoration: "line-through", marginBottom: 2 }}>
+                ✓ {(part.qty || 1) > 1 ? `${part.qty}× ` : ""}{part.file_name} · {part.customer_name}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
