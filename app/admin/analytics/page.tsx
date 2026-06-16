@@ -120,6 +120,7 @@ export default function AnalyticsPage() {
   const [payouts, setPayouts] = useState<any[]>([]);
   const [payoutSyncing, setPayoutSyncing] = useState(false);
   const [novoTxns, setNovoTxns] = useState<any[]>([]);
+  const [printSessions, setPrintSessions] = useState<any[]>([]);
   const [novoImporting, setNovoImporting] = useState(false);
   const [reportSending, setReportSending] = useState(false);
   const [reportMsg, setReportMsg] = useState("");
@@ -160,10 +161,29 @@ export default function AnalyticsPage() {
       .then(r => r.ok ? r.json() : []).then(data => setPayouts(Array.isArray(data) ? data : [])).catch(() => {});
     fetch("/api/admin/novo/transactions", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : []).then(data => setNovoTxns(Array.isArray(data) ? data : [])).catch(() => {});
+    // Fetch actual print session electricity data
+    const sessionParams = new URLSearchParams();
+    const savedFrom = localStorage.getItem("analytics_date_from") || "";
+    const savedTo   = localStorage.getItem("analytics_date_to")   || "";
+    if (savedFrom) sessionParams.set("from", savedFrom);
+    if (savedTo)   sessionParams.set("to", savedTo);
+    fetch(`/api/admin/print-sessions?${sessionParams}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : []).then(data => setPrintSessions(Array.isArray(data) ? data : [])).catch(() => {});
     setLoading(false);
   }, [router]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Re-fetch print sessions whenever date filter changes
+  useEffect(() => {
+    const token = localStorage.getItem("dragline_admin_token");
+    if (!token) return;
+    const params = new URLSearchParams();
+    if (dateFrom) params.set("from", dateFrom);
+    if (dateTo)   params.set("to", dateTo);
+    fetch(`/api/admin/print-sessions?${params}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : []).then(data => setPrintSessions(Array.isArray(data) ? data : [])).catch(() => {});
+  }, [dateFrom, dateTo]);
 
   function saveNovoBalances(balances: typeof novoBalances) {
     setNovoBalances(balances);
@@ -290,7 +310,12 @@ export default function AnalyticsPage() {
   const totalMatCost = totalFilamentCost + totalBoxCost;
   const totalHours = completedOrders.reduce((s, o) =>
     s + (o.order_items || []).reduce((si: number, i: any) => si + (i.print_hours || i.hours || 0) * (i.qty || 1), 0), 0);
-  const totalElecCost = (totalHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
+  // Use actual Shelly session electricity cost when sessions exist, else fall back to estimate
+  const actualSessionElec = printSessions.reduce((s, ps) => s + Number(ps.electricity_cost || 0), 0);
+  const totalElecCost = actualSessionElec > 0
+    ? actualSessionElec
+    : (totalHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
+  const usingActualElec = actualSessionElec > 0;
   const totalProfit = totalRevenue - totalMatCost - totalElecCost - totalSquareFees;
   const totalTax = completedOrders.reduce((s, o) => s + Math.round((o.subtotal || 0) * 0.06 * 100) / 100, 0);
   const totalItems = completedOrders.reduce((s, o) =>
@@ -298,10 +323,11 @@ export default function AnalyticsPage() {
   const avgOrderValue = totalRevenue / (completedOrders.length || 1);
   const marginPct = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
-  // Profit First — use actual Square payout total when available, else estimate
+  // Profit First — only use Square payouts total when no date filter is active
+  // (payouts span 90 days and aren't filterable by order date)
   const totalPaidOut = totalRevenue - totalSquareFees - totalRefunds;
   const totalPayoutsAmount = payouts.filter(p => p.status === "PAID" || p.status === "SENT").reduce((s, p) => s + Number(p.amount || 0), 0);
-  const realRevenue = totalPayoutsAmount > 0 ? totalPayoutsAmount : totalPaidOut;
+  const realRevenue = (!dateFrom && !dateTo && totalPayoutsAmount > 0) ? totalPayoutsAmount : totalPaidOut;
   const pfProfit = realRevenue * PF.profit;
   const pfOwnerComp = realRevenue * PF.ownerComp;
   const pfTaxes = realRevenue * PF.taxes;
@@ -692,11 +718,12 @@ export default function AnalyticsPage() {
         <StatCard label="FILAMENT COST" value={fc(totalFilamentCost)} sub={`${(totalFilamentCost / (totalRevenue || 1) * 100).toFixed(0)}% of revenue`} color="text-red-400" icon={Weight} />
         <StatCard label="PACKAGING" value={fc(totalBoxCost)} sub={`${(totalBoxCost / (totalRevenue || 1) * 100).toFixed(0)}% of revenue · boxes`} color="text-pink-400" icon={Package} />
         <StatCard label="SQUARE FEES" value={fc(totalSquareFees)} sub="2.9% + $0.30/order" color="text-orange-400" icon={DollarSign} />
-        <StatCard label="ELECTRICITY EST." value={fc(totalElecCost)} sub={`${totalHours.toFixed(0)}h × ${AVG_PRINTER_WATTS}W`} color="text-yellow-400" icon={Zap} />
+        <StatCard label={usingActualElec ? "ELECTRICITY (ACTUAL)" : "ELECTRICITY EST."} value={fc(totalElecCost)} sub={usingActualElec ? `${printSessions.length} Shelly sessions` : `${totalHours.toFixed(0)}h × ${AVG_PRINTER_WATTS}W est.`} color="text-yellow-400" icon={Zap} />
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
         <StatCard label="GROSS PROFIT" value={fc(totalProfit)} sub={`${marginPct.toFixed(0)}% gross margin`} color={totalProfit > 0 ? "text-green-400" : "text-red-400"} icon={TrendingUp} />
         <StatCard label={`NET PROFIT (PF ${pfPcts.profit}%)`} value={fc(netProfit)} sub={`${netMarginPct.toFixed(0)}% of real revenue`} color={netProfit > 0 ? "text-emerald-400" : "text-red-400"} icon={Target} />
+        <StatCard label="TAX COLLECTED" value={fc(totalTax)} sub={`${totalRevenue > 0 ? ((totalTax / totalRevenue) * 100).toFixed(0) : 0}% of revenue · 6% est.`} color="text-purple-400" icon={DollarSign} />
         <StatCard label="SHIPPING COLLECTED" value={fc(totalShipping)} sub="from customers" color="text-blue-400" icon={Package} />
         <StatCard label="AVG ORDER VALUE" value={fc(avgOrderValue)} sub="excl. tax & shipping" icon={BarChart2} />
         <StatCard label="INVENTORY VALUE" value={fc(inventoryValue)} sub={`${spools.length} spools on hand`} color="text-cyan-400" icon={Package} />
