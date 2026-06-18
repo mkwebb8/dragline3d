@@ -17,7 +17,7 @@ const innerCell: CSSProperties = { background: "rgba(255,255,255,0.04)", borderR
 const inputSt: CSSProperties = { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", outline: "none" };
 
 const ELECTRICITY_RATE = 0.12;
-const AVG_PRINTER_WATTS = 300;
+const AVG_PRINTER_WATTS = 300; // K2 Plus avg; Ender 5 Max ~450W avg — used for estimates only, actual cost from Shelly sessions
 const SQUARE_PCT = 0.029;
 const SQUARE_FIXED = 0.30;
 const PROFIT_FIRST = { profit: 0.15, ownerComp: 0.25, taxes: 0.30, opex: 0.30 };
