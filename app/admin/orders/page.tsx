@@ -25,6 +25,11 @@ function formatDuration(seconds: number) {
   return `${m}m`;
 }
 
+const PRINTER_SPECS: Record<string, { build: string; avgWatts: number; maxWatts: number }> = {
+  "K2 PLUS":      { build: "350×350×350mm", avgWatts: 300,  maxWatts: 1000 },
+  "ENDER 5 MAX":  { build: "400×400×400mm", avgWatts: 450,  maxWatts: 1250 },
+};
+
 function PrinterWidget({ token, apiPath = "/api/printer", label = "K2 PLUS" }: { token: string; apiPath?: string; label?: string }) {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState(false);
@@ -177,6 +182,13 @@ function PrinterWidget({ token, apiPath = "/api/printer", label = "K2 PLUS" }: {
           <div className="font-mono text-xs text-steel flex items-center gap-1.5"><Thermometer size={10} /> Nozzle: {extruder?.temperature?.toFixed(0)}°C</div>
           <div className="font-mono text-xs text-steel flex items-center gap-1.5"><Thermometer size={10} /> Bed: {bed?.temperature?.toFixed(0)}°C</div>
           {watts !== null && <div className="font-mono text-xs text-yellow-400/70 flex items-center gap-1.5"><Zap size={10} /> {watts.toFixed(0)}W draw</div>}
+          {PRINTER_SPECS[label] && (
+            <div className="ml-auto font-mono text-[10px] text-steel/40 flex items-center gap-2">
+              <span>{PRINTER_SPECS[label].build}</span>
+              <span>·</span>
+              <span>{PRINTER_SPECS[label].maxWatts}W max</span>
+            </div>
+          )}
         </div>
       )}
     </div>
