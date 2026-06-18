@@ -3,7 +3,7 @@ export const runtime = "edge";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, RefreshCw, TrendingUp, Package, Zap, DollarSign, Weight, Users, BarChart2, Download, Calendar, TrendingDown, Target, Upload, Landmark, Mail } from "lucide-react";
+import { ArrowLeft, RefreshCw, TrendingUp, Package, Zap, DollarSign, Weight, Users, BarChart2, Download, Calendar, TrendingDown, Target, Upload, Landmark, Mail, AlertTriangle, Clock } from "lucide-react";
 import type { CSSProperties } from "react";
 
 const glass: CSSProperties = {
@@ -38,20 +38,24 @@ function fMonth(m: string) {
 }
 
 function BarChart({ data, color = "#f59e0b", label, prefix = "" }: { data: { month: string; value: number }[]; color?: string; label: string; prefix?: string }) {
-  const BAR_H = 88; // px available for bars (h-28=112px minus ~24px label row)
+  const BAR_H = 80; // px for bars; leaves room for value label above and month label below
   const max = Math.max(...data.map(d => d.value), 1);
   return (
-    <div className="flex items-end gap-1 h-28">
+    <div className="flex items-end gap-1" style={{ height: 120 }}>
       {data.map(d => {
         const barH = Math.max((d.value / max) * BAR_H, d.value > 0 ? 2 : 0);
+        const valStr = d.value > 0
+          ? (label === "count" ? String(d.value) : `${prefix}${d.value.toFixed(label === "$" ? 0 : 1)}${label !== "$" && label !== "count" ? label : ""}`)
+          : "";
         return (
-          <div key={d.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-            <div className="w-full rounded-md transition-all relative group flex-shrink-0"
-              style={{ height: barH, background: color, opacity: d.value > 0 ? 1 : 0.15 }}>
-              <div className="absolute -top-6 left-1/2 -translate-x-1/2 rounded-lg px-1.5 py-0.5 font-mono text-[9px] text-bone whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10" style={glass}>
-                {prefix}{label === "count" ? d.value : d.value.toFixed(label === "$" ? 2 : 1)}{label !== "$" && label !== "count" ? label : ""}
-              </div>
-            </div>
+          <div key={d.month} className="flex-1 flex flex-col items-center gap-0.5 min-w-0">
+            {valStr ? (
+              <div className="font-mono text-[8px] text-bone/70 truncate w-full text-center leading-none">{valStr}</div>
+            ) : (
+              <div className="h-3" />
+            )}
+            <div className="w-full rounded-md flex-shrink-0"
+              style={{ height: barH, background: color, opacity: d.value > 0 ? 1 : 0.15 }} />
             <div className="font-mono text-[9px] text-steel truncate w-full text-center">{fMonth(d.month)}</div>
           </div>
         );
@@ -126,6 +130,7 @@ export default function AnalyticsPage() {
   const [payoutSyncing, setPayoutSyncing] = useState(false);
   const [novoTxns, setNovoTxns] = useState<any[]>([]);
   const [printSessions, setPrintSessions] = useState<any[]>([]);
+  const [failures, setFailures] = useState<any[]>([]);
   const [novoImporting, setNovoImporting] = useState(false);
   const [reportSending, setReportSending] = useState(false);
   const [reportMsg, setReportMsg] = useState("");
@@ -174,6 +179,8 @@ export default function AnalyticsPage() {
     if (savedTo)   sessionParams.set("to", savedTo);
     fetch(`/api/admin/print-sessions?${sessionParams}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : []).then(data => setPrintSessions(Array.isArray(data) ? data : [])).catch(() => {});
+    fetch(`/api/admin/failures?${sessionParams}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : []).then(data => setFailures(Array.isArray(data) ? data : [])).catch(() => {});
     setLoading(false);
   }, [router]);
 
@@ -188,6 +195,8 @@ export default function AnalyticsPage() {
     if (dateTo)   params.set("to", dateTo);
     fetch(`/api/admin/print-sessions?${params}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : []).then(data => setPrintSessions(Array.isArray(data) ? data : [])).catch(() => {});
+    fetch(`/api/admin/failures?${params}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : []).then(data => setFailures(Array.isArray(data) ? data : [])).catch(() => {});
   }, [dateFrom, dateTo]);
 
   function saveNovoBalances(balances: typeof novoBalances) {
@@ -287,6 +296,9 @@ export default function AnalyticsPage() {
   const mOrders = months.map(m => ({ month: m, value: monthlyData[m].orderCount }));
   const mHours = months.map(m => ({ month: m, value: monthlyData[m].printHours }));
   const mItems = months.map(m => ({ month: m, value: monthlyData[m].itemCount }));
+  // Filament grams and feet (1.75mm filament, ~1.24 g/cm³ density: 1g ≈ 0.336m ≈ 1.1ft)
+  const mGrams = months.map(m => ({ month: m, value: Object.values(monthlyData[m].grams).reduce((s, g) => s + g, 0) }));
+  const mFeet = months.map(m => ({ month: m, value: Object.values(monthlyData[m].grams).reduce((s, g) => s + g, 0) * 1.1 }));
   const mMargin = months.map(m => {
     const d = monthlyData[m];
     const elec = (d.printHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
@@ -322,6 +334,17 @@ export default function AnalyticsPage() {
     : (totalHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
   const usingActualElec = actualSessionElec > 0;
   const totalProfit = totalRevenue - totalMatCost - totalElecCost - totalSquareFees;
+
+  // Scrap / failure KPIs
+  const totalScrapGrams = failures.reduce((s, f) => s + Number(f.grams_lost || 0), 0);
+  const totalDowntimeHours = failures.reduce((s, f) => s + Number(f.hours_lost || 0), 0);
+  const totalScrapCost = failures.reduce((s, f) => {
+    const cpkg = COST_PER_KG[f.material as string] ?? 16;
+    return s + (Number(f.grams_lost || 0) / 1000) * cpkg;
+  }, 0);
+  const totalPrintedParts = completedOrders.reduce((s, o) => s + (o.order_items || []).reduce((si: number, i: any) => si + (i.qty || 1), 0), 0);
+  const failureRate = totalPrintedParts > 0 ? (failures.length / totalPrintedParts) * 100 : 0;
+  const scrapPctRevenue = totalRevenue > 0 ? (totalScrapCost / totalRevenue) * 100 : 0;
   const totalTax = completedOrders.reduce((s, o) => s + Math.round((o.subtotal || 0) * 0.06 * 100) / 100, 0);
   const totalItems = completedOrders.reduce((s, o) =>
     s + (o.order_items || []).reduce((si: number, i: any) => si + (i.qty || 1), 0), 0);
@@ -734,6 +757,38 @@ export default function AnalyticsPage() {
         <StatCard label="INVENTORY VALUE" value={fc(inventoryValue)} sub={`${spools.length} spools on hand`} color="text-cyan-400" icon={Package} />
       </div>
 
+      {/* Scrap & Downtime */}
+      <div className="mb-2 font-mono text-xs text-steel tracking-widest">SCRAP & DOWNTIME</div>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+        <StatCard label="SCRAP EVENTS" value={String(failures.length)} sub={`${failureRate.toFixed(1)}% failure rate`} color={failures.length > 0 ? "text-red-400" : "text-steel"} icon={AlertTriangle} />
+        <StatCard label="SCRAP GRAMS" value={`${totalScrapGrams.toFixed(0)}g`} sub={`${(totalScrapGrams / 1000).toFixed(3)} kg lost`} color="text-red-400" icon={Weight} />
+        <StatCard label="SCRAP COST" value={fc(totalScrapCost)} sub={`${scrapPctRevenue.toFixed(1)}% of revenue`} color={scrapPctRevenue > 5 ? "text-red-400" : "text-orange-400"} icon={DollarSign} />
+        <StatCard label="DOWNTIME HOURS" value={`${totalDowntimeHours.toFixed(1)}h`} sub="hours lost to failures" color={totalDowntimeHours > 0 ? "text-orange-400" : "text-steel"} icon={Clock} />
+        {failures.length > 0 && (() => {
+          const reasonCounts: Record<string, number> = {};
+          for (const f of failures) reasonCounts[f.reason || "other"] = (reasonCounts[f.reason || "other"] || 0) + 1;
+          const topReason = Object.entries(reasonCounts).sort((a, b) => b[1] - a[1])[0];
+          return <StatCard label="TOP FAILURE" value={topReason[0].replace(/_/g, " ")} sub={`${topReason[1]} of ${failures.length} failures`} color="text-red-400" icon={AlertTriangle} />;
+        })()}
+      </div>
+      {failures.length > 0 && (
+        <div className="mb-6 rounded-xl p-4" style={glass}>
+          <div className="font-mono text-xs text-steel tracking-widest mb-3">RECENT FAILURES</div>
+          <div className="space-y-2">
+            {failures.slice(0, 5).map((f: any) => (
+              <div key={f.id} className="flex items-center justify-between gap-4 font-mono text-xs py-1.5 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                <span className="text-steel">{new Date(f.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                <span className="text-bone">{f.material}</span>
+                <span className="text-red-400">{f.reason?.replace(/_/g, " ") || "—"}</span>
+                <span className="text-orange-400">{Number(f.grams_lost || 0).toFixed(0)}g</span>
+                <span className="text-steel">{Number(f.hours_lost || 0).toFixed(1)}h lost</span>
+                <span className="text-steel/50 truncate max-w-xs">{f.notes || ""}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Square Payouts + Novo */}
       <div className="mb-2 font-mono text-xs text-steel tracking-widest">CASH FLOW — SQUARE PAYOUTS & NOVO BANK</div>
       <div className="rounded-xl p-5 mb-6" style={glass}>
@@ -1009,12 +1064,14 @@ export default function AnalyticsPage() {
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-8">
         {[
           { label: "ORDER COUNT", data: mOrders, color: "#3b82f6", labelStr: "count" },
           { label: "PRINT HOURS", data: mHours, color: "#f97316", labelStr: "h" },
           { label: "PARTS PRINTED", data: mItems, color: "#8b5cf6", labelStr: "pcs" },
           { label: "PROFIT MARGIN %", data: mMargin, color: "#10b981", labelStr: "%" },
+          { label: "FILAMENT USED (g)", data: mGrams, color: "#f59e0b", labelStr: "g" },
+          { label: "FILAMENT (ft)", data: mFeet, color: "#e879f9", labelStr: "ft" },
         ].map(({ label, data, color, labelStr }) => (
           <div key={label} className="rounded-xl p-4" style={glass}>
             <div className="font-mono text-xs text-steel tracking-widest mb-3">{label}</div>

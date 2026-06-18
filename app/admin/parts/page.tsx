@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { RefreshCw, Clock, CheckCircle2, Printer, Thermometer, Layers, List, Minus, Plus, Zap, PrinterCheck } from "lucide-react";
+import { RefreshCw, Clock, CheckCircle2, Printer, Thermometer, Layers, List, Minus, Plus, Zap, PrinterCheck, AlertTriangle, X } from "lucide-react";
 import type { CSSProperties } from "react";
 
 const glass: CSSProperties = {
@@ -14,6 +14,8 @@ const glass: CSSProperties = {
 };
 const innerCell: CSSProperties = { background: "rgba(255,255,255,0.04)", borderRadius: 12 };
 const inputSt: CSSProperties = { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", outline: "none" };
+
+const FAILURE_REASONS = ["adhesion", "warp", "clog", "stringing", "layer_shift", "under_extrusion", "power_loss", "operator_error", "other"];
 
 const PART_STATUSES = [
   { value: "pending", label: "Pending", color: "#6b7280" },
@@ -197,6 +199,10 @@ export default function PartsPage() {
   const [editingHours, setEditingHours] = useState<Record<string, { h: string; m: string }>>({});
   const [editingGrams, setEditingGrams] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [scrapOpen, setScrapOpen] = useState<Record<string, boolean>>({});
+  const [scrapForm, setScrapForm] = useState<Record<string, { grams: string; hours: string; reason: string; notes: string }>>({});
+  const [scrapSaving, setScrapSaving] = useState<Record<string, boolean>>({});
+  const [scrapSaved, setScrapSaved] = useState<Record<string, boolean>>({});
   const router = useRouter();
 
   const fetchParts = useCallback(async () => {
@@ -274,6 +280,35 @@ export default function PartsPage() {
     if (isNaN(val) || val <= 0) return;
     await updatePart(itemId, { grams: val });
     setEditingGrams(s => ({ ...s, [itemId]: "" }));
+  }
+
+  function openScrap(part: any) {
+    setScrapOpen(s => ({ ...s, [part.id]: true }));
+    setScrapSaved(s => ({ ...s, [part.id]: false }));
+    if (!scrapForm[part.id]) {
+      setScrapForm(s => ({ ...s, [part.id]: { grams: String(Number(part.grams || 0).toFixed(1)), hours: String(Number(part.print_hours || part.hours || 0).toFixed(2)), reason: "adhesion", notes: "" } }));
+    }
+  }
+
+  async function logScrap(part: any) {
+    const form = scrapForm[part.id];
+    if (!form) return;
+    setScrapSaving(s => ({ ...s, [part.id]: true }));
+    await fetch("/api/admin/failures", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        order_item_id: part.id,
+        material: part.material || "PLA",
+        grams_lost: parseFloat(form.grams) || 0,
+        hours_lost: parseFloat(form.hours) || 0,
+        reason: form.reason,
+        notes: form.notes || undefined,
+      }),
+    });
+    setScrapSaving(s => ({ ...s, [part.id]: false }));
+    setScrapSaved(s => ({ ...s, [part.id]: true }));
+    setTimeout(() => setScrapOpen(s => ({ ...s, [part.id]: false })), 1200);
   }
 
   const incompleteParts = parts.filter(p => !p.completed);
@@ -474,7 +509,67 @@ export default function PartsPage() {
                         {s.label}
                       </button>
                     ))}
+                    <button onClick={() => openScrap(part)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border transition-colors cursor-pointer ml-auto"
+                      style={{ border: "1px solid rgba(239,68,68,0.30)", color: "#f87171", background: "rgba(239,68,68,0.06)" }}>
+                      <AlertTriangle size={11} /> Log Failure
+                    </button>
                   </div>
+
+                  {scrapOpen[part.id] && (
+                    <div className="mt-3 p-3 rounded-xl" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.20)" }}>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="font-mono text-xs text-red-400 font-bold flex items-center gap-1.5"><AlertTriangle size={11} /> LOG PRINT FAILURE</span>
+                        <button onClick={() => setScrapOpen(s => ({ ...s, [part.id]: false }))} className="text-steel hover:text-bone cursor-pointer"><X size={14} /></button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <div>
+                          <label className="font-mono text-[10px] text-steel block mb-1">Grams Lost</label>
+                          <input type="number" step="0.1" min="0"
+                            value={scrapForm[part.id]?.grams || ""}
+                            onChange={e => setScrapForm(s => ({ ...s, [part.id]: { ...s[part.id], grams: e.target.value } }))}
+                            className="w-full px-2 py-1.5 rounded-lg text-bone text-xs font-mono"
+                            style={inputSt}
+                            onFocus={e => { e.currentTarget.style.borderColor = "rgba(239,68,68,0.50)"; }}
+                            onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; }} />
+                        </div>
+                        <div>
+                          <label className="font-mono text-[10px] text-steel block mb-1">Hours Lost</label>
+                          <input type="number" step="0.1" min="0"
+                            value={scrapForm[part.id]?.hours || ""}
+                            onChange={e => setScrapForm(s => ({ ...s, [part.id]: { ...s[part.id], hours: e.target.value } }))}
+                            className="w-full px-2 py-1.5 rounded-lg text-bone text-xs font-mono"
+                            style={inputSt}
+                            onFocus={e => { e.currentTarget.style.borderColor = "rgba(239,68,68,0.50)"; }}
+                            onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; }} />
+                        </div>
+                      </div>
+                      <div className="mb-2">
+                        <label className="font-mono text-[10px] text-steel block mb-1">Reason</label>
+                        <select value={scrapForm[part.id]?.reason || "adhesion"}
+                          onChange={e => setScrapForm(s => ({ ...s, [part.id]: { ...s[part.id], reason: e.target.value } }))}
+                          className="w-full px-2 py-1.5 rounded-lg text-bone text-xs font-mono cursor-pointer"
+                          style={inputSt}>
+                          {FAILURE_REASONS.map(r => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
+                        </select>
+                      </div>
+                      <div className="mb-3">
+                        <label className="font-mono text-[10px] text-steel block mb-1">Notes (optional)</label>
+                        <input type="text" placeholder="e.g. layer 12, first layer popped"
+                          value={scrapForm[part.id]?.notes || ""}
+                          onChange={e => setScrapForm(s => ({ ...s, [part.id]: { ...s[part.id], notes: e.target.value } }))}
+                          className="w-full px-2 py-1.5 rounded-lg text-bone text-xs font-mono"
+                          style={inputSt}
+                          onFocus={e => { e.currentTarget.style.borderColor = "rgba(239,68,68,0.50)"; }}
+                          onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; }} />
+                      </div>
+                      <button onClick={() => logScrap(part)} disabled={scrapSaving[part.id]}
+                        className="w-full py-2 rounded-xl font-mono text-xs font-bold cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-50"
+                        style={{ background: scrapSaved[part.id] ? "rgba(34,197,94,0.20)" : "rgba(239,68,68,0.20)", color: scrapSaved[part.id] ? "#4ade80" : "#f87171", border: `1px solid ${scrapSaved[part.id] ? "rgba(34,197,94,0.40)" : "rgba(239,68,68,0.40)"}` }}>
+                        {scrapSaved[part.id] ? "✓ Logged" : scrapSaving[part.id] ? "Saving..." : "Save Failure Log"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
