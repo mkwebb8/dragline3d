@@ -1297,7 +1297,7 @@ export default function AnalyticsPage() {
               onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,181,71,0.50)"; }}
               onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; }} />
           </div>
-          <div className="font-mono text-[10px] text-steel/50">{printerCount} printer{printerCount > 1 ? "s" : ""} × {PRACTICAL_HOURS_PER_DAY}h/day practical capacity</div>
+          <div className="font-mono text-[10px] text-steel/50">{printerCount} printer{printerCount > 1 ? "s" : ""} × {PRACTICAL_HOURS_PER_DAY}h/day · {printerCount === 1 ? "K2 Plus" : "K2 Plus + Ender 5 Max"}</div>
           <div className="ml-auto flex items-center gap-6">
             <div className="text-right"><div className="font-mono text-[9px] text-steel">AVG UTILIZATION</div><div className={`font-display font-bold text-lg ${avgUtilPct > 70 ? "text-red-400" : avgUtilPct > 40 ? "text-amber" : "text-green-400"}`}>{avgUtilPct.toFixed(0)}%</div></div>
             <div className="text-right"><div className="font-mono text-[9px] text-steel">AVG REV/HOUR</div><div className="font-display font-bold text-lg text-emerald-400">{fc(avgRevPerHour)}</div></div>
@@ -1416,7 +1416,7 @@ export default function AnalyticsPage() {
                         {currentMonthCap && (
                           <div className="font-mono text-[10px] text-steel/70">
                             {currentMonthCap.used.toFixed(0)}h completed + {queuedHours.toFixed(0)}h queued = {(currentMonthCap.used + queuedHours).toFixed(0)}h of {currentMonthCap.available.toFixed(0)}h available this month
-                            {overCapacity && <span className="text-red-400 ml-1">· {((currentMonthCap.used + queuedHours) - currentMonthCap.available).toFixed(0)}h overflow → consider adding a printer</span>}
+                            {overCapacity && <span className="text-red-400 ml-1">· {((currentMonthCap.used + queuedHours) - currentMonthCap.available).toFixed(0)}h overflow{printerCount < 2 ? " → consider adding a printer" : " → prioritize queue"}</span>}
                           </div>
                         )}
                       </div>
