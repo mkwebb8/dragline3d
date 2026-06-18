@@ -628,6 +628,7 @@ pollShelly(); // immediate first read
 // NOTE: Prints started from the K2 Plus touchscreen bypass Moonraker's print_stats
 // and won't be detected here. Use the manual Start button for touchscreen prints.
 const MOONRAKER_URL = process.env.MOONRAKER_URL || "http://192.168.68.51:7125";
+const MOONRAKER_URL_2 = process.env.MOONRAKER_URL_2 || "";
 let moonrakerPrintState = null; // last known print_stats.state
 
 async function pollMoonraker() {
@@ -807,6 +808,16 @@ const server = http.createServer(async (req, res) => {
       const data = await r.json();
       return send(res, 200, data.result?.status || {});
     } catch(e) { return send(res, 503, { error: "Printer unreachable" }); }
+  }
+  if (req.url === "/printer2" && req.method === "GET") {
+    const secret = req.headers["x-worker-secret"];
+    if (WORKER_SECRET && secret !== WORKER_SECRET) return send(res, 401, { error: "Unauthorized" });
+    if (!MOONRAKER_URL_2) return send(res, 503, { error: "Printer 2 not configured" });
+    try {
+      const r = await fetch(`${MOONRAKER_URL_2}/printer/objects/query?print_stats&virtual_sdcard&heater_bed&extruder`);
+      const data = await r.json();
+      return send(res, 200, data.result?.status || {});
+    } catch(e) { return send(res, 503, { error: "Printer 2 unreachable" }); }
   }
   if (req.url === "/convert-step" && req.method === "POST") return handleConvertStep(req, res);
   if (req.url === "/slice" && req.method === "POST") return handleSlice(req, res);

@@ -25,7 +25,7 @@ function formatDuration(seconds: number) {
   return `${m}m`;
 }
 
-function PrinterWidget({ token }: { token: string }) {
+function PrinterWidget({ token, apiPath = "/api/printer", label = "K2 PLUS" }: { token: string; apiPath?: string; label?: string }) {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState(false);
   const [shellyData, setShellyData] = useState<any>(null);
@@ -33,7 +33,7 @@ function PrinterWidget({ token }: { token: string }) {
 
   const fetchPrinter = useCallback(async () => {
     try {
-      const res = await fetch("/api/printer", { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(apiPath, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) { setError(true); return; }
       const json = await res.json();
       setData(json);
@@ -60,11 +60,11 @@ function PrinterWidget({ token }: { token: string }) {
 
   useEffect(() => {
     fetchPrinter();
-    fetchShelly();
+    if (apiPath === "/api/printer") fetchShelly();
     const p = setInterval(fetchPrinter, 10000);
-    const s = setInterval(fetchShelly, 15000);
-    return () => { clearInterval(p); clearInterval(s); };
-  }, [fetchPrinter, fetchShelly]);
+    const s = apiPath === "/api/printer" ? setInterval(fetchShelly, 15000) : null;
+    return () => { clearInterval(p); if (s) clearInterval(s); };
+  }, [fetchPrinter, fetchShelly, apiPath]);
 
   if (error || !data) {
     return (
@@ -104,7 +104,7 @@ function PrinterWidget({ token }: { token: string }) {
       <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
         <div className="flex items-center gap-2">
           <Printer size={14} className={isActive ? "text-amber" : "text-steel"} />
-          <span className="font-mono text-xs tracking-widest font-bold">K2 PLUS</span>
+          <span className="font-mono text-xs tracking-widest font-bold">{label}</span>
           <span className={`px-2 py-0.5 rounded-md font-mono text-xs font-bold ${isActive ? "bg-orange-500/20 text-orange-400" : "text-steel"}`}
             style={isActive ? {} : innerCell}
             title={tempInferred ? "Detected via nozzle temp — touchscreen print bypasses Moonraker" : undefined}>
@@ -250,7 +250,8 @@ export default function AdminOrders() {
         </div>
       </div>
 
-      {token && <PrinterWidget token={token} />}
+      {token && <PrinterWidget token={token} apiPath="/api/printer" label="K2 PLUS" />}
+      {token && <PrinterWidget token={token} apiPath="/api/printer2" label="ENDER 5 MAX" />}
 
       <div className="flex gap-2 mb-6 flex-wrap">
         {FILTERS.map(f => (
