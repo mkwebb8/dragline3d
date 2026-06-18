@@ -139,6 +139,14 @@ export default function AnalyticsPage() {
     if (typeof window !== "undefined") return parseInt(localStorage.getItem("printer_count") || "1");
     return 1;
   });
+  const [machineValue, setMachineValue] = useState(() => {
+    if (typeof window !== "undefined") return parseFloat(localStorage.getItem("machine_value") || "1000");
+    return 1000;
+  });
+  const [machineLifespanHours, setMachineLifespanHours] = useState(() => {
+    if (typeof window !== "undefined") return parseFloat(localStorage.getItem("machine_lifespan_hrs") || "100000");
+    return 100000;
+  });
   const router = useRouter();
 
   const fetchData = useCallback(async () => {
@@ -374,6 +382,13 @@ export default function AnalyticsPage() {
   const pfTaxes = realRevenue * PF.taxes;
   const pfOpex = realRevenue * PF.opex;
 
+  // True cost analysis — owner comp as labor cost + machine depreciation
+  const depreciationRatePerHr = machineValue / machineLifespanHours;
+  const depreciationCost = totalHours * depreciationRatePerHr * printerCount;
+  const laborCostPerHour = totalHours > 0 ? pfOwnerComp / totalHours : 0;
+  const trueOperatingProfit = operatingProfit - pfOwnerComp - depreciationCost;
+  const trueMarginPct = productRevenue > 0 ? (trueOperatingProfit / productRevenue) * 100 : 0;
+
   // Net profit
   const netProfit = pfProfit;
   const netMarginPct = realRevenue > 0 ? (netProfit / realRevenue) * 100 : 0;
@@ -476,6 +491,14 @@ export default function AnalyticsPage() {
   function savePrinterCount(n: number) {
     setPrinterCount(n);
     if (typeof window !== "undefined") localStorage.setItem("printer_count", String(n));
+  }
+  function saveMachineValue(v: number) {
+    setMachineValue(v);
+    if (typeof window !== "undefined") localStorage.setItem("machine_value", String(v));
+  }
+  function saveMachineLifespan(v: number) {
+    setMachineLifespanHours(v);
+    if (typeof window !== "undefined") localStorage.setItem("machine_lifespan_hrs", String(v));
   }
 
   // ── PRICING INTELLIGENCE ─────────────────────────────────────────────────
@@ -768,6 +791,13 @@ export default function AnalyticsPage() {
         <StatCard label="PAID OUT (SQUARE)" value={fc(realRevenue)} sub={totalPayoutsAmount > 0 ? (payoutDiscrepancyPct > 5 ? `⚠ ${fc(payoutDiscrepancy)} gap vs expected` : `matches expected ±${fc(payoutDiscrepancy)}`) : `estimated · sync Square`} color={payoutDiscrepancyPct > 5 ? "text-amber" : "text-emerald-400"} icon={DollarSign} />
         <StatCard label="AVG ORDER VALUE" value={fc(avgOrderValue)} sub="excl. tax & shipping" icon={BarChart2} />
         <StatCard label="INVENTORY VALUE" value={fc(inventoryValue)} sub={`${spools.length} spools on hand`} color="text-cyan-400" icon={Package} />
+      </div>
+      {/* True cost row — owner comp + depreciation */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <StatCard label="OWNER COMP (LABOR)" value={fc(pfOwnerComp)} sub={`PF ${pfPcts.ownerComp}% of real revenue`} color="text-violet-400" icon={DollarSign} />
+        <StatCard label="LABOR $/HR" value={`${fc(laborCostPerHour)}/hr`} sub={`${totalHours.toFixed(1)}h print time in period`} color="text-violet-400" icon={Clock} />
+        <StatCard label="MACHINE DEPRECIATION" value={fc(depreciationCost)} sub={`${fc(depreciationRatePerHr)}/hr · $${machineValue.toLocaleString()} ÷ ${(machineLifespanHours/1000).toFixed(0)}k hrs`} color="text-slate-400" icon={TrendingUp} />
+        <StatCard label="TRUE OPERATING PROFIT" value={fc(trueOperatingProfit)} sub={`${trueMarginPct.toFixed(0)}% margin · after labor & depreciation`} color={trueOperatingProfit > 0 ? "text-emerald-400" : "text-red-400"} icon={Target} />
       </div>
 
       {/* Scrap & Downtime */}
@@ -1309,6 +1339,26 @@ export default function AnalyticsPage() {
               style={inputSt}
               onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,181,71,0.50)"; }}
               onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; }} />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="font-mono text-xs text-steel">MACHINE VALUE</label>
+            <span className="font-mono text-xs text-steel/50">$</span>
+            <input type="number" min="1" value={machineValue}
+              onChange={e => saveMachineValue(Math.max(1, parseFloat(e.target.value) || 1000))}
+              className="w-20 px-2 py-1 rounded-lg text-bone text-xs font-mono text-center"
+              style={inputSt}
+              onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,181,71,0.50)"; }}
+              onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; }} />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="font-mono text-xs text-steel">LIFESPAN</label>
+            <input type="number" min="1000" step="1000" value={machineLifespanHours}
+              onChange={e => saveMachineLifespan(Math.max(1000, parseFloat(e.target.value) || 100000))}
+              className="w-24 px-2 py-1 rounded-lg text-bone text-xs font-mono text-center"
+              style={inputSt}
+              onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,181,71,0.50)"; }}
+              onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; }} />
+            <span className="font-mono text-xs text-steel/50">hrs</span>
           </div>
           <div className="font-mono text-[10px] text-steel/50">{printerCount} printer{printerCount > 1 ? "s" : ""} × {PRACTICAL_HOURS_PER_DAY}h/day · {printerCount === 1 ? "K2 Plus" : "K2 Plus + Ender 5 Max"}</div>
           <div className="ml-auto flex items-center gap-6">
