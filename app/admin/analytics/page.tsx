@@ -314,6 +314,7 @@ export default function AnalyticsPage() {
   }, 0);
   const totalRefunds = completedOrders.reduce((s, o) => s + Number(o.refunded_amount || 0), 0);
   const totalShipping = completedOrders.reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
+  const totalTax = completedOrders.reduce((s, o) => s + Math.round((o.subtotal || 0) * 0.06 * 100) / 100, 0);
   const totalSquareFees = completedOrders.reduce((s, o) => {
     const collected = o.total || 0;
     return s + (o.square_fee != null
@@ -333,6 +334,15 @@ export default function AnalyticsPage() {
     ? actualSessionElec
     : (totalHours * AVG_PRINTER_WATTS / 1000) * ELECTRICITY_RATE;
   const usingActualElec = actualSessionElec > 0;
+  // Product revenue = collected minus tax and shipping pass-throughs
+  const productRevenue = totalRevenue - totalTax - totalShipping;
+  // Gross profit = product revenue minus COGS only (material, packaging, electricity)
+  const grossProfit = productRevenue - totalFilamentCost - totalBoxCost - totalElecCost;
+  const grossMarginPct = productRevenue > 0 ? (grossProfit / productRevenue) * 100 : 0;
+  // Operating profit = gross profit minus processing fees (Square)
+  const operatingProfit = grossProfit - totalSquareFees;
+  const operatingMarginPct = productRevenue > 0 ? (operatingProfit / productRevenue) * 100 : 0;
+  // Legacy — kept for monthly table compatibility
   const totalProfit = totalRevenue - totalMatCost - totalElecCost - totalSquareFees;
 
   // Scrap / failure KPIs
@@ -345,7 +355,6 @@ export default function AnalyticsPage() {
   const totalPrintedParts = completedOrders.reduce((s, o) => s + (o.order_items || []).reduce((si: number, i: any) => si + (i.qty || 1), 0), 0);
   const failureRate = totalPrintedParts > 0 ? (failures.length / totalPrintedParts) * 100 : 0;
   const scrapPctRevenue = totalRevenue > 0 ? (totalScrapCost / totalRevenue) * 100 : 0;
-  const totalTax = completedOrders.reduce((s, o) => s + Math.round((o.subtotal || 0) * 0.06 * 100) / 100, 0);
   const totalItems = completedOrders.reduce((s, o) =>
     s + (o.order_items || []).reduce((si: number, i: any) => si + (i.qty || 1), 0), 0);
   const avgOrderValue = totalRevenue / (completedOrders.length || 1);
@@ -356,6 +365,10 @@ export default function AnalyticsPage() {
   const totalPaidOut = totalRevenue - totalSquareFees - totalRefunds;
   const totalPayoutsAmount = payouts.filter(p => p.status === "PAID" || p.status === "SENT").reduce((s, p) => s + Number(p.amount || 0), 0);
   const realRevenue = (!dateFrom && !dateTo && totalPayoutsAmount > 0) ? totalPayoutsAmount : totalPaidOut;
+  // Square payout discrepancy: expected = collected − fees − refunds; flag if actual payout differs by >5%
+  const expectedPaidOut = totalRevenue - totalSquareFees - totalRefunds;
+  const payoutDiscrepancy = totalPayoutsAmount > 0 ? Math.abs(totalPayoutsAmount - expectedPaidOut) : 0;
+  const payoutDiscrepancyPct = expectedPaidOut > 0 ? (payoutDiscrepancy / expectedPaidOut) * 100 : 0;
   const pfProfit = realRevenue * PF.profit;
   const pfOwnerComp = realRevenue * PF.ownerComp;
   const pfTaxes = realRevenue * PF.taxes;
@@ -741,18 +754,18 @@ export default function AnalyticsPage() {
         P&L SUMMARY {(dateFrom || dateTo) && <span className="text-amber ml-2">FILTERED</span>}
       </div>
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
-        <StatCard label="COLLECTED" value={fc(totalRevenue)} sub={`${completedOrders.length} orders${totalRefunds > 0 ? ` · −${fc(totalRefunds)} refunded` : ''}`} icon={DollarSign} />
-        <StatCard label="PAID OUT" value={fc(realRevenue)} sub={totalPayoutsAmount > 0 ? `actual Square payouts` : `estimated · sync Square for exact`} color="text-emerald-400" icon={DollarSign} />
-        <StatCard label="FILAMENT COST" value={fc(totalFilamentCost)} sub={`${(totalFilamentCost / (totalRevenue || 1) * 100).toFixed(0)}% of revenue`} color="text-red-400" icon={Weight} />
-        <StatCard label="PACKAGING" value={fc(totalBoxCost)} sub={`${(totalBoxCost / (totalRevenue || 1) * 100).toFixed(0)}% of revenue · boxes`} color="text-pink-400" icon={Package} />
+        <StatCard label="COLLECTED" value={fc(totalRevenue)} sub={`${completedOrders.length} orders · incl. tax & shipping`} icon={DollarSign} />
+        <StatCard label="PRODUCT REVENUE" value={fc(productRevenue)} sub={`excl. ${fc(totalTax)} tax · ${fc(totalShipping)} shipping`} color="text-emerald-400" icon={DollarSign} />
+        <StatCard label="FILAMENT COST" value={fc(totalFilamentCost)} sub={`${(totalFilamentCost / (productRevenue || 1) * 100).toFixed(0)}% of product rev`} color="text-red-400" icon={Weight} />
+        <StatCard label="PACKAGING" value={fc(totalBoxCost)} sub={`${(totalBoxCost / (productRevenue || 1) * 100).toFixed(0)}% of product rev · boxes`} color="text-pink-400" icon={Package} />
         <StatCard label="SQUARE FEES" value={fc(totalSquareFees)} sub="2.9% + $0.30/order" color="text-orange-400" icon={DollarSign} />
         <StatCard label={usingActualElec ? "ELECTRICITY (ACTUAL)" : "ELECTRICITY EST."} value={fc(totalElecCost)} sub={usingActualElec ? `${printSessions.length} Shelly sessions` : `${totalHours.toFixed(0)}h × ${AVG_PRINTER_WATTS}W est.`} color="text-yellow-400" icon={Zap} />
       </div>
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
-        <StatCard label="GROSS PROFIT" value={fc(totalProfit)} sub={`${marginPct.toFixed(0)}% gross margin`} color={totalProfit > 0 ? "text-green-400" : "text-red-400"} icon={TrendingUp} />
+        <StatCard label="GROSS PROFIT" value={fc(grossProfit)} sub={`${grossMarginPct.toFixed(0)}% margin · rev − COGS`} color={grossProfit > 0 ? "text-green-400" : "text-red-400"} icon={TrendingUp} />
+        <StatCard label="OPERATING PROFIT" value={fc(operatingProfit)} sub={`${operatingMarginPct.toFixed(0)}% margin · after Square fees`} color={operatingProfit > 0 ? "text-green-400" : "text-red-400"} icon={TrendingUp} />
         <StatCard label={`NET PROFIT (PF ${pfPcts.profit}%)`} value={fc(netProfit)} sub={`${netMarginPct.toFixed(0)}% of real revenue`} color={netProfit > 0 ? "text-emerald-400" : "text-red-400"} icon={Target} />
-        <StatCard label="TAX COLLECTED" value={fc(totalTax)} sub={`${totalRevenue > 0 ? ((totalTax / totalRevenue) * 100).toFixed(0) : 0}% of revenue · 6% est.`} color="text-purple-400" icon={DollarSign} />
-        <StatCard label="SHIPPING COLLECTED" value={fc(totalShipping)} sub="from customers" color="text-blue-400" icon={Package} />
+        <StatCard label="PAID OUT (SQUARE)" value={fc(realRevenue)} sub={totalPayoutsAmount > 0 ? (payoutDiscrepancyPct > 5 ? `⚠ ${fc(payoutDiscrepancy)} gap vs expected` : `matches expected ±${fc(payoutDiscrepancy)}`) : `estimated · sync Square`} color={payoutDiscrepancyPct > 5 ? "text-amber" : "text-emerald-400"} icon={DollarSign} />
         <StatCard label="AVG ORDER VALUE" value={fc(avgOrderValue)} sub="excl. tax & shipping" icon={BarChart2} />
         <StatCard label="INVENTORY VALUE" value={fc(inventoryValue)} sub={`${spools.length} spools on hand`} color="text-cyan-400" icon={Package} />
       </div>
