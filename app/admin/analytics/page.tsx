@@ -856,11 +856,13 @@ export default function AnalyticsPage() {
               </div>
               <div className="flex items-center justify-between font-mono text-xs">
                 <span className="text-steel">{opexUsedPct.toFixed(0)}% of opex budget</span>
-                <span className={opexVariance >= 0 ? "text-green-400" : "text-red-400"}>
-                  {opexVariance >= 0
-                    ? `${fc(opexVariance)} under — bump profit to ${suggestedProfitPct}%`
-                    : `${fc(Math.abs(opexVariance))} OVER — reduce opex to ${suggestedOpexPct}% or raise prices`}
-                </span>
+                {pfPcts.opex > 0 && (
+                  <span className={opexVariance >= 0 ? "text-green-400" : "text-red-400"}>
+                    {opexVariance >= 0
+                      ? `${fc(opexVariance)} under — bump profit to ${suggestedProfitPct}%`
+                      : `${fc(Math.abs(opexVariance))} OVER — reduce opex to ${suggestedOpexPct}% or raise prices`}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -869,7 +871,7 @@ export default function AnalyticsPage() {
               {[
                 { label: "OWNER COMP", pct: pfPcts.ownerComp, val: pfOwnerComp, color: "#f59e0b" },
                 { label: "TAXES", pct: pfPcts.taxes, val: pfTaxes, color: "#ef4444" },
-                { label: "OP. EXPENSES", pct: pfPcts.opex, val: pfOpex, color: "#3b82f6" },
+                ...(pfPcts.opex > 0 ? [{ label: "OP. EXPENSES", pct: pfPcts.opex, val: pfOpex, color: "#3b82f6" }] : []),
               ].map(({ label, pct, val, color }) => (
                 <div key={label} className="rounded-lg p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                   <div className="font-mono text-[9px] text-steel mb-1">{label}</div>
@@ -927,9 +929,14 @@ export default function AnalyticsPage() {
             );
           })}
         </div>
-        {pfPctSum !== 100 && (
-          <div className="mb-4 px-3 py-2 rounded-lg font-mono text-xs text-amber" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)" }}>
-            ⚠ Percentages sum to {pfPctSum}% — must equal 100% for accurate allocations
+        {pfPctSum > 100 && (
+          <div className="mb-4 px-3 py-2 rounded-lg font-mono text-xs text-red-400" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}>
+            ⚠ Percentages sum to {pfPctSum}% — reduce to 100% or less
+          </div>
+        )}
+        {pfPctSum < 100 && pfPctSum > 0 && (
+          <div className="mb-4 px-3 py-2 rounded-lg font-mono text-xs text-steel" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            {100 - pfPctSum}% unallocated — flows to available bank balance
           </div>
         )}
 
@@ -938,7 +945,7 @@ export default function AnalyticsPage() {
             { key: "profit", label: "PROFIT", pct: pfPcts.profit, target: pfProfit, color: "text-green-400", borderColor: "rgba(34,197,94,0.30)" },
             { key: "ownerComp", label: "OWNER COMP", pct: pfPcts.ownerComp, target: pfOwnerComp, color: "text-amber", borderColor: "rgba(255,181,71,0.30)" },
             { key: "taxes", label: "TAXES", pct: pfPcts.taxes, target: pfTaxes, color: "text-red-400", borderColor: "rgba(239,68,68,0.30)" },
-            { key: "opex", label: "OP. EXPENSES", pct: pfPcts.opex, target: pfOpex, color: "text-blue-400", borderColor: "rgba(59,130,246,0.30)" },
+            ...(pfPcts.opex > 0 ? [{ key: "opex", label: "OP. EXPENSES", pct: pfPcts.opex, target: pfOpex, color: "text-blue-400", borderColor: "rgba(59,130,246,0.30)" }] : []),
           ].map(({ key, label, pct, target, color, borderColor }) => {
             const actual = parseFloat(novoBalances[key as keyof typeof novoBalances]) || 0;
             const diff = actual - target;
