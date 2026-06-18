@@ -38,19 +38,24 @@ function fMonth(m: string) {
 }
 
 function BarChart({ data, color = "#f59e0b", label, prefix = "" }: { data: { month: string; value: number }[]; color?: string; label: string; prefix?: string }) {
+  const BAR_H = 88; // px available for bars (h-28=112px minus ~24px label row)
   const max = Math.max(...data.map(d => d.value), 1);
   return (
     <div className="flex items-end gap-1 h-28">
-      {data.map(d => (
-        <div key={d.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-          <div className="w-full rounded-md transition-all relative group" style={{ height: `${Math.max((d.value / max) * 100, 2)}%`, background: color, opacity: d.value > 0 ? 1 : 0.15 }}>
-            <div className="absolute -top-6 left-1/2 -translate-x-1/2 rounded-lg px-1.5 py-0.5 font-mono text-[9px] text-bone whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10" style={glass}>
-              {prefix}{label === "count" ? d.value : d.value.toFixed(label === "$" ? 2 : 1)}{label !== "$" && label !== "count" ? label : ""}
+      {data.map(d => {
+        const barH = Math.max((d.value / max) * BAR_H, d.value > 0 ? 2 : 0);
+        return (
+          <div key={d.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+            <div className="w-full rounded-md transition-all relative group flex-shrink-0"
+              style={{ height: barH, background: color, opacity: d.value > 0 ? 1 : 0.15 }}>
+              <div className="absolute -top-6 left-1/2 -translate-x-1/2 rounded-lg px-1.5 py-0.5 font-mono text-[9px] text-bone whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10" style={glass}>
+                {prefix}{label === "count" ? d.value : d.value.toFixed(label === "$" ? 2 : 1)}{label !== "$" && label !== "count" ? label : ""}
+              </div>
             </div>
+            <div className="font-mono text-[9px] text-steel truncate w-full text-center">{fMonth(d.month)}</div>
           </div>
-          <div className="font-mono text-[9px] text-steel truncate w-full text-center">{fMonth(d.month)}</div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
