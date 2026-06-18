@@ -200,7 +200,7 @@ export default function PartsPage() {
   const [editingGrams, setEditingGrams] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [scrapOpen, setScrapOpen] = useState<Record<string, boolean>>({});
-  const [scrapForm, setScrapForm] = useState<Record<string, { grams: string; hours: string; reason: string; notes: string }>>({});
+  const [scrapForm, setScrapForm] = useState<Record<string, { grams: string; hours: string; mins: string; reason: string; notes: string }>>({});
   const [scrapSaving, setScrapSaving] = useState<Record<string, boolean>>({});
   const [scrapSaved, setScrapSaved] = useState<Record<string, boolean>>({});
   const router = useRouter();
@@ -286,7 +286,10 @@ export default function PartsPage() {
     setScrapOpen(s => ({ ...s, [part.id]: true }));
     setScrapSaved(s => ({ ...s, [part.id]: false }));
     if (!scrapForm[part.id]) {
-      setScrapForm(s => ({ ...s, [part.id]: { grams: String(Number(part.grams || 0).toFixed(1)), hours: String(Number(part.print_hours || part.hours || 0).toFixed(2)), reason: "adhesion", notes: "" } }));
+      const totalHours = Number(part.print_hours || part.hours || 0);
+      const h = Math.floor(totalHours);
+      const m = Math.round((totalHours - h) * 60);
+      setScrapForm(s => ({ ...s, [part.id]: { grams: String(Number(part.grams || 0).toFixed(1)), hours: String(h), mins: String(m), reason: "adhesion", notes: "" } }));
     }
   }
 
@@ -301,7 +304,7 @@ export default function PartsPage() {
         order_item_id: part.id,
         material: part.material || "PLA",
         grams_lost: parseFloat(form.grams) || 0,
-        hours_lost: parseFloat(form.hours) || 0,
+        hours_lost: (parseInt(form.hours) || 0) + (parseInt(form.mins) || 0) / 60,
         reason: form.reason,
         notes: form.notes || undefined,
       }),
@@ -534,14 +537,25 @@ export default function PartsPage() {
                             onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; }} />
                         </div>
                         <div>
-                          <label className="font-mono text-[10px] text-steel block mb-1">Hours Lost</label>
-                          <input type="number" step="0.1" min="0"
-                            value={scrapForm[part.id]?.hours || ""}
-                            onChange={e => setScrapForm(s => ({ ...s, [part.id]: { ...s[part.id], hours: e.target.value } }))}
-                            className="w-full px-2 py-1.5 rounded-lg text-bone text-xs font-mono"
-                            style={inputSt}
-                            onFocus={e => { e.currentTarget.style.borderColor = "rgba(239,68,68,0.50)"; }}
-                            onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; }} />
+                          <label className="font-mono text-[10px] text-steel block mb-1">Time Lost</label>
+                          <div className="flex gap-1 items-center">
+                            <input type="number" step="1" min="0" max="99" placeholder="0"
+                              value={scrapForm[part.id]?.hours || ""}
+                              onChange={e => setScrapForm(s => ({ ...s, [part.id]: { ...s[part.id], hours: e.target.value } }))}
+                              className="w-full px-2 py-1.5 rounded-lg text-bone text-xs font-mono text-center"
+                              style={inputSt}
+                              onFocus={e => { e.currentTarget.style.borderColor = "rgba(239,68,68,0.50)"; }}
+                              onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; }} />
+                            <span className="font-mono text-[10px] text-steel shrink-0">h</span>
+                            <input type="number" step="1" min="0" max="59" placeholder="0"
+                              value={scrapForm[part.id]?.mins || ""}
+                              onChange={e => setScrapForm(s => ({ ...s, [part.id]: { ...s[part.id], mins: e.target.value } }))}
+                              className="w-full px-2 py-1.5 rounded-lg text-bone text-xs font-mono text-center"
+                              style={inputSt}
+                              onFocus={e => { e.currentTarget.style.borderColor = "rgba(239,68,68,0.50)"; }}
+                              onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; }} />
+                            <span className="font-mono text-[10px] text-steel shrink-0">m</span>
+                          </div>
                         </div>
                       </div>
                       <div className="mb-2">
