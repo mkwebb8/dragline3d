@@ -230,8 +230,8 @@ export default function QuotePage() {
               setStats({ dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: vol });
               setGeometry(geo);
               setIsStepFile(false);
-              if (Math.max(size.x, size.y, size.z) > 350) {
-                setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (350×350×350mm)`);
+              if (Math.max(size.x, size.y, size.z) > 400) {
+                setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (400×400×400mm)`);
               } else {
                 // STEP files: slicer already ran for conversion, use its accurate output regardless of pricing mode
                 setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
@@ -280,8 +280,8 @@ export default function QuotePage() {
       const vol = computeVolume(geo);
       setStats({ dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: vol });
       setGeometry(geo); setIsStepFile(false);
-      if (Math.max(size.x, size.y, size.z) > 350) {
-        setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (350×350×350mm)`);
+      if (Math.max(size.x, size.y, size.z) > 400) {
+        setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (400×400×400mm)`);
       } else {
         setCurrentQuote(quoteFromGeometry(vol, mat, q, inf, livePricing[mat]));
         setSlicerComplete(true);
@@ -317,8 +317,8 @@ export default function QuotePage() {
       setStats(s); setGeometry(geo);
       if (isVolume) {
         // Client-side volume pricing — no slicer needed
-        if (Math.max(size.x, size.y, size.z) > 350) {
-          setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (350×350×350mm)`);
+        if (Math.max(size.x, size.y, size.z) > 400) {
+          setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (400×400×400mm)`);
         } else {
           setCurrentQuote(quoteFromGeometry(s.volumeMm3, material, quality, infill, livePricing[material]));
           setSlicerComplete(true);
@@ -582,7 +582,7 @@ export default function QuotePage() {
                   <div className="w-full py-4 rounded-xl font-mono text-xs text-center flex flex-col items-center gap-2 text-amber-400" style={{ background: "rgba(255,181,71,0.06)", border: "1px solid rgba(255,181,71,0.25)" }}>
                     <div className="flex items-center gap-2"><AlertCircle size={14} /> MANUAL QUOTE REQUIRED</div>
                     <div className="text-steel text-[11px]">{slicerTooLarge}</div>
-                    <div className="text-steel text-[11px]">Max build volume: 350 × 350 × 350 mm · <a href="/contact" className="underline hover:text-bone">Contact us</a> for a custom quote.</div>
+                    <div className="text-steel text-[11px]">Max build volume: 400 × 400 × 400 mm · <a href="/contact" className="underline hover:text-bone">Contact us</a> for a custom quote.</div>
                   </div>
                 ) : slicerFailed ? (
                   <div className="w-full py-4 rounded-xl font-mono text-xs text-center flex items-center justify-center gap-2 text-red-400" style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.25)" }}>
