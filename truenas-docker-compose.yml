@@ -11,6 +11,7 @@ services:
       ORCA_BIN: /opt/orca-slicer/orca-slicer
       ORCA_RESOURCES: /opt/orca-slicer/resources
       WORKER_SECRET: ${WORKER_SECRET}
+      MOONRAKER_URL_2: http://192.168.68.81:7125
       SHELLY_IP: 192.168.68.83
       ELECTRICITY_RATE: "0.12"
       SUPABASE_URL: ${SUPABASE_URL}

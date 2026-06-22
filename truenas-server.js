@@ -18,6 +18,8 @@ const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || "";
 const FILES_ROOT = process.env.FILES_ROOT || "/mnt/media/orders";
 const MACHINE_PROFILE = "Creality/machine/Creality K2 Plus 0.4 nozzle.json";
+const MACHINE_PROFILE_E5MAX = "Creality/machine/Creality Ender-5 Max 0.4 nozzle.json";
+const K2PLUS_MAX_XY = 350; // mm — auto-route larger models to Ender 5 Max
 const FILAMENT_PROFILES = {
   PLA: "Creality/filament/Creality Generic PLA @K2-all.json",
   PETG: "Creality/filament/Creality Generic PETG @K2-all.json",
@@ -52,6 +54,12 @@ const PROCESS_PROFILES = {
   fine: "Creality/process/0.12mm Detail @Creality K2 Plus 0.4 nozzle.json",
 };
 const QUALITY_LAYER = { draft: "0.28", fast: "0.24", standard: "0.20", fine: "0.12" };
+const PROCESS_PROFILES_E5MAX = {
+  draft:    "Creality/process/0.20mm Ultrafast @Creality Ender-5 Max 0.4mm nozzle.json",
+  fast:     "Creality/process/0.20mm Ultrafast @Creality Ender-5 Max 0.4mm nozzle.json",
+  standard: "Creality/process/0.20mm Standard @Creality Ender-5 Max 0.4mm nozzle.json",
+  fine:     "Creality/process/0.20mm Standard @Creality Ender-5 Max 0.4mm nozzle.json",
+};
 const MATERIALS = {
   PLA: { costPerKg: 16 }, PCTG: { costPerKg: 40 }, TPU: { costPerKg: 24 }, ABS: { costPerKg: 20 },
   ASA: { costPerKg: 22 }, "PET-GF15": { costPerKg: 30 }, "PETG-ESD": { costPerKg: 66 },
@@ -156,11 +164,29 @@ print(f"Converted: {stl_path}")
   console.log(`[step] converted to STL: ${stlOut}`);
   return stlOut;
 }
+async function getStlBounds(stlPath) {
+  try {
+    const { stdout } = await execFileAsync("python3", ["-c",
+      "import trimesh,json,sys\nm=trimesh.load(sys.argv[1],force='mesh')\nb=m.bounds\nprint(json.dumps({'dims':(b[1]-b[0]).tolist()}))",
+      stlPath
+    ], { timeout: 30000 });
+    return JSON.parse(stdout.trim()).dims; // [x, y, z] in mm
+  } catch(e) {
+    console.warn("[slice] could not read STL bounds:", e.message?.slice(0, 80));
+    return [0, 0, 0];
+  }
+}
 async function runSlice(stlPath, material, quality, infill, workDir) {
-  const machinePro = resolveProfile(MACHINE_PROFILE);
-  if (!machinePro) throw new Error("K2 Plus machine profile not found");
+  const dims = await getStlBounds(stlPath);
+  const needsLargeBed = dims[0] > K2PLUS_MAX_XY || dims[1] > K2PLUS_MAX_XY;
+  const machineProfileKey = needsLargeBed ? MACHINE_PROFILE_E5MAX : MACHINE_PROFILE;
+  const processProfileMap = needsLargeBed ? PROCESS_PROFILES_E5MAX : PROCESS_PROFILES;
+  const printerLabel = needsLargeBed ? "Ender 5 Max" : "K2 Plus";
+  console.log(`[slice] model dims: ${dims.map(d=>d.toFixed(1)).join('x')}mm → ${printerLabel}`);
+  const machinePro = resolveProfile(machineProfileKey);
+  if (!machinePro) throw new Error(`${printerLabel} machine profile not found`);
   const filamentPro = resolveFilamentProfile(material);
-  const processPro = resolveProfile(PROCESS_PROFILES[quality]);
+  const processPro = resolveProfile(processProfileMap[quality]);
   if (!processPro) throw new Error(`Process profile for '${quality}' not found`);
   const gcodeOut = path.join(workDir, "plate_1.gcode");
   const walls = Math.round(infill / 10); // 20%→2, 40%→4, 60%→6, 80%→8, 100%→10
