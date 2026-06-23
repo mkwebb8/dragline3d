@@ -83,7 +83,7 @@ export default function Home() {
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { v: "350mm³", l: "Build Volume",    s: "Large-format FDM" },
+                  { v: "400mm³", l: "Build Volume",    s: "Large-format FDM" },
                   { v: "11+",    l: "Materials",        s: "Std. & engineering" },
                   { v: "0.12mm", l: "Layer Resolution", s: "Fine detail" },
                   { v: "2–5d",   l: "Lead Time",        s: "Typical FDM job" },
