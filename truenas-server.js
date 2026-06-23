@@ -268,6 +268,31 @@ async function handleConvertStep(req, res) {
     const stlBuffer = fs.readFileSync(stlPath);
     const stlBase64 = stlBuffer.toString("base64");
     console.log(`[convert-step] done — ${stlBuffer.length} bytes`);
+
+    // If material/quality/infill provided, also slice for accurate pricing
+    const { material, quality } = fields;
+    const infill = parseInt(fields.infill, 10);
+    if (material && quality && !isNaN(infill) && MATERIALS[material] && QUALITY_LAYER[quality]) {
+      console.log(`[convert-step] slicing ${material} ${quality} ${infill}%`);
+      try {
+        let finalPath = stlPath;
+        try { finalPath = await preOrient(stlPath, workDir); }
+        catch(e) { if (e.tooLarge) return send(res, 422, { error: e.message, tooLarge: true, dims: e.dims, stl: stlBase64 }); }
+        const gcodeOut = await runSlice(finalPath, material, quality, infill, workDir);
+        const { grams, minutes } = parseGcode(gcodeOut);
+        if (grams && minutes) {
+          const costPerKg = fields.costPerKg ? parseFloat(fields.costPerKg) : undefined;
+          const { price, breakdown } = computePrice(grams, minutes, material, costPerKg);
+          const hours = Math.round((minutes / 60) * 10) / 10;
+          console.log(`[convert-step] slice done — ${grams}g ${minutes}min $${price}`);
+          return send(res, 200, { ok: true, stl: stlBase64, grams: Math.round(grams * 10) / 10, minutes, hours, price, breakdown });
+        }
+      } catch(e) {
+        if (e.needsOrientation) return send(res, 422, { error: e.message, needsOrientation: true, stl: stlBase64 });
+        console.warn(`[convert-step] slice failed, returning STL only:`, e.message?.slice(0, 100));
+      }
+    }
+
     send(res, 200, { ok: true, stl: stlBase64 });
   } catch (err) {
     console.error("[convert-step] error:", err.message);
