@@ -225,11 +225,6 @@ async function runSlice(stlPath, material, quality, infill, workDir) {
       "--sparse-infill-pattern=grid",
       `--layer-height=${QUALITY_LAYER[quality]}`,
       `--wall-loops=${walls}`,
-      "--enable-support=1",
-      "--support-type=normal",
-      "--support-on-build-plate-only=1",
-      "--support-top-z-distance=0.26",
-      "--support-interface-top-layers=2",
       stlPath,
     ];
   }
