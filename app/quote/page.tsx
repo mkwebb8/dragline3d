@@ -104,9 +104,7 @@ export default function QuotePage() {
   const inputRef   = useRef<HTMLInputElement>(null);
   const initializedRef = useRef(false);
   const customerName = `${firstName} ${lastName}`.trim();
-  // Volume pricing is the default. Slicer path preserved below for easy revert.
-  // To switch back: const isVolume = process.env.NEXT_PUBLIC_PRICING_MODE === "volume";
-  const isVolume = true;
+  const isVolume = false;
 
   useEffect(() => {
     const colors = MATERIAL_COLORS[material];
@@ -257,9 +255,8 @@ export default function QuotePage() {
   }
 
   function recalc(s: Stats, mat: MaterialKey, q: QualityKey, inf: number) {
-    if (!isVolume && slicerLoading) return;
-    setCurrentQuote(quoteFromGeometry(s.volumeMm3, mat, q, inf, livePricing[mat]));
-    if (!isVolume && slicerComplete && file) runSlicer(file, mat, q, inf);
+    if (slicerLoading) return;
+    if (slicerComplete && file) runSlicer(file, mat, q, inf);
   }
 
   async function convertStepForPreview(f: File, mat: MaterialKey, q: QualityKey, inf: number) {
@@ -289,7 +286,7 @@ export default function QuotePage() {
         setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
         setSlicerComplete(true);
       } else {
-        setCurrentQuote(quoteFromGeometry(vol, mat, q, inf, livePricing[mat]));
+        setSlicerFailed(true);
         setSlicerComplete(true);
       }
     } catch {
