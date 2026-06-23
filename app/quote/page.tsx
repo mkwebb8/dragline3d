@@ -267,6 +267,9 @@ export default function QuotePage() {
     try {
       const form = new FormData();
       form.append("step", f);
+      form.append("material", mat);
+      form.append("quality", q);
+      form.append("infill", String(inf));
       const r = await fetch("/api/convert-step", { method: "POST", body: form });
       const data = await r.json();
       if (!data.stl) {
@@ -282,6 +285,9 @@ export default function QuotePage() {
       setGeometry(geo); setIsStepFile(false);
       if (Math.max(size.x, size.y, size.z) > 400) {
         setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (400×400×400mm)`);
+      } else if (data.price && data.grams && data.hours) {
+        setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
+        setSlicerComplete(true);
       } else {
         setCurrentQuote(quoteFromGeometry(vol, mat, q, inf, livePricing[mat]));
         setSlicerComplete(true);
