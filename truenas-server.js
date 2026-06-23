@@ -5,6 +5,7 @@ import path from "node:path";
 import os from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { createHash } from "node:crypto";
 import Busboy from "busboy";
 const execFileAsync = promisify(execFile);
 const PORT = process.env.PORT || 3100;
@@ -111,6 +112,28 @@ function parseGcode(gcodePath) {
   }
   return { grams, minutes };
 }
+
+// ── Slice result cache ─────────────────────────────────────────────────────────
+const sliceCache = new Map(); // key: "filehash:material:quality:infill" → { grams, minutes }
+const SLICE_CACHE_MAX = 500;
+
+async function sliceAndParse(stlPath, material, quality, infill, workDir) {
+  const hash = createHash("sha256").update(fs.readFileSync(stlPath)).digest("hex").slice(0, 16);
+  const cacheKey = `${hash}:${material}:${quality}:${infill}`;
+  if (sliceCache.has(cacheKey)) {
+    console.log(`[slice] cache hit ${cacheKey}`);
+    return sliceCache.get(cacheKey);
+  }
+  const gcodeOut = await runSlice(stlPath, material, quality, infill, workDir);
+  const result = parseGcode(gcodeOut);
+  if (result.grams && result.minutes) {
+    if (sliceCache.size >= SLICE_CACHE_MAX) sliceCache.delete(sliceCache.keys().next().value);
+    sliceCache.set(cacheKey, result);
+    console.log(`[slice] cached ${cacheKey} — ${result.grams}g ${result.minutes}min`);
+  }
+  return result;
+}
+
 async function convertStepToStl(stepPath, workDir) {
   const stlOut = path.join(workDir, "converted.stl");
   const pyScript = path.join(workDir, "convert_step.py");
@@ -190,40 +213,48 @@ async function runSlice(stlPath, material, quality, infill, workDir) {
   if (!processPro) throw new Error(`Process profile for '${quality}' not found`);
   const gcodeOut = path.join(workDir, "plate_1.gcode");
   const walls = Math.round(infill / 10); // 20%→2, 40%→4, 60%→6, 80%→8, 100%→10
-  const args = [
-    "--slice", "0",
-    "--arrange", "1",
-    "--load-settings", `${machinePro};${processPro}`,
-    "--load-filaments", filamentPro,
-    "--allow-newer-file",
-    "--outputdir", workDir,
-    `--sparse-infill-density=${infill}%`,
-    "--sparse-infill-pattern=grid",
-    `--layer-height=${QUALITY_LAYER[quality]}`,
-    `--wall-loops=${walls}`,
-    "--enable-support=1",
-    "--support-type=tree(auto)",
-    "--support-on-build-plate-only=1",
-    "--support-top-z-distance=0.26",
-    "--support-interface-top-layers=2",
-    stlPath,
-  ];
-  await execFileAsync(ORCA_BIN, args, { timeout: 120000 }).catch(e => {
-    console.log("[orca] exited with error (may still have output):", e.message?.slice(0, 100));
-  });
-  const allFiles = fs.readdirSync(workDir);
-  console.log("[workdir files]", allFiles);
-  try {
+  function buildArgs(arrange) {
+    return [
+      "--slice", "0",
+      "--arrange", arrange,
+      "--load-settings", `${machinePro};${processPro}`,
+      "--load-filaments", filamentPro,
+      "--allow-newer-file",
+      "--outputdir", workDir,
+      `--sparse-infill-density=${infill}%`,
+      "--sparse-infill-pattern=grid",
+      `--layer-height=${QUALITY_LAYER[quality]}`,
+      `--wall-loops=${walls}`,
+      "--enable-support=1",
+      "--support-type=normal",
+      "--support-on-build-plate-only=1",
+      "--support-top-z-distance=0.26",
+      "--support-interface-top-layers=2",
+      stlPath,
+    ];
+  }
+  async function trySlice(arrange) {
+    await execFileAsync(ORCA_BIN, buildArgs(arrange), { timeout: 120000 }).catch(e => {
+      console.log("[orca] exited with error (may still have output):", e.message?.slice(0, 100));
+    });
+    const allFiles = fs.readdirSync(workDir);
+    console.log("[workdir files]", allFiles);
     const rj = fs.readFileSync(path.join(workDir, "result.json"), "utf8");
     console.log("[result.json full]", rj);
-    const rjParsed = JSON.parse(rj);
-    if (rjParsed.return_code === -50) {
-      const e = Object.assign(new Error("Part could not be auto-oriented for slicing. It may need to be repositioned manually."), { needsOrientation: true });
-      throw e;
-    }
+    return JSON.parse(rj);
+  }
+  let result = await trySlice("1");
+  if (result.return_code === -50) {
+    console.log("[slice] arrange=1 failed (-50), retrying with arrange=0");
+    result = await trySlice("0");
+  }
+  if (result.return_code === -50) {
+    throw Object.assign(new Error("Part could not be placed on build plate for slicing."), { needsOrientation: true });
+  }
+  try {
     const gc = fs.readFileSync(path.join(workDir, "plate_1.gcode"), "utf8");
     console.log("[gcode tail]", gc.slice(-800));
-  } catch(e) { if (e.needsOrientation) throw e; console.log("[read error]", e.message); }
+  } catch(e) { console.log("[read error]", e.message); }
   return gcodeOut;
 }
 async function preOrient(inputPath, workDir) {
@@ -278,8 +309,7 @@ async function handleConvertStep(req, res) {
         let finalPath = stlPath;
         try { finalPath = await preOrient(stlPath, workDir); }
         catch(e) { if (e.tooLarge) return send(res, 422, { error: e.message, tooLarge: true, dims: e.dims, stl: stlBase64 }); }
-        const gcodeOut = await runSlice(finalPath, material, quality, infill, workDir);
-        const { grams, minutes } = parseGcode(gcodeOut);
+        const { grams, minutes } = await sliceAndParse(finalPath, material, quality, infill, workDir);
         if (grams && minutes) {
           const costPerKg = fields.costPerKg ? parseFloat(fields.costPerKg) : undefined;
           const { price, breakdown } = computePrice(grams, minutes, material, costPerKg);
@@ -385,8 +415,7 @@ async function processSliceJob(jobId, fields, workDir) {
       }
       // other preOrient errors — proceed without orientation
     }
-    const gcodeOut = await runSlice(finalPath, material, quality, infill, workDir);
-    const { grams, minutes } = parseGcode(gcodeOut);
+    const { grams, minutes } = await sliceAndParse(finalPath, material, quality, infill, workDir);
     if (!grams || !minutes) {
       jobs.set(jobId, { status: "error", error: "Could not parse slicer output", ts: Date.now() });
       return;
@@ -473,8 +502,7 @@ async function handleSlice(req, res) {
     let finalPath = slicePath;
     try { finalPath = await preOrient(slicePath, workDir); }
     catch(e) { if(e.tooLarge) return send(res, 422, {error:e.message, tooLarge:true, dims:e.dims}); }
-    const gcodeOut = await runSlice(finalPath, material, quality, infill, workDir);
-    const { grams, minutes } = parseGcode(gcodeOut);
+    const { grams, minutes } = await sliceAndParse(finalPath, material, quality, infill, workDir);
     if (!grams || !minutes) return send(res, 500, { error: "Could not parse slicer output" });
     const costPerKg = fields.costPerKg ? parseFloat(fields.costPerKg) : undefined;
     console.log(`[price] material=${material} costPerKg=${costPerKg} fields.costPerKg=${fields.costPerKg}`);
