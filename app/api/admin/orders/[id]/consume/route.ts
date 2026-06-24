@@ -1,6 +1,5 @@
 // app/api/admin/orders/[id]/consume/route.ts
 // Manual trigger — also called automatically via the [id]/route.ts PATCH when status → "printing"
-export const runtime="edge";
 import{verifyAdminToken}from "@/lib/adminAuth";
 import{getOrder}from "@/lib/db";
 
@@ -8,8 +7,9 @@ const SB_URL=process.env.SUPABASE_URL!;
 const SB_KEY=process.env.SUPABASE_SERVICE_KEY!;
 const h={apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,"Content-Type":"application/json",Prefer:"return=representation"};
 
-export async function POST(request:Request,{params}:{params:{id:string}}){
-  if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
+export async function POST(request:Request, props:{params: Promise<{id:string}>}) {
+  const params = await props.params;
+  if(!(await verifyAdminToken(request)))return Response.json({error:"Unauthorized"},{status:401});
   const ord=await getOrder(params.id);
   if(!ord)return Response.json({error:"Order not found"},{status:404});
   if(ord.inventory_consumed)return Response.json({ok:true,skipped:true,reason:"Already consumed"});

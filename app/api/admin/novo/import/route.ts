@@ -1,8 +1,6 @@
 // app/api/admin/novo/import/route.ts
 // POST multipart/form-data with a "file" field containing Novo CSV export
 // Parses and upserts transactions into novo_transactions table
-export const runtime = "edge";
-
 import { verifyAdminToken } from "@/lib/adminAuth";
 
 const SB_URL = process.env.SUPABASE_URL!;

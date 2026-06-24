@@ -1,4 +1,3 @@
-export const runtime="edge";
 import{verifyAdminToken}from "@/lib/adminAuth";
 
 function sb(path:string,opts:RequestInit={}){
@@ -7,16 +6,18 @@ function sb(path:string,opts:RequestInit={}){
   return fetch(`${url}/rest/v1/${path}`,{...opts,headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json",Prefer:"return=representation",...(opts.headers||{})}});
 }
 
-export async function PATCH(request:Request,{params}:{params:{id:string}}){
-  if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
+export async function PATCH(request:Request, props:{params: Promise<{id:string}>}) {
+  const params = await props.params;
+  if(!(await verifyAdminToken(request)))return Response.json({error:"Unauthorized"},{status:401});
   const body=await request.json();
   const r=await sb(`filament_inventory?id=eq.${params.id}`,{method:"PATCH",body:JSON.stringify({...body,updated_at:new Date().toISOString()})});
   if(!r.ok)return Response.json({error:"Failed"},{status:500});
   const[row]=await r.json();return Response.json(row);
 }
 
-export async function DELETE(request:Request,{params}:{params:{id:string}}){
-  if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
+export async function DELETE(request:Request, props:{params: Promise<{id:string}>}) {
+  const params = await props.params;
+  if(!(await verifyAdminToken(request)))return Response.json({error:"Unauthorized"},{status:401});
   await sb(`filament_inventory?id=eq.${params.id}`,{method:"DELETE"});
   return Response.json({ok:true});
 }

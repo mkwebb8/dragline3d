@@ -1,5 +1,4 @@
 // app/api/admin/inventory/route.ts
-export const runtime = "edge";
 import { verifyAdminToken } from "@/lib/adminAuth";
 import { createClient } from "@supabase/supabase-js";
 

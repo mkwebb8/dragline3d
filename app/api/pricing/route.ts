@@ -1,5 +1,3 @@
-export const runtime="edge";
-
 export async function GET(){
   const url=process.env.SUPABASE_URL;const key=process.env.SUPABASE_SERVICE_KEY;
   if(!url||!key)return Response.json({error:"Not configured"},{status:503});

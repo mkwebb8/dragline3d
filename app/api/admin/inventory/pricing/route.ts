@@ -1,4 +1,3 @@
-export const runtime="edge";
 import{verifyAdminToken}from "@/lib/adminAuth";
 
 function sb(path:string,opts:RequestInit={}){

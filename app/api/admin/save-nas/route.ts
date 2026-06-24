@@ -1,5 +1,4 @@
 // app/api/admin/save-nas/route.ts
-export const runtime = "edge";
 import { verifyAdminToken } from "@/lib/adminAuth";
 
 const ORDERS_BASE = "/mnt/media3/orders";

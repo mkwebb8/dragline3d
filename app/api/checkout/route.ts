@@ -1,4 +1,3 @@
-export const runtime = "edge";
 import { createOrder } from "@/lib/db";
 const MATERIALS: Record<string, { costPerKg: number; density: number }> = {
   PLA:{costPerKg:16,density:1.24},PCTG:{costPerKg:29.95,density:1.27},TPU:{costPerKg:24,density:1.21},

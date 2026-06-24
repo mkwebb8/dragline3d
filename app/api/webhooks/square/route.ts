@@ -6,8 +6,6 @@
 //   2. payment.payment_link_id → falls back to square_payment_link_id column (existing orders)
 //
 // Required env var: SQUARE_WEBHOOK_SIGNATURE_KEY (from Square Developer dashboard)
-export const runtime = "edge";
-
 const SQ_SIG_KEY = process.env.SQUARE_WEBHOOK_SIGNATURE_KEY;
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_KEY!;

@@ -1,11 +1,8 @@
-export const runtime = "edge";
 import { verifyAdminToken } from "@/lib/adminAuth";
 
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  if (!await verifyAdminToken(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  if (!(await verifyAdminToken(request))) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const url = new URL(request.url);
   const itemId = url.searchParams.get("itemId");

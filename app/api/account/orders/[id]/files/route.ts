@@ -1,11 +1,7 @@
-export const runtime = 'edge';
-
 import { createClient } from '@supabase/supabase-js';
 
-export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { id } = params;
   const url = new URL(req.url);
   const email = url.searchParams.get('email');

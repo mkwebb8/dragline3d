@@ -1,8 +1,6 @@
 // app/api/admin/square/payouts/route.ts
 // GET  → returns payouts from Supabase (fast, cached)
 // POST → syncs latest payouts from Square API into Supabase, then returns them
-export const runtime = "edge";
-
 import { verifyAdminToken } from "@/lib/adminAuth";
 
 const SB_URL = process.env.SUPABASE_URL!;

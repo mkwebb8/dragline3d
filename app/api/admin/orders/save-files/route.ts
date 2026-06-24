@@ -1,6 +1,5 @@
 // Proxies a file save request to the slicer worker's /save-files endpoint
 // Called after admin manually creates an order so files land on the NAS
-export const runtime = "edge";
 import { verifyAdminToken } from "@/lib/adminAuth";
 
 export async function POST(req: Request) {

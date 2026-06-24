@@ -1,4 +1,3 @@
-export const runtime="edge";
 import{verifyAdminToken}from "@/lib/adminAuth";
 
 function sb(path:string,opts:RequestInit={}){
@@ -7,8 +6,9 @@ function sb(path:string,opts:RequestInit={}){
   return fetch(`${url}/rest/v1/${path}`,{...opts,headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json",Prefer:"return=representation",...(opts.headers||{})}});
 }
 
-export async function PATCH(request:Request,{params}:{params:{id:string,itemId:string}}){
-  if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
+export async function PATCH(request:Request, props:{params: Promise<{id:string,itemId:string}>}) {
+  const params = await props.params;
+  if(!(await verifyAdminToken(request)))return Response.json({error:"Unauthorized"},{status:401});
   const body=await request.json();
   const allowed=["completed","part_status","print_hours","printed_qty","grams","runs","color","material","quality","infill","price","qty"];
   const updates:Record<string,any>={};

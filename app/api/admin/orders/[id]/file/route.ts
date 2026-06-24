@@ -1,11 +1,11 @@
-export const runtime = "edge";
 import { verifyAdminToken } from "@/lib/adminAuth";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_KEY!;
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
-  if (!await verifyAdminToken(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  if (!(await verifyAdminToken(request))) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const url = new URL(request.url);
   const fileName = url.searchParams.get("fileName");

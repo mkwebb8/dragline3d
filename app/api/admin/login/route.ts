@@ -1,4 +1,3 @@
-export const runtime="edge";
 export async function POST(request:Request){
   const{username,password}=await request.json();
   const adminUsername=process.env.ADMIN_USERNAME;

@@ -1,4 +1,3 @@
-export const runtime="edge";
 import{verifyAdminToken}from "@/lib/adminAuth";
 
 function supabase(path:string,opts:RequestInit={},env:any={}){

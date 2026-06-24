@@ -1,5 +1,3 @@
-export const runtime = "edge";
-
 export async function GET() {
   const slicerUrl = process.env.SLICER_WORKER_URL;
   const secret = process.env.WORKER_SECRET;

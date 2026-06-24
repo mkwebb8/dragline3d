@@ -1,4 +1,3 @@
-export const runtime="edge";
 import{verifyAdminToken}from "@/lib/adminAuth";
 import{getOrders,createOrder}from "@/lib/db";
 export async function GET(request:Request){

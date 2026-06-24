@@ -1,5 +1,4 @@
 // app/api/admin/novo/transactions/route.ts
-export const runtime = "edge";
 import { verifyAdminToken } from "@/lib/adminAuth";
 
 const SB_URL = process.env.SUPABASE_URL!;

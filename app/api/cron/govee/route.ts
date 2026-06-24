@@ -1,5 +1,3 @@
-export const runtime = "edge";
-
 export async function GET(request: Request) {
   // Verify cron secret to prevent unauthorized calls
   const authHeader = request.headers.get("authorization");

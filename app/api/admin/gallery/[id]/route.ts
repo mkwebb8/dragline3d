@@ -1,6 +1,4 @@
 // Admin gallery item PATCH / DELETE
-export const runtime = "edge";
-
 import { verifyAdminToken } from "@/lib/adminAuth";
 
 const SB_URL = process.env.SUPABASE_URL!;
@@ -12,8 +10,9 @@ const sbh = {
   Prefer: "return=representation",
 };
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  if (!await verifyAdminToken(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  if (!(await verifyAdminToken(req))) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
   const r = await fetch(`${SB_URL}/rest/v1/gallery_items?id=eq.${params.id}`, {
     method: "PATCH",
@@ -25,8 +24,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   return Response.json(Array.isArray(rows) ? rows[0] : rows);
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
-  if (!await verifyAdminToken(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+export async function DELETE(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  if (!(await verifyAdminToken(req))) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   // Also delete the storage object if there's an image
   const getR = await fetch(`${SB_URL}/rest/v1/gallery_items?id=eq.${params.id}&select=image_url`, {
