@@ -258,7 +258,7 @@ async function runSlice(stlPath, material, quality, infill, workDir) {
 async function preOrient(inputPath, workDir) {
   const orientedPath = path.join(workDir, 'oriented.stl');
   return new Promise((resolve, reject) => {
-    const child = require('child_process').execFile('python3', ['/app/preprocess.py', inputPath, orientedPath],
+    require('child_process').execFile('python3', ['/app/preprocess.py', inputPath, orientedPath],
       { timeout: 60000 },
       (err, stdout, stderr) => {
         console.log('[preOrient] err:', err?.message, 'stdout:', stdout, 'stderr:', stderr?.slice(0,200));
@@ -363,7 +363,6 @@ async function _drainSliceQueue() {
   if (_sliceRunning || _sliceQueue.length === 0) return;
   _sliceRunning = true;
   const { jobId, fields, workDir } = _sliceQueue.shift();
-  // Update queue positions for waiting jobs
   _sliceQueue.forEach((item, i) => {
     const j = jobs.get(item.jobId);
     if (j) jobs.set(item.jobId, { ...j, queued: i + 1, ts: j.ts });
@@ -941,4 +940,14 @@ const server = http.createServer(async (req, res) => {
   if (req.url === "/slice" && req.method === "POST") return handleSlice(req, res);
   if (req.url === "/slice-async" && req.method === "POST") return handleSliceAsync(req, res);
   if (req.url.startsWith("/slice-status") && req.method === "GET") return handleSliceStatus(req, res);
-  if (req.url === "/save-files"
+  if (req.url === "/save-files") return handleSaveFiles(req, res);
+  if (req.url.startsWith("/get-file") && req.method === "GET") return handleGetFile(req, res);
+  if (req.url.startsWith("/get-thumb") && req.method === "GET") return handleGetThumb(req, res);
+  if (req.url === "/shelly/power" && req.method === "GET") return handleShellyPower(req, res);
+  if (req.url === "/shelly/session/start" && req.method === "POST") return handleShellySessionStart(req, res);
+  if (req.url === "/shelly/session/stop" && req.method === "POST") return handleShellySessionStop(req, res);
+  if (req.url === "/shelly/session/status" && req.method === "GET") return handleShellySessionStatus(req, res);
+  return send(res, 404, { error: "Not found" });
+});
+
+server.listen(PORT, () => console.log(`Dragline slicer worker on :${PORT}`));
