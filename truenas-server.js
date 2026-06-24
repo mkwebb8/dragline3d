@@ -259,7 +259,7 @@ async function preOrient(inputPath, workDir) {
   const orientedPath = path.join(workDir, 'oriented.stl');
   return new Promise((resolve, reject) => {
     require('child_process').execFile('python3', ['/app/preprocess.py', inputPath, orientedPath],
-      { timeout: 60000 },
+      { timeout: 300000 },
       (err, stdout, stderr) => {
         console.log('[preOrient] err:', err?.message, 'stdout:', stdout, 'stderr:', stderr?.slice(0,200));
         if (err?.killed) { console.warn('[preOrient] timed out, skipping'); return resolve(inputPath); }
