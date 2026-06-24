@@ -15,7 +15,7 @@ type Quote = { grams: number; hours: number; price: number; fromSlicer: boolean;
 type CartItem = { id: string; file: File | null; fileName: string; material: MaterialKey; quality: QualityKey; infill: number; qty: number; color: string; stats: Stats; quote: Quote; geometry: any; thumbnail?: string };
 type ShippingRate = { id: string; provider: string; service: string; amount: number; currency: string; days?: number };
 
-function genId() { return Math.random().toString(36).slice(2, 10); }
+function genId() { return crypto.randomUUID(); }
 function genOrderId() { return `DL-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-${Math.random().toString(36).slice(2,6).toUpperCase()}`; }
 
 const glass: CSSProperties = {
