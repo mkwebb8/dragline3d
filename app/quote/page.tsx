@@ -228,7 +228,7 @@ export default function QuotePage() {
               setStats({ dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: vol });
               setGeometry(geo);
               setIsStepFile(false);
-              if (Math.max(size.x, size.y, size.z) > 400) {
+              if (Math.max(size.x, size.y, size.z) >= 400) {
                 setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (400×400×400mm)`);
               } else {
                 // STEP files: slicer already ran for conversion, use its accurate output regardless of pricing mode
@@ -280,7 +280,7 @@ export default function QuotePage() {
       const vol = computeVolume(geo);
       setStats({ dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: vol });
       setGeometry(geo); setIsStepFile(false);
-      if (Math.max(size.x, size.y, size.z) > 400) {
+      if (Math.max(size.x, size.y, size.z) >= 400) {
         setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (400×400×400mm)`);
       } else if (data.price && data.grams && data.hours) {
         setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
@@ -320,7 +320,7 @@ export default function QuotePage() {
       setStats(s); setGeometry(geo);
       if (isVolume) {
         // Client-side volume pricing — no slicer needed
-        if (Math.max(size.x, size.y, size.z) > 400) {
+        if (Math.max(size.x, size.y, size.z) >= 400) {
           setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (400×400×400mm)`);
         } else {
           setCurrentQuote(quoteFromGeometry(s.volumeMm3, material, quality, infill, livePricing[material]));
