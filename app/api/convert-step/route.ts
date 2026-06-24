@@ -1,5 +1,3 @@
-export const runtime = "edge";
-
 export async function POST(request: Request) {
   const workerUrl = process.env.SLICER_WORKER_URL;
   if (!workerUrl) return Response.json({ error: "Slicer worker not configured" }, { status: 503 });

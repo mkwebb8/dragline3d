@@ -7,8 +7,6 @@
 //   Events: track_updated
 //
 // Optional: set SHIPPO_WEBHOOK_TOKEN in Cloudflare env vars to verify requests
-export const runtime = "edge";
-
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_KEY!;
 const SHIPPO_TOKEN = process.env.SHIPPO_WEBHOOK_TOKEN;

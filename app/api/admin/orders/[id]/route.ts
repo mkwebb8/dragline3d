@@ -1,13 +1,14 @@
-export const runtime="edge";
 import{verifyAdminToken}from "@/lib/adminAuth";
 import{getOrder,updateOrder}from "@/lib/db";
-export async function GET(request:Request,{params}:{params:{id:string}}){
-  if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
+export async function GET(request:Request, props:{params: Promise<{id:string}>}) {
+  const params = await props.params;
+  if(!(await verifyAdminToken(request)))return Response.json({error:"Unauthorized"},{status:401});
   try{const o=await getOrder(params.id);if(!o)return Response.json({error:"Not found"},{status:404});return Response.json(o);}
   catch(e:any){return Response.json({error:e.message},{status:500});}
 }
-export async function PATCH(request:Request,{params}:{params:{id:string}}){
-  if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
+export async function PATCH(request:Request, props:{params: Promise<{id:string}>}) {
+  const params = await props.params;
+  if(!(await verifyAdminToken(request)))return Response.json({error:"Unauthorized"},{status:401});
   try{
     const body=await request.json();
     const allowed=["status","tracking_number","notes","box_id"]; // ← added box_id

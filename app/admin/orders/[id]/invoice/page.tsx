@@ -1,6 +1,5 @@
 "use client";
-export const runtime = "edge";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, use } from "react";
 import { useRouter } from "next/navigation";
 
 // npm install html2canvas jspdf   ← required
@@ -21,7 +20,8 @@ function fDate(s: string) {
 
 type NasStatus = "idle" | "saving" | "saved" | "error" | "no-config";
 
-export default function InvoicePage({ params }: { params: { id: string } }) {
+export default function InvoicePage(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const { id } = params;
   const [order, setOrder] = useState<any>(null);
   const [boxes, setBoxes] = useState<any[]>([]);
@@ -154,7 +154,6 @@ export default function InvoicePage({ params }: { params: { id: string } }) {
           .note-box { background: #f5f1eb !important; border: 1px solid #ddd5c8 !important; }
         }
       `}</style>
-
       {/* ── Top bar (hidden on print) ─────────────────────────────── */}
       <div className="no-print" style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
@@ -214,11 +213,9 @@ export default function InvoicePage({ params }: { params: { id: string } }) {
           }}
         >✕</button>
       </div>
-
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
-
       {/* ── Invoice content (captured for PDF) ───────────────────── */}
       <div style={{ paddingTop: 52 }}>
         <div ref={invoiceRef} className="page" style={{

@@ -1,6 +1,4 @@
 // Public gallery endpoint — no auth required, returns only visible items
-export const runtime = "edge";
-
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_KEY!;
 

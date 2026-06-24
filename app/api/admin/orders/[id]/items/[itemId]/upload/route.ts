@@ -1,17 +1,13 @@
 // Upload a replacement file for an order item (e.g. STEP received via email)
 // Stores in Supabase Storage and saves the URL to order_items.file_url
-export const runtime = "edge";
-
 import { verifyAdminToken } from "@/lib/adminAuth";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_KEY!;
 
-export async function POST(
-  req: Request,
-  { params }: { params: { id: string; itemId: string } }
-) {
-  if (!await verifyAdminToken(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+export async function POST(req: Request, props: { params: Promise<{ id: string; itemId: string }> }) {
+  const params = await props.params;
+  if (!(await verifyAdminToken(req))) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const form = await req.formData();
   const file = form.get("file") as File | null;

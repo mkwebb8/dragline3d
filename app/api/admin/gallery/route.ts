@@ -1,6 +1,4 @@
 // Admin gallery CRUD
-export const runtime = "edge";
-
 import { verifyAdminToken } from "@/lib/adminAuth";
 
 const SB_URL = process.env.SUPABASE_URL!;

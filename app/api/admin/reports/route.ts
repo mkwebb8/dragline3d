@@ -1,8 +1,6 @@
 // app/api/admin/reports/route.ts
 // POST { type: "weekly" | "monthly" } → generates analytics summary and emails it
 // Called by Cloudflare cron or manually from admin
-export const runtime = "edge";
-
 import { verifyAdminToken } from "@/lib/adminAuth";
 
 const SB_URL = process.env.SUPABASE_URL!;

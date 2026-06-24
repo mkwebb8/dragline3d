@@ -1,4 +1,3 @@
-export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -10,13 +9,15 @@ function auth(req: NextRequest) {
   return req.headers.get("Authorization")?.replace("Bearer ", "") === process.env.ADMIN_TOKEN;
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   if (!auth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   await supabase().from("expenses").delete().eq("id", params.id);
   return NextResponse.json({ ok: true });
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   if (!auth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
   const { data, error } = await supabase().from("expenses").update(body).eq("id", params.id).select().single();

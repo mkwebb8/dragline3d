@@ -1,6 +1,5 @@
 "use client";
-export const runtime = "edge";
-import { useEffect, useState } from "react";
+import { useEffect, useState, use } from "react";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 import type { CSSProperties } from "react";
 
@@ -23,7 +22,8 @@ const STEPS = [
 ];
 const STATUS_ORDER = ["pending", "received", "queued", "printing", "quality_check", "shipped", "delivered"];
 
-export default function OrderTracking({ params }: { params: { id: string } }) {
+export default function OrderTracking(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const { id } = params;
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);

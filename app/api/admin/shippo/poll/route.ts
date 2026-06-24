@@ -2,8 +2,6 @@
 // Checks tracking status for all "shipped" orders via Shippo API.
 // Called by cron every 4 hours as a fallback in case webhook is missed.
 // Also callable manually from admin.
-export const runtime = "edge";
-
 import { verifyAdminToken } from "@/lib/adminAuth";
 
 const SB_URL = process.env.SUPABASE_URL!;

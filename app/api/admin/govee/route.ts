@@ -1,4 +1,3 @@
-export const runtime="edge";
 import{verifyAdminToken}from "@/lib/adminAuth";
 
 export async function GET(request:Request){

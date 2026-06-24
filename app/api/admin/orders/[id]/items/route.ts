@@ -1,6 +1,5 @@
 // POST /api/admin/orders/[id]/items
 // Manually add a part to an existing order (with optional file upload)
-export const runtime = "edge";
 import { verifyAdminToken } from "@/lib/adminAuth";
 
 const SB_URL = process.env.SUPABASE_URL!;
@@ -19,8 +18,9 @@ function sb(path: string, opts: RequestInit = {}) {
   });
 }
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
-  if (!await verifyAdminToken(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  if (!(await verifyAdminToken(req))) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const form = await req.formData();
   const file = form.get("file") as File | null;

@@ -1,5 +1,4 @@
 // app/api/admin/inventory/boxes/[id]/route.ts
-export const runtime = "edge";
 import { verifyAdminToken } from "@/lib/adminAuth";
 import { createClient } from "@supabase/supabase-js";
 
@@ -7,8 +6,9 @@ function db() {
   return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
 }
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
-  if (!await verifyAdminToken(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  if (!(await verifyAdminToken(request))) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const body = await request.json();
 
   const allowed = ["name", "length_in", "width_in", "height_in", "quantity", "cost_each", "notes"];
@@ -37,8 +37,9 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   return Response.json(data);
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
-  if (!await verifyAdminToken(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  if (!(await verifyAdminToken(request))) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   // Clear box_id from any orders referencing this box before deleting
   await db().from("orders").update({ box_id: null }).eq("box_id", params.id);

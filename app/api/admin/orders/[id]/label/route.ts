@@ -1,5 +1,4 @@
 // app/api/admin/orders/[id]/label/route.ts
-export const runtime="edge";
 import{verifyAdminToken}from "@/lib/adminAuth";
 import{getOrder}from "@/lib/db";
 
@@ -11,7 +10,7 @@ function customerFolder(name:string):string{
   if(parts.length===1)return parts[0];
   const last=parts[parts.length-1];
   const first=parts.slice(0,-1).join(" ");
-  return`${last}_${first}`.replace(/[\\/:*?"<>|]/g,"_");
+  return `${last}_${first}`.replace(/[\\/:*?"<>|]/g,"_");
 }
 
 async function saveLabelToNas(nasUrl:string,nasKey:string,orderId:string,customerName:string,labelUrl:string){
@@ -52,8 +51,9 @@ async function saveLabelToNas(nasUrl:string,nasKey:string,orderId:string,custome
   });
 }
 
-export async function POST(request:Request,{params}:{params:{id:string}}){
-  if(!await verifyAdminToken(request))return Response.json({error:"Unauthorized"},{status:401});
+export async function POST(request:Request, props:{params: Promise<{id:string}>}) {
+  const params = await props.params;
+  if(!(await verifyAdminToken(request)))return Response.json({error:"Unauthorized"},{status:401});
   const{id}=params;
   const{length,width,height,rateId,recipientName}=await request.json();
   const order=await getOrder(id);

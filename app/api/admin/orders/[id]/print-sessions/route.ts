@@ -1,4 +1,3 @@
-export const runtime = "edge";
 import { verifyAdminToken } from "@/lib/adminAuth";
 
 function supabase(path: string, opts: RequestInit = {}) {
@@ -18,8 +17,9 @@ function supabase(path: string, opts: RequestInit = {}) {
 }
 
 // GET — return the most recent print session for this order
-export async function GET(request: Request, { params }: { params: { id: string } }) {
-  if (!await verifyAdminToken(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  if (!(await verifyAdminToken(request))) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const r = await supabase(
       `print_sessions?order_id=eq.${params.id}&order=created_at.desc&limit=1`,
@@ -34,8 +34,9 @@ export async function GET(request: Request, { params }: { params: { id: string }
 }
 
 // POST — create a new print session
-export async function POST(request: Request, { params }: { params: { id: string } }) {
-  if (!await verifyAdminToken(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  if (!(await verifyAdminToken(request))) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const r = await supabase("print_sessions", {
       method: "POST",

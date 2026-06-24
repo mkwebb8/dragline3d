@@ -1,6 +1,5 @@
 "use client";
-export const runtime = "edge";
-import { useEffect, useState } from "react";
+import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Save, ExternalLink, FileText, Receipt, Package, CheckCircle2, Circle, Scissors, Printer, PlayCircle, Download, Upload, PlusCircle, Pencil, X, Check } from "lucide-react";
@@ -40,7 +39,8 @@ const PART_STATUS_CONFIG: Record<string, { label: string; color: string; icon: a
   printing: { label: "Printing", color: "#f97316", icon: PlayCircle },
   completed: { label: "Completed", color: "#22c55e", icon: CheckCircle2 },
 };
-export default function AdminOrderDetail({ params }: { params: { id: string } }) {
+export default function AdminOrderDetail(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const { id } = params;
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
