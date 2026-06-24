@@ -163,10 +163,10 @@ export default function Home() {
           <div className="grid md:grid-cols-[1fr_2fr] gap-12 mb-16">
             <h2 className="font-display font-black leading-[0.88] tracking-tight"
               style={{ fontSize: "clamp(2.8rem, 6vw, 5rem)" }}>
-              Eleven<br />plastics.<br />
+              Everyday<br />
               <span className="block"
                 style={{ WebkitTextStroke: "1.5px rgba(232,230,225,0.25)", color: "transparent" }}>
-                One nozzle.
+                to engineering.
               </span>
             </h2>
             <div className="flex items-end">
