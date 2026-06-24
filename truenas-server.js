@@ -258,16 +258,19 @@ async function runSlice(stlPath, material, quality, infill, workDir) {
 async function preOrient(inputPath, workDir) {
   const orientedPath = path.join(workDir, 'oriented.stl');
   return new Promise((resolve, reject) => {
-    require('child_process').execFile('python3', ['/app/preprocess.py', inputPath, orientedPath], (err, stdout, stderr) => {
-      console.log('[preOrient] err:', err?.message, 'stdout:', stdout, 'stderr:', stderr?.slice(0,200));
-      try {
-        const r = JSON.parse((stdout||'').trim());
-        if (!r.ok) {
-          if (r.tooLarge) { const e = Object.assign(new Error(r.error), {tooLarge:true, dims:r.dims}); reject(e); }
-          else resolve(inputPath);
-        } else resolve(orientedPath);
-      } catch { resolve(inputPath); }
-    });
+    const child = require('child_process').execFile('python3', ['/app/preprocess.py', inputPath, orientedPath],
+      { timeout: 60000 },
+      (err, stdout, stderr) => {
+        console.log('[preOrient] err:', err?.message, 'stdout:', stdout, 'stderr:', stderr?.slice(0,200));
+        if (err?.killed) { console.warn('[preOrient] timed out, skipping'); return resolve(inputPath); }
+        try {
+          const r = JSON.parse((stdout||'').trim());
+          if (!r.ok) {
+            if (r.tooLarge) { const e = Object.assign(new Error(r.error), {tooLarge:true, dims:r.dims}); reject(e); }
+            else resolve(inputPath);
+          } else resolve(orientedPath);
+        } catch { resolve(inputPath); }
+      });
   });
 }
 async function handleConvertStep(req, res) {
@@ -346,6 +349,38 @@ setInterval(() => {
   for (const [id, j] of jobs) if (j.ts < cutoff) jobs.delete(id);
 }, 60_000).unref();
 
+// ── Slice job queue (max 1 concurrent) ────────────────────────────────────────
+let _sliceRunning = false;
+const _sliceQueue = [];
+
+function enqueueSliceJob(jobId, fields, workDir) {
+  _sliceQueue.push({ jobId, fields, workDir });
+  jobs.set(jobId, { status: "pending", queued: _sliceQueue.length, ts: Date.now() });
+  _drainSliceQueue();
+}
+
+async function _drainSliceQueue() {
+  if (_sliceRunning || _sliceQueue.length === 0) return;
+  _sliceRunning = true;
+  const { jobId, fields, workDir } = _sliceQueue.shift();
+  // Update queue positions for waiting jobs
+  _sliceQueue.forEach((item, i) => {
+    const j = jobs.get(item.jobId);
+    if (j) jobs.set(item.jobId, { ...j, queued: i + 1, ts: j.ts });
+  });
+  try {
+    await processSliceJob(jobId, fields, workDir);
+  } catch(e) {
+    console.error("[slice-async] unhandled:", e.message);
+    if (jobs.get(jobId)?.status === "pending") {
+      jobs.set(jobId, { status: "error", error: "Unexpected error", ts: Date.now() });
+    }
+  } finally {
+    _sliceRunning = false;
+    _drainSliceQueue();
+  }
+}
+
 async function handleSliceAsync(req, res) {
   if (WORKER_SECRET && req.headers["x-worker-secret"] !== WORKER_SECRET) return send(res, 401, { error: "Unauthorized" });
   if (req.method !== "POST") return send(res, 405, { error: "Method not allowed" });
@@ -382,15 +417,9 @@ async function handleSliceAsync(req, res) {
   if (!QUALITY_LAYER[quality]) { fsp.rm(workDir, { recursive: true, force: true }).catch(() => {}); return send(res, 400, { error: "Invalid quality" }); }
   if (isNaN(infill) || infill < 5 || infill > 100) { fsp.rm(workDir, { recursive: true, force: true }).catch(() => {}); return send(res, 400, { error: "Invalid infill" }); }
   const jobId = newJobId();
-  jobs.set(jobId, { status: "pending", ts: Date.now() });
   send(res, 202, { jobId });
-  // Process in background
-  processSliceJob(jobId, fields, workDir).catch(e => {
-    console.error("[slice-async] unhandled:", e.message);
-    if (jobs.get(jobId)?.status === "pending") {
-      jobs.set(jobId, { status: "error", error: "Unexpected error", ts: Date.now() });
-    }
-  });
+  // Enqueue — max 1 concurrent slice job
+  enqueueSliceJob(jobId, fields, workDir);
 }
 
 async function processSliceJob(jobId, fields, workDir) {
@@ -912,14 +941,4 @@ const server = http.createServer(async (req, res) => {
   if (req.url === "/slice" && req.method === "POST") return handleSlice(req, res);
   if (req.url === "/slice-async" && req.method === "POST") return handleSliceAsync(req, res);
   if (req.url.startsWith("/slice-status") && req.method === "GET") return handleSliceStatus(req, res);
-  if (req.url === "/save-files") return handleSaveFiles(req, res);
-  if (req.url.startsWith("/get-file") && req.method === "GET") return handleGetFile(req, res);
-  if (req.url.startsWith("/get-thumb") && req.method === "GET") return handleGetThumb(req, res);
-  if (req.url === "/shelly/power" && req.method === "GET") return handleShellyPower(req, res);
-  if (req.url === "/shelly/session/start" && req.method === "POST") return handleShellySessionStart(req, res);
-  if (req.url === "/shelly/session/stop" && req.method === "POST") return handleShellySessionStop(req, res);
-  if (req.url === "/shelly/session/status" && req.method === "GET") return handleShellySessionStatus(req, res);
-  return send(res, 404, { error: "Not found" });
-});
-
-server.listen(PORT, () => console.log(`Dragline slicer worker on :${PORT}`));
+  if (req.url === "/save-files"
