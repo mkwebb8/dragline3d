@@ -420,31 +420,20 @@ export default function QuotePage() {
       <div className="absolute -top-20 right-0 w-[600px] h-[600px] rounded-full pointer-events-none"
         style={{ background: "radial-gradient(circle, rgba(255,181,71,0.06) 0%, transparent 65%)", filter: "blur(80px)" }} />
 
-      <div className="relative max-w-7xl mx-auto px-6 py-14">
-        <div className="flex items-center justify-between border-b pb-5 mb-16" style={softBorder}>
-          <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-steel">Quote & Order</span>
+      <div className="relative max-w-7xl mx-auto px-6 py-5">
+        <div className="flex items-center justify-between border-b pb-3 mb-5" style={softBorder}>
+          <div className="flex items-center gap-3">
+            <h1 className="font-display font-black text-xl text-bone">Build your <span style={{ WebkitTextStroke: "1.5px #ffb547", color: "transparent" }}>order.</span></h1>
+            <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-steel hidden sm:inline">· Upload · Configure · Checkout</span>
+          </div>
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-amber" style={{ boxShadow: "0 0 6px rgba(255,181,71,0.9)" }} />
             <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-steel hidden sm:inline">Dragline 3D</span>
           </div>
         </div>
 
-        <div className="mb-14">
-          <h1 className="font-display font-black leading-[0.82] tracking-tight mb-6"
-            style={{ fontSize: "clamp(3rem, 8vw, 7rem)" }}>
-            <span className="block text-bone">Build your</span>
-            <span className="block"
-              style={{ WebkitTextStroke: "2px #ffb547", color: "transparent", textShadow: "0 0 60px rgba(255,181,71,0.12)" }}>
-              order.
-            </span>
-          </h1>
-          <p className="text-bone/50 text-base leading-relaxed max-w-xl">
-            Upload STL, STEP or 3MF files, configure each part, add them to your cart, then checkout.
-          </p>
-        </div>
-
-        <div className="grid xl:grid-cols-5 gap-5">
-          <div className="xl:col-span-3 space-y-4">
+        <div className="grid xl:grid-cols-5 gap-4">
+          <div className="xl:col-span-3 space-y-3">
 
             {!file ? (
               <div
@@ -458,7 +447,7 @@ export default function QuotePage() {
                   border: dragOver ? "1px solid rgba(255,181,71,0.55)" : "1px dashed rgba(255,255,255,0.12)",
                   background: dragOver ? "rgba(255,181,71,0.04)" : "rgba(255,255,255,0.02)",
                   boxShadow: dragOver ? "0 0 40px rgba(255,181,71,0.10), inset 0 1px 0 rgba(255,255,255,0.05)" : "inset 0 1px 0 rgba(255,255,255,0.04)",
-                  minHeight: 300, padding: "48px 32px",
+                  minHeight: 200, padding: "24px 20px",
                 }}>
                 <input ref={inputRef} type="file" accept=".stl,.3mf,.step,.stp" className="hidden" onChange={e => handleFile(e.target.files?.[0])} />
                 <div className="rounded-full grid place-items-center flex-shrink-0"
@@ -480,7 +469,7 @@ export default function QuotePage() {
               </div>
             ) : (
               <div>
-                <div className="rounded-2xl overflow-hidden" style={{ ...glass, height: 380 }}>
+                <div className="rounded-2xl overflow-hidden" style={{ ...glass, height: 260 }}>
                   {isStepFile ? (
                     <div className="h-full grid place-items-center">
                       <div className="text-center">
@@ -515,53 +504,52 @@ export default function QuotePage() {
             )}
 
             {stats && (
-              <div className="rounded-2xl p-6" style={glass}>
-                <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-amber mb-7 flex items-center gap-2">
+              <div className="rounded-2xl p-4" style={glass}>
+                <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-amber mb-4 flex items-center gap-2">
                   <Package size={12} /> Configure this part
                 </div>
-                <div className="mb-6">
-                  <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-3">Material</div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[300px] overflow-y-auto pr-1">
+                <div className="mb-4">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-2">Material</div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-[180px] overflow-y-auto pr-1">
                     {(Object.entries(MATERIALS) as [MaterialKey, typeof MATERIALS[MaterialKey]][]).map(([key, m]) => (
                       <button key={key} onClick={() => { setMaterial(key); recalc(stats, key, quality, infill); }}
-                        className="p-3 rounded-xl text-left transition-all duration-150 cursor-pointer"
-                        style={material === key ? { background: "rgba(255,181,71,0.07)", border: "1px solid rgba(255,181,71,0.40)", boxShadow: "0 0 16px rgba(255,181,71,0.08)" } : { background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: m.swatch, border: "1px solid rgba(255,255,255,0.15)" }} />
-                          <span className="font-display font-bold text-sm">{m.label}</span>
+                        className="p-2 rounded-lg text-left transition-all duration-150 cursor-pointer"
+                        style={material === key ? { background: "rgba(255,181,71,0.07)", border: "1px solid rgba(255,181,71,0.40)", boxShadow: "0 0 12px rgba(255,181,71,0.08)" } : { background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: m.swatch, border: "1px solid rgba(255,255,255,0.15)" }} />
+                          <span className="font-display font-bold text-xs">{m.label}</span>
                         </div>
-                        <div className="text-[10px] text-bone/40 leading-tight">{m.desc}</div>
                       </button>
                     ))}
                   </div>
                 </div>
-                <div className="mb-6">
-                  <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-3 flex items-center gap-2">
+                <div className="mb-3">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-2 flex items-center gap-2">
                     Color <span className="text-amber/70 normal-case">{color}</span>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {MATERIAL_COLORS[material].map(c => (
                       <button key={c.name} title={c.name} onClick={() => setColor(c.name)}
-                        className="w-8 h-8 rounded-full transition-all duration-150 cursor-pointer"
-                        style={{ background: c.hex, border: color === c.name ? "2px solid #ffb547" : "2px solid rgba(255,255,255,0.12)", boxShadow: color === c.name ? "0 0 10px rgba(255,181,71,0.40)" : "none", transform: color === c.name ? "scale(1.12)" : "scale(1)" }} />
+                        className="w-7 h-7 rounded-full transition-all duration-150 cursor-pointer"
+                        style={{ background: c.hex, border: color === c.name ? "2px solid #ffb547" : "2px solid rgba(255,255,255,0.12)", boxShadow: color === c.name ? "0 0 8px rgba(255,181,71,0.40)" : "none", transform: color === c.name ? "scale(1.12)" : "scale(1)" }} />
                     ))}
                   </div>
                 </div>
-                <div className="mb-6">
-                  <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-3">Layer Height</div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="mb-3">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-2">Layer Height</div>
+                  <div className="grid grid-cols-4 gap-1.5">
                     {(Object.entries(QUALITIES) as [QualityKey, typeof QUALITIES[QualityKey]][]).map(([key, q]) => (
                       <button key={key} onClick={() => { setQuality(key); recalc(stats, material, key, infill); }}
-                        className="p-3 rounded-xl text-center transition-all duration-150 cursor-pointer"
+                        className="p-2 rounded-lg text-center transition-all duration-150 cursor-pointer"
                         style={quality === key ? { background: "rgba(255,181,71,0.07)", border: "1px solid rgba(255,181,71,0.40)" } : { background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                        <div className="font-mono font-semibold text-base" style={{ color: "#ffb547" }}>{q.label}<span className="text-xs text-steel/70">mm</span></div>
-                        <div className="text-[10px] mt-1 text-bone/40">{q.desc}</div>
+                        <div className="font-mono font-semibold text-sm" style={{ color: "#ffb547" }}>{q.label}<span className="text-[10px] text-steel/70">mm</span></div>
+                        <div className="text-[9px] mt-0.5 text-bone/40">{q.desc}</div>
                       </button>
                     ))}
                   </div>
                 </div>
-                <div className="mb-6">
-                  <div className="flex justify-between items-baseline mb-3">
+                <div className="mb-3">
+                  <div className="flex justify-between items-baseline mb-2">
                     <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel">Infill</div>
                     <div className="font-mono text-sm font-bold" style={{ color: "#ffb547" }}>{infill}%</div>
                   </div>
@@ -570,8 +558,8 @@ export default function QuotePage() {
                     className="w-full" />
                   <div className="flex justify-between font-mono text-[9px] mt-1.5 text-steel"><span>20%</span><span>60%</span><span>100%</span></div>
                 </div>
-                <div className="mb-7">
-                  <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-3">Quantity</div>
+                <div className="mb-4">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-2">Quantity</div>
                   <div className="flex items-center gap-3">
                     <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer transition-all duration-150 hover:border-amber/40" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}><Minus size={14} /></button>
                     <div className="font-display font-black text-xl w-10 text-center">{qty}</div>
@@ -616,7 +604,7 @@ export default function QuotePage() {
             )}
           </div>
 
-          <div className="xl:col-span-2 space-y-4">
+          <div className="xl:col-span-2"><div className="sticky top-4 space-y-4 max-h-[calc(100vh-5rem)] overflow-y-auto pb-4">
             {/* Cart */}
             <div className="rounded-2xl overflow-hidden" style={glass}>
               <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
@@ -885,9 +873,10 @@ export default function QuotePage() {
                 <div className="mt-3 text-center font-mono text-[9px] uppercase tracking-[0.18em]" style={{ color: "rgba(255,181,71,0.35)" }}>SECURE · CARD · APPLE PAY · GOOGLE PAY</div>
               </div>
             )}
-          </div>
+          </div></div>
         </div>
       </div>
     </div>
   );
 }
+                    
