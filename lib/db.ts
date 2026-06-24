@@ -19,7 +19,7 @@ export async function createOrder(order:any):Promise<Order>{
   if(!resp.ok)throw new Error(await resp.text());
   const[created]=await resp.json();
   if(items?.length){
-    const ir=await supabase("order_items",{method:"POST",body:JSON.stringify(items.map((i:any)=>({...i,order_id:id,id:undefined})))});
+    const ir=await supabase("order_items",{method:"POST",body:JSON.stringify(items.map((i:any)=>({...i,order_id:id})))});
     if(!ir.ok)throw new Error(await ir.text());
   }
   return created;
