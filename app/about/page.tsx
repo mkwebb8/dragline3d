@@ -60,11 +60,11 @@ export default function AboutPage() {
             </p>
           </AboutSection>
 
-          <AboutSection label="What I do">
+          <AboutSection label="What we do">
             <p>
               Single parts to short runs (≤100 units). One-off prototypes, replacement parts
               for things that broke, custom enclosures, brackets, jigs, fixtures, and any
-              part where a 350×350×350mm FDM print makes sense. If you can model it, send the
+              part where a 400×400×400mm FDM print makes sense. If you can model it, send the
               file. If you can't, send a sketch and we'll figure it out.
             </p>
           </AboutSection>
@@ -79,7 +79,7 @@ export default function AboutPage() {
 
           <AboutSection label="How we work">
             <p>
-              You upload a file, get a real quote, approve it, and pay. I print it on a
+              You upload a file, get a real quote, approve it, and pay. We print it on a
               calibrated machine with profiled materials. You get the part in your hands in
               2–5 business days (pending stock), locally or shipped to your door. Every quote
               is firm — no surprise charges. Every part is checked before it ships.

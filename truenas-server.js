@@ -739,6 +739,18 @@ async function autoStartShellySession(filename) {
   if (shellySession) return; // session already active (manual or previous auto)
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
   try {
+    // Always fetch a fresh Shelly reading for an accurate baseline — avoids the
+    // startup race where pollMoonraker fires before the first pollShelly resolves
+    // (shellyLiveWh would still be 0, making the entire lifetime counter look like session Wh)
+    let startWh = shellyLiveWh;
+    try {
+      const sd = await getShellyStatus();
+      startWh = sd.aenergy?.total ?? shellyLiveWh;
+      shellyLiveWh = startWh; // sync cached value
+    } catch (e) {
+      console.warn("[moonraker] could not fetch fresh Shelly reading for baseline:", e.message);
+    }
+
     // Find the most recently updated order with status = "printing"
     const r = await fetch(
       `${SUPABASE_URL}/rest/v1/orders?status=eq.printing&order=updated_at.desc&limit=1&select=id`,
@@ -772,8 +784,8 @@ async function autoStartShellySession(filename) {
     const session = rows?.[0];
     if (!session?.id) { console.error("[moonraker] failed to create print_session"); return; }
 
-    shellySession = { sessionId: session.id, orderId, lastWhReading: shellyLiveWh, whAccumulated: 0, lowWattCount: 0 };
-    console.log(`[moonraker] auto-started Shelly session ${session.id} for order ${orderId} (${filename})`);
+    shellySession = { sessionId: session.id, orderId, lastWhReading: startWh, whAccumulated: 0, lowWattCount: 0 };
+    console.log(`[moonraker] auto-started Shelly session ${session.id} for order ${orderId} (${filename}) startWh=${startWh}`);
   } catch (e) {
     console.error("[moonraker] auto-start error:", e.message);
   }
