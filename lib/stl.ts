@@ -63,6 +63,8 @@ export const MATERIALS = {
   "ASA-CF":    { label: "ASA-CF",    desc: "Carbon-reinforced ASA, UV stable",             costPerKg: 40,    swatch: "#1a1a1c", density: 1.11 },
   "PETG-CF":   { label: "PETG-CF",   desc: "Carbon-reinforced PETG (Fiberon)",             costPerKg: 40,    swatch: "#1a1a1c", density: 1.31 },
   "PA-CF":     { label: "PA-CF",     desc: "Carbon-reinforced nylon (Fiberon)",            costPerKg: 80,    swatch: "#1a1a1c", density: 1.18 },
+  "PAHT-CF":   { label: "PAHT-CF",   desc: "High-temp carbon fiber nylon, industrial use", costPerKg: 90,    swatch: "#1a1a1c", density: 1.20 },
+  "PET-CF":    { label: "PET-CF",    desc: "Carbon-reinforced PET, stiff and stable",      costPerKg: 50,    swatch: "#1a1a1c", density: 1.40 },
 } as const;
 
 export type MaterialKey = keyof typeof MATERIALS;
@@ -100,6 +102,8 @@ export const MATERIAL_COLORS: Record<MaterialKey, { name: string; hex: string }[
   "ASA-CF":   BLACK_ONLY,
   "PETG-CF":  BLACK_ONLY,
   "PA-CF":    BLACK_ONLY,
+  "PAHT-CF":  BLACK_ONLY,
+  "PET-CF":   BLACK_ONLY,
 };
 
 // ─── Qualities ──────────────────────────────────────────────────────
