@@ -191,10 +191,15 @@ export default function Home() {
               { name: "PA (Nylon)",desc: "Wear-resistant and flexible. Gears, living hinges, and load-bearing parts.",            specs: ["Low friction", "Fatigue resistant", "180°C softening"],              swatch: "#d4cfb5" },
             ]} />
             <MaterialTier label="Carbon Fiber Composites" materials={[
-              { name: "ASA-CF",   desc: "Carbon-reinforced ASA. Stiff, UV stable, and dimensionally precise outdoors.",           specs: ["Reduced warping", "UV resistant", "Matte black finish"],            swatch: "#3a3a3c" },
-              { name: "PETG-CF",  desc: "Reinforced PETG. Stiffness of carbon with PETG's toughness and weather resistance.",     specs: ["Stiff + tough", "UV stable", "Functional parts"],                   swatch: "#2e2e30" },
-              { name: "PA-CF",    desc: "Carbon-reinforced nylon. Aerospace-grade strength-to-weight. Top tier.",                 specs: ["Highest stiffness", "Heat & chemical resistant", "Replaces aluminum"],swatch: "#ffb547" },
+              { name: "ASA-CF",     desc: "Carbon-reinforced ASA. Stiff, UV stable, and dimensionally precise outdoors.",             specs: ["Reduced warping", "UV resistant", "Matte black finish"],              swatch: "#3a3a3c" },
+              { name: "PETG-CF",    desc: "Reinforced PETG. Stiffness of carbon with PETG's toughness and weather resistance.",       specs: ["Stiff + tough", "UV stable", "Functional parts"],                     swatch: "#2e2e30" },
+              { name: "PA-CF",      desc: "Carbon-reinforced nylon. Aerospace-grade strength-to-weight. Top tier.",                   specs: ["Highest stiffness", "Heat & chemical resistant", "Replaces aluminum"],  swatch: "#ffb547" },
+              { name: "PAHT-CF",    desc: "High-temp carbon fiber nylon. PA-CF's heat-resistant sibling for under-hood and industrial use.", specs: ["180°C+ heat resistance", "Stiff & strong", "Low moisture absorption"], swatch: "#c0a060" },
+              { name: "PET-CF",     desc: "Carbon-reinforced PET. Dimensional stability and stiffness with excellent layer adhesion.", specs: ["High stiffness", "Low warping", "Chemical resistant"],                  swatch: "#5a7a6a" },
             ]} />
+            <p className="mt-4 font-mono text-[10px] text-steel/50 leading-relaxed">
+              PAHT-CF and PET-CF are ordered per job — allow additional lead time.
+            </p>
           </div>
 
           <p className="mt-10 font-mono text-xs text-steel/60 max-w-2xl leading-relaxed border-t pt-6" style={softBorder}>

@@ -35,6 +35,8 @@ const FILAMENT_PROFILES = {
   "PET-GF15": "Creality/filament/Creality Generic PETG @K2-all.json",
   "PETG-ESD": "Creality/filament/Creality Generic PETG @K2-all.json",
   "ASA-CF": "Creality/filament/Creality Generic ASA @K2-all.json",
+  "PAHT-CF": "Creality/filament/Creality Generic PA-CF @K2-all.json",
+  "PET-CF": "Creality/filament/Creality Generic PETG @K2-all.json",
 };
 const FILAMENT_FALLBACKS = {
   PLA: "OrcaFilamentLibrary/filament/Generic PLA.json",
@@ -65,6 +67,7 @@ const MATERIALS = {
   PLA: { costPerKg: 16 }, PCTG: { costPerKg: 40 }, TPU: { costPerKg: 24 }, ABS: { costPerKg: 20 },
   ASA: { costPerKg: 22 }, "PET-GF15": { costPerKg: 30 }, "PETG-ESD": { costPerKg: 66 },
   PA: { costPerKg: 35 }, "ASA-CF": { costPerKg: 40 }, "PETG-CF": { costPerKg: 40 }, "PA-CF": { costPerKg: 80 },
+  "PAHT-CF": { costPerKg: 90 }, "PET-CF": { costPerKg: 50 },
 };
 function computePrice(grams, minutes, material, overrideCostPerKg) {
   const mat = MATERIALS[material];
