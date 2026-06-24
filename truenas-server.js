@@ -204,7 +204,7 @@ async function getStlBounds(stlPath) {
 }
 async function runSlice(stlPath, material, quality, infill, workDir) {
   const dims = await getStlBounds(stlPath);
-  const needsLargeBed = dims[0] > K2PLUS_MAX_XY || dims[1] > K2PLUS_MAX_XY;
+  const needsLargeBed = dims[0] > K2PLUS_MAX_XY || dims[1] > K2PLUS_MAX_XY || dims[2] > K2PLUS_MAX_XY;
   const machineProfileKey = needsLargeBed ? MACHINE_PROFILE_E5MAX : MACHINE_PROFILE;
   const processProfileMap = needsLargeBed ? PROCESS_PROFILES_E5MAX : PROCESS_PROFILES;
   const printerLabel = needsLargeBed ? "Ender 5 Max" : "K2 Plus";
