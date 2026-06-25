@@ -52,19 +52,19 @@ export function computeVolume(geo: THREE.BufferGeometry): number {
 
 // ─── Materials ──────────────────────────────────────────────────────
 export const MATERIALS = {
-  PLA:         { label: "PLA",        desc: "General purpose, biodegradable",              costPerKg: 14,    swatch: "#e8e6e1", density: 1.24 },
-  PCTG:        { label: "Pro PCTG",   desc: "Up to 20x tougher than PETG, UV stable",      costPerKg: 30,    swatch: "#c8d4d1", density: 1.27 },
-  PETG:        { label: "PETG",       desc: "Tough, chemical resistant, food safe",          costPerKg: 20,    swatch: "#6ab4f5", density: 1.27 },
-  TPU:         { label: "TPU",        desc: "Flexible, gaskets and grips",                 costPerKg: 22,    swatch: "#3a3a3c", density: 1.21 },
-  ABS:         { label: "ABS",        desc: "High temp, impact resistant",                 costPerKg: 11,    swatch: "#5a5a5e", density: 1.04 },
-  ASA:         { label: "ASA",        desc: "UV-stable, outdoor parts",                    costPerKg: 18,    swatch: "#7a7a7e", density: 1.07 },
+  PLA:         { label: "PLA",        desc: "General purpose, biodegradable",              costPerKg: 20,    swatch: "#e8e6e1", density: 1.24 },
+  PCTG:        { label: "Pro PCTG",   desc: "Up to 20x tougher than PETG, UV stable",      costPerKg: 36,    swatch: "#c8d4d1", density: 1.27 },
+  PETG:        { label: "PETG",       desc: "Tough, chemical resistant, food safe",          costPerKg: 22,    swatch: "#6ab4f5", density: 1.27 },
+  TPU:         { label: "TPU",        desc: "Flexible, gaskets and grips",                 costPerKg: 24,    swatch: "#3a3a3c", density: 1.21 },
+  ABS:         { label: "ABS",        desc: "High temp, impact resistant",                 costPerKg: 26,    swatch: "#5a5a5e", density: 1.04 },
+  ASA:         { label: "ASA",        desc: "UV-stable, outdoor parts",                    costPerKg: 28,    swatch: "#7a7a7e", density: 1.07 },
   "PET-GF15":  { label: "PET-GF15",  desc: "Glass-fiber PET, precision jigs and fixtures", costPerKg: 35,    swatch: "#a8c4b0", density: 1.45 },
   "PETG-ESD":  { label: "PETG-ESD",  desc: "Electrostatic dissipative, electronics use",  costPerKg: 66,    swatch: "#4a90d9", density: 1.27 },
-  PA:          { label: "PA (Nylon)", desc: "Wear-resistant, gears and load-bearing",      costPerKg: 35,    swatch: "#d4cfb5", density: 1.14 },
+  PA:          { label: "PA (Nylon)", desc: "Wear-resistant, gears and load-bearing",      costPerKg: 38,    swatch: "#d4cfb5", density: 1.14 },
   "ASA-CF":    { label: "ASA-CF",    desc: "Carbon-reinforced ASA, UV stable",             costPerKg: 40,    swatch: "#1a1a1c", density: 1.11 },
-  "PETG-CF":   { label: "PETG-CF",   desc: "Carbon-reinforced PETG (Sunlu)",               costPerKg: 20,    swatch: "#1a1a1c", density: 1.31 },
+  "PETG-CF":   { label: "PETG-CF",   desc: "Carbon-reinforced PETG (Sunlu)",               costPerKg: 24,    swatch: "#1a1a1c", density: 1.31 },
   "PA-CF":     { label: "PA-CF",     desc: "Carbon-reinforced nylon (Sunlu PA6-CF)",       costPerKg: 45,    swatch: "#1a1a1c", density: 1.18 },
-  "PAHT-CF":   { label: "PAHT-CF",   desc: "High-temp carbon fiber nylon, industrial use", costPerKg: 60,    swatch: "#1a1a1c", density: 1.20 },
+  "PAHT-CF":   { label: "PAHT-CF",   desc: "High-temp carbon fiber nylon, industrial use", costPerKg: 90,    swatch: "#1a1a1c", density: 1.20 },
   "PET-CF":    { label: "PET-CF",    desc: "Carbon-reinforced PET, stiff and stable",      costPerKg: 50,    swatch: "#1a1a1c", density: 1.40 },
 } as const;
 
