@@ -11,7 +11,7 @@ import * as THREE from "three";
 const STLViewer = dynamic(() => import("@/components/STLViewer").then(m => ({ default: m.STLViewer })), { ssr: false });
 
 type Stats = { dims: { x: number; y: number; z: number }; volumeMm3: number };
-type Quote = { grams: number; hours: number; price: number; fromSlicer: boolean; breakdown: { material: number; machine: number; setup: number } };
+type Quote = { grams: number; hours: number; price: number; setupFee: number; fromSlicer: boolean; breakdown: { material: number; machine: number; setup: number } };
 type CartItem = { id: string; file: File | null; fileName: string; material: MaterialKey; quality: QualityKey; infill: number; qty: number; color: string; stats: Stats; quote: Quote; geometry: any; thumbnail?: string };
 type ShippingRate = { id: string; provider: string; service: string; amount: number; currency: string; days?: number };
 
@@ -190,7 +190,7 @@ export default function QuotePage() {
       if (data.price && !data.fallback) {
         setCartItems(prev => prev.map(i => i.id === itemId ? {
           ...i, material: mat, quality: q, infill: inf,
-          quote: { grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown },
+          quote: { grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown },
         } : i));
       }
     } catch {}
@@ -198,7 +198,7 @@ export default function QuotePage() {
   }
 
   const selectedRate   = shippingRates.find(r => r.id === selectedRateId);
-  const cartSubtotal   = cartItems.reduce((sum, i) => sum + i.quote.price * i.qty, 0);
+  const cartSubtotal   = cartItems.reduce((sum, i) => sum + i.quote.price * i.qty + (i.quote.setupFee ?? 12), 0);
   const taxAmount      = Math.round(cartSubtotal * 0.06 * 100) / 100;
   const orderTotal     = cartSubtotal + taxAmount + (localPickup ? 0 : (selectedRate?.amount || 0));
   const totalHours     = cartItems.reduce((s, i) => s + i.quote.hours * i.qty, 0);
@@ -232,14 +232,14 @@ export default function QuotePage() {
                 setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (400×400×400mm)`);
               } else {
                 // STEP files: slicer already ran for conversion, use its accurate output regardless of pricing mode
-                setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
+                setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown });
               }
             } catch(e) {
               console.warn("Could not parse converted STL for preview", e);
-              setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
+              setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown });
             }
           } else if (!isVolume) {
-            setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
+            setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown });
           }
         } else if (data.error && !data.fallback) {
           setSlicerTooLarge(data.error);
@@ -283,7 +283,7 @@ export default function QuotePage() {
       if (Math.max(size.x, size.y, size.z) >= 400) {
         setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (400×400×400mm)`);
       } else if (data.price && data.grams && data.hours) {
-        setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true, breakdown: data.breakdown });
+        setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown });
         setSlicerComplete(true);
       } else {
         setSlicerFailed(true);
@@ -390,7 +390,7 @@ export default function QuotePage() {
       notifyForm.append("shippingLabel", localPickup ? "Local Pickup" : (selectedRate?.service || "Standard"));
       notifyForm.append("shippingCost", String(localPickup ? 0 : (selectedRate?.amount || 0)));
       notifyForm.append("total", String(orderTotal));
-      notifyForm.append("items", JSON.stringify(cartItems.map(i => ({ id: i.id, fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, grams: i.quote.grams, hours: i.quote.hours, price: i.quote.price, lineTotal: i.quote.price * i.qty, thumbnail: i.thumbnail || null }))));
+      notifyForm.append("items", JSON.stringify(cartItems.map(i => ({ id: i.id, fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, grams: i.quote.grams, hours: i.quote.hours, price: i.quote.price, setupFee: i.quote.setupFee ?? 12, lineTotal: i.quote.price * i.qty + (i.quote.setupFee ?? 12), thumbnail: i.thumbnail || null }))));
       for (const item of cartItems) { if (item.file) notifyForm.append(`file_${item.id}`, item.file); }
       fetch("/api/notify", { method: "POST", body: notifyForm }).catch(() => {});
       const res = await fetch("/api/checkout", {
@@ -565,7 +565,7 @@ export default function QuotePage() {
                     <div className="font-display font-black text-xl w-10 text-center">{qty}</div>
                     <button onClick={() => setQty(q => Math.min(50, q + 1))} className="w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer transition-all duration-150 hover:border-amber/40" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}><Plus size={14} /></button>
                     {qty > 1 && currentQuote && !slicerLoading && (isVolume || currentQuote.fromSlicer) && (
-                      <div className="font-mono text-xs text-steel ml-1">${currentQuote.price.toFixed(2)} × {qty} = <span className="font-bold" style={{ color: "#ffb547" }}>${(currentQuote.price * qty).toFixed(2)}</span></div>
+                      <div className="font-mono text-xs text-steel ml-1">${currentQuote.price.toFixed(2)} × {qty} + $12 setup = <span className="font-bold" style={{ color: "#ffb547" }}>${(currentQuote.price * qty + (currentQuote.setupFee ?? 12)).toFixed(2)}</span></div>
                     )}
                   </div>
                 </div>
@@ -595,7 +595,7 @@ export default function QuotePage() {
                     {slicerLoading || !currentQuote || (!isVolume && !currentQuote.fromSlicer) ? (
                       <><span className="inline-block w-5 h-5 rounded-full animate-spin" style={{ border: "2px solid rgba(8,8,10,0.3)", borderTopColor: "#08080a" }} />CALCULATING...</>
                     ) : (
-                      <><ShoppingCart size={18} />ADD TO CART — ${(currentQuote.price * qty).toFixed(2)}{qty > 1 ? ` (${qty}×)` : ""}</>
+                      <><ShoppingCart size={18} />ADD TO CART — ${(currentQuote.price * qty + (currentQuote.setupFee ?? 12)).toFixed(2)}{qty > 1 ? ` (${qty}× + $12 setup)` : " (incl. $12 setup)"}</>
                     )}
                   </button>
                   </>
@@ -653,11 +653,11 @@ export default function QuotePage() {
                               <button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 rounded-lg flex items-center justify-center cursor-pointer" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}><Minus size={10} /></button>
                               <span className="font-mono text-xs font-bold w-4 text-center">{item.qty}</span>
                               <button onClick={() => updateQty(item.id, 1)} className="w-6 h-6 rounded-lg flex items-center justify-center cursor-pointer" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}><Plus size={10} /></button>
-                              {item.qty > 1 && <span className="font-mono text-[10px] text-steel">${item.quote.price.toFixed(2)} ea</span>}
+                              {item.qty > 1 && <span className="font-mono text-[10px] text-steel">${item.quote.price.toFixed(2)} ea + $12 setup</span>}
                             </div>
                           </div>
                           <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                            <div className="font-display font-bold" style={{ color: "#ffb547" }}>${(item.quote.price * item.qty).toFixed(2)}</div>
+                            <div className="font-display font-bold" style={{ color: "#ffb547" }}>${(item.quote.price * item.qty + (item.quote.setupFee ?? 12)).toFixed(2)}</div>
                             <div className="flex items-center gap-2">
                               {item.file && (
                                 <button onClick={() => setExpandedCartItem(isExpanded ? null : item.id)}
