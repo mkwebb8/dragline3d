@@ -135,4 +135,5 @@ export function quoteFromGeometry(
   const machineCost = hours * 0.50;
   const setupFee    = 12;
   const price = Math.max(0.50, Math.round((matCost + machineCost) * 100) / 100);
-  return { grams: Math.round(grams * 10) / 10, hours: Math.round(hours * 10) / 10, price, setupFee, fromSlicer: false, breakdown: { material: matCost, machine: machineCost, setu
+  return { grams: Math.round(grams * 10) / 10, hours: Math.round(hours * 10) / 10, price, setupFee, fromSlicer: false, breakdown: { material: matCost, machine: machineCost, setup: setupFee } };
+}
