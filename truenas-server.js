@@ -75,14 +75,15 @@ function computePrice(grams, minutes, material, overrideCostPerKg) {
   const costKg = overrideCostPerKg || mat?.costPerKg || 16;
   const materialCost = (grams / 1000) * costKg * 2.5;
   const machineCost = hours * 0.50;
-  const setup = 12;
-  const subtotal = materialCost + machineCost + setup;
+  const setupFee = 12;
+  const unitCost = materialCost + machineCost;
   return {
-    price: Math.max(8, Math.round(subtotal * 100) / 100),
+    price: Math.max(0.50, Math.round(unitCost * 100) / 100),
+    setupFee,
     breakdown: {
       material: Math.round(materialCost * 100) / 100,
       machine: Math.round(machineCost * 100) / 100,
-      setup,
+      setup: setupFee,
     },
   };
 }
@@ -950,4 +951,4 @@ const server = http.createServer(async (req, res) => {
   return send(res, 404, { error: "Not found" });
 });
 
-server.listen(PORT, () => console.log(`Dragline slicer worker on :${PORT}`));
+server.listen(PORT, () => console.log(`Dragline slicer w

@@ -125,7 +125,7 @@ export function quoteFromGeometry(
   quality: QualityKey,
   infill: number,
   liveCostPerKg?: number
-): { grams: number; hours: number; price: number; fromSlicer: boolean; breakdown: { material: number; machine: number; setup: number } } {
+): { grams: number; hours: number; price: number; setupFee: number; fromSlicer: boolean; breakdown: { material: number; machine: number; setup: number } } {
   const mat = MATERIALS[material];
   const q   = QUALITIES[quality];
   const costPerKg = liveCostPerKg ?? mat.costPerKg;
@@ -133,7 +133,6 @@ export function quoteFromGeometry(
   const hours = (grams / 10) * q.mult;
   const matCost     = (grams / 1000) * costPerKg * 2.5;
   const machineCost = hours * 0.50;
-  const setupCost   = 12;
-  const price = Math.max(8, Math.round((matCost + machineCost + setupCost) * 100) / 100);
-  return { grams: Math.round(grams * 10) / 10, hours: Math.round(hours * 10) / 10, price, fromSlicer: false, breakdown: { material: matCost, machine: machineCost, setup: setupCost } };
-}
+  const setupFee    = 12;
+  const price = Math.max(0.50, Math.round((matCost + machineCost) * 100) / 100);
+  return { grams: Math.round(grams * 10) / 10, hours: Math.round(hours * 10) / 10, price, setupFee, fromSlicer: false, breakdown: { material: matCost, machine: machineCost, setu
