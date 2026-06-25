@@ -584,8 +584,6 @@ export default function QuotePage() {
                   {currentQuote && !slicerLoading && (isVolume || currentQuote.fromSlicer) && (
                     <div className="flex justify-center gap-3 mb-3 font-mono text-[10px] text-steel">
                       <span>{currentQuote.grams.toFixed(1)}g · {(currentQuote.grams / 453.592).toFixed(3)} lbs</span>
-                      <span>·</span>
-                      <span>{currentQuote.hours}h print est.</span>
                     </div>
                   )}
                   <button onClick={addToCart}
@@ -851,7 +849,7 @@ export default function QuotePage() {
                 <div className="space-y-2 mb-5 font-mono text-sm">
                   <div className="flex justify-between"><span className="text-bone/50">Parts ({cartItems.reduce((s, i) => s + i.qty, 0)} units)</span><span className="font-bold text-bone">${cartSubtotal.toFixed(2)}</span></div>
                   <div className="flex justify-between"><span className="text-bone/50">KY Sales Tax (6%)</span><span className="font-bold text-bone">${taxAmount.toFixed(2)}</span></div>
-                  {totalHours > 0 && <div className="flex justify-between"><span className="text-bone/50">Est. print time</span><span className="font-bold text-bone">{totalHours.toFixed(1)}h</span></div>}
+
                   <div className="flex justify-between"><span className="text-bone/50">Total weight</span><span className="font-bold text-bone">{totalLbs.toFixed(2)} lbs</span></div>
                   {localPickup && <div className="flex justify-between"><span className="text-bone/50">Shipping</span><span className="font-bold text-bone">Local Pickup</span></div>}
                   {selectedRate && !localPickup && <div className="flex justify-between"><span className="text-bone/50">Shipping</span><span className="font-bold text-bone">${selectedRate.amount.toFixed(2)}</span></div>}
