@@ -27,7 +27,7 @@ function focusOff(e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) {
 
 // Shown in the pricing grid (editable $/kg)
 const PRICING_MATERIALS = [
-  "PLA","PETG","TPU","ABS","ASA","PET-GF15","PETG-ESD","PA","ASA-CF","PETG-CF","PA-CF","PCTG",
+  "PLA","PETG","TPU","ABS","ASA","PET-GF15","PETG-ESD","PA","ASA-CF","PETG-CF","PA-CF","PCTG","PAHT-CF","PET-CF",
 ];
 // Full list available when adding a spool (includes specialty materials)
 const MATERIALS = [

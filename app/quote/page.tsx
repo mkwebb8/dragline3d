@@ -595,7 +595,7 @@ export default function QuotePage() {
                     {slicerLoading || !currentQuote || (!isVolume && !currentQuote.fromSlicer) ? (
                       <><span className="inline-block w-5 h-5 rounded-full animate-spin" style={{ border: "2px solid rgba(8,8,10,0.3)", borderTopColor: "#08080a" }} />CALCULATING...</>
                     ) : (
-                      <><ShoppingCart size={18} />ADD TO CART — ${(currentQuote.price * qty + (currentQuote.setupFee ?? 12)).toFixed(2)}{qty > 1 ? ` (${qty}× + $12 setup)` : " (incl. $12 setup)"}</>
+                      <><ShoppingCart size={18} />ADD TO CART — ${(currentQuote.price * qty + (currentQuote.setupFee ?? 12)).toFixed(2)}{qty > 1 ? ` (${qty}× + $12 setup)` : ""}</>
                     )}
                   </button>
                   </>
