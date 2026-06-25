@@ -66,9 +66,9 @@ const PROCESS_PROFILES_E5MAX = {
   fine:     "Creality/process/0.20mm Standard @Creality Ender-5 Max 0.4mm nozzle.json",
 };
 const MATERIALS = {
-  PLA: { costPerKg: 16 }, PETG: { costPerKg: 20 }, PCTG: { costPerKg: 40 }, TPU: { costPerKg: 24 }, ABS: { costPerKg: 20 },
-  ASA: { costPerKg: 22 }, "PET-GF15": { costPerKg: 30 }, "PETG-ESD": { costPerKg: 66 },
-  PA: { costPerKg: 35 }, "ASA-CF": { costPerKg: 40 }, "PETG-CF": { costPerKg: 40 }, "PA-CF": { costPerKg: 80 },
+  PLA: { costPerKg: 20 }, PETG: { costPerKg: 22 }, PCTG: { costPerKg: 36 }, TPU: { costPerKg: 24 }, ABS: { costPerKg: 26 },
+  ASA: { costPerKg: 28 }, "PET-GF15": { costPerKg: 35 }, "PETG-ESD": { costPerKg: 66 },
+  PA: { costPerKg: 38 }, "ASA-CF": { costPerKg: 40 }, "PETG-CF": { costPerKg: 24 }, "PA-CF": { costPerKg: 45 },
   "PAHT-CF": { costPerKg: 90 }, "PET-CF": { costPerKg: 50 },
 };
 function computePrice(grams, minutes, material, overrideCostPerKg) {
