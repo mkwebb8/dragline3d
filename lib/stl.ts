@@ -54,6 +54,7 @@ export function computeVolume(geo: THREE.BufferGeometry): number {
 export const MATERIALS = {
   PLA:         { label: "PLA",        desc: "General purpose, biodegradable",              costPerKg: 14,    swatch: "#e8e6e1", density: 1.24 },
   PCTG:        { label: "Pro PCTG",   desc: "Up to 20x tougher than PETG, UV stable",      costPerKg: 30,    swatch: "#c8d4d1", density: 1.27 },
+  PETG:        { label: "PETG",       desc: "Tough, chemical resistant, food safe",          costPerKg: 20,    swatch: "#6ab4f5", density: 1.27 },
   TPU:         { label: "TPU",        desc: "Flexible, gaskets and grips",                 costPerKg: 22,    swatch: "#3a3a3c", density: 1.21 },
   ABS:         { label: "ABS",        desc: "High temp, impact resistant",                 costPerKg: 11,    swatch: "#5a5a5e", density: 1.04 },
   ASA:         { label: "ASA",        desc: "UV-stable, outdoor parts",                    costPerKg: 18,    swatch: "#7a7a7e", density: 1.07 },
@@ -93,6 +94,7 @@ const BLACK_ONLY: { name: string; hex: string }[] = [
 export const MATERIAL_COLORS: Record<MaterialKey, { name: string; hex: string }[]> = {
   PLA:        STANDARD_COLORS,
   PCTG:       STANDARD_COLORS,
+  PETG:       STANDARD_COLORS,
   TPU:        STANDARD_COLORS,
   ABS:        STANDARD_COLORS,
   ASA:        STANDARD_COLORS,
