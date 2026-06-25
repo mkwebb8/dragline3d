@@ -24,6 +24,7 @@ const K2PLUS_MAX_XY = 350; // mm — auto-route larger models to Ender 5 Max
 const FILAMENT_PROFILES = {
   PLA: "Creality/filament/Creality Generic PLA @K2-all.json",
   PETG: "Creality/filament/Creality Generic PETG @K2-all.json",
+  PCTG: "Creality/filament/Creality Generic PETG @K2-all.json",
   ABS: "Creality/filament/Creality Generic ABS @K2-all.json",
   ASA: "Creality/filament/Creality Generic ASA @K2-all.json",
   TPU: "Creality/filament/Creality Generic TPU @K2-all.json",
@@ -41,6 +42,7 @@ const FILAMENT_PROFILES = {
 const FILAMENT_FALLBACKS = {
   PLA: "OrcaFilamentLibrary/filament/Generic PLA.json",
   PETG: "OrcaFilamentLibrary/filament/Generic PETG.json",
+  PCTG: "OrcaFilamentLibrary/filament/Generic PETG.json",
   ABS: "OrcaFilamentLibrary/filament/Generic ABS.json",
   ASA: "OrcaFilamentLibrary/filament/Generic ASA.json",
   TPU: "OrcaFilamentLibrary/filament/Generic TPU.json",
@@ -64,7 +66,7 @@ const PROCESS_PROFILES_E5MAX = {
   fine:     "Creality/process/0.20mm Standard @Creality Ender-5 Max 0.4mm nozzle.json",
 };
 const MATERIALS = {
-  PLA: { costPerKg: 16 }, PCTG: { costPerKg: 40 }, TPU: { costPerKg: 24 }, ABS: { costPerKg: 20 },
+  PLA: { costPerKg: 16 }, PETG: { costPerKg: 20 }, PCTG: { costPerKg: 40 }, TPU: { costPerKg: 24 }, ABS: { costPerKg: 20 },
   ASA: { costPerKg: 22 }, "PET-GF15": { costPerKg: 30 }, "PETG-ESD": { costPerKg: 66 },
   PA: { costPerKg: 35 }, "ASA-CF": { costPerKg: 40 }, "PETG-CF": { costPerKg: 40 }, "PA-CF": { costPerKg: 80 },
   "PAHT-CF": { costPerKg: 90 }, "PET-CF": { costPerKg: 50 },
