@@ -8,12 +8,13 @@ const MATERIALS: Record<string, { costPerKg: number; density: number }> = {
 };
 const QUALITIES:Record<string,{mult:number}>={draft:{mult:0.7},fast:{mult:0.85},standard:{mult:1.0},fine:{mult:1.6}};
 const TAX_RATE=0.06;
+const SETUP_FEE=12;
 function computePrice(volumeMm3:number,material:string,quality:string,infill:number){
   const mat=MATERIALS[material];const q=QUALITIES[quality];
   if(!mat||!q)return null;
   const grams=(volumeMm3/1000)*mat.density*(0.12+(1-0.12)*(infill/100));
   const hours=(grams/10)*q.mult;
-  return Math.max(8,Math.round(((grams/1000)*mat.costPerKg*2.5+hours*0.50+12)*100)/100);
+  return Math.max(8,Math.round(((grams/1000)*mat.costPerKg*2.5+hours*0.50)*100)/100);
 }
 export async function POST(request:Request){
   const body=await request.json();
@@ -36,9 +37,11 @@ export async function POST(request:Request){
       dbItems.push({file_name:item.fileName,material:item.material,quality:item.quality,infill:item.infill,grams:item.grams,hours:item.hours,price,qty});
     }
   }
-  const subtotal=dbItems.reduce((s:number,i:any)=>s+i.price*i.qty,0);
-  const taxAmount=Math.round(subtotal*TAX_RATE*100)/100;
+  const itemsSubtotal=dbItems.reduce((s:number,i:any)=>s+i.price*i.qty,0);
+  lineItems.push({name:"Setup Fee",quantity:"1",base_price_money:{amount:Math.round(SETUP_FEE*100),currency:"USD"}});
+  const subtotal=itemsSubtotal+SETUP_FEE;
   const shipping=shippingCost||0;
+  const taxAmount=Math.round((subtotal+shipping)*TAX_RATE*100)/100;
   lineItems.push({name:"KY Sales Tax (6%)",quantity:"1",base_price_money:{amount:Math.round(taxAmount*100),currency:"USD"}});
   if(shipping>0){
     lineItems.push({name:`Shipping - ${shippingLabel||"USPS"}`,quantity:"1",base_price_money:{amount:Math.round(shipping*100),currency:"USD"}});
