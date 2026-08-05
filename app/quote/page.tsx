@@ -199,7 +199,7 @@ export default function QuotePage() {
 
   const selectedRate   = shippingRates.find(r => r.id === selectedRateId);
   const cartSubtotal   = cartItems.reduce((sum, i) => sum + i.quote.price * i.qty + (i.quote.setupFee ?? 12), 0);
-  const taxAmount      = Math.round(cartSubtotal * 0.06 * 100) / 100;
+          const taxAmount     = Math.round((cartSubtotal + (localPickup ? 0 : (selectedRate?.amount || 0))) * 0.06 * 100) / 100;
   const orderTotal     = cartSubtotal + taxAmount + (localPickup ? 0 : (selectedRate?.amount || 0));
   const totalHours     = cartItems.reduce((s, i) => s + i.quote.hours * i.qty, 0);
   const totalLbs       = cartItems.reduce((s, i) => s + i.quote.grams * i.qty, 0) / 453.592;
@@ -397,7 +397,7 @@ export default function QuotePage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderId,
-          items: cartItems.map(i => ({ fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, volumeMm3: i.stats.volumeMm3, price: i.quote.price, grams: i.quote.grams, hours: i.quote.hours })),
+                    items: cartItems.map(i => ({ fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, volumeMm3: i.stats.volumeMm3, price: i.quote.price, grams: i.quote.grams, hours: i.quote.hours, setupFee: i.quote.setupFee ?? 12 })),
           shippingCost: localPickup ? 0 : (selectedRate?.amount || 0),
           shippingLabel: localPickup ? "Local Pickup" : (selectedRate?.service || ""),
           customerEmail, customerName,
