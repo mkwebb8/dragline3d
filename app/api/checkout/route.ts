@@ -29,17 +29,21 @@ export async function POST(request:Request){
     for(const item of items){
       const price=item.price||computePrice(item.volumeMm3,item.material,item.quality,item.infill)||8;
       const qty=item.qty||1;
+      const fee=item.setupFee??SETUP_FEE;
       lineItems.push({
         name:`${item.fileName.replace(/\.(stl|3mf|step|stp)$/i,"")} - ${item.material} ${item.quality} ${item.infill}%`,
         quantity:String(qty),
         base_price_money:{amount:Math.round(price*100),currency:"USD"},
       });
-      dbItems.push({file_name:item.fileName,material:item.material,quality:item.quality,infill:item.infill,grams:item.grams,hours:item.hours,price,qty});
+      lineItems.push({
+        name:`${item.fileName.replace(/\.(stl|3mf|step|stp)$/i,"")} - Setup Fee`,
+        quantity:"1",
+        base_price_money:{amount:Math.round(fee*100),currency:"USD"},
+      });
+      dbItems.push({file_name:item.fileName,material:item.material,quality:item.quality,infill:item.infill,grams:item.grams,hours:item.hours,price,qty,setup_fee:fee});
     }
   }
-  const itemsSubtotal=dbItems.reduce((s:number,i:any)=>s+i.price*i.qty,0);
-  lineItems.push({name:"Setup Fee",quantity:"1",base_price_money:{amount:Math.round(SETUP_FEE*100),currency:"USD"}});
-  const subtotal=itemsSubtotal+SETUP_FEE;
+  const subtotal=dbItems.reduce((s:number,i:any)=>s+i.price*i.qty+i.setup_fee,0);
   const shipping=shippingCost||0;
   const taxAmount=Math.round((subtotal+shipping)*TAX_RATE*100)/100;
   lineItems.push({name:"KY Sales Tax (6%)",quantity:"1",base_price_money:{amount:Math.round(taxAmount*100),currency:"USD"}});
@@ -59,7 +63,7 @@ export async function POST(request:Request){
     headers:{"Square-Version":"2026-01-22","Authorization":`Bearer ${accessToken}`,"Content-Type":"application/json"},
     body:JSON.stringify(squareBody),
   });
-  const data=await resp.json();
+      const data=await resp.json();
   if(!resp.ok){
     console.error("Square error:",JSON.stringify(data));
     return Response.json({error:"Payment provider error",square_error:data},{status:502});
