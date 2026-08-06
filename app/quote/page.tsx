@@ -100,6 +100,7 @@ export default function QuotePage() {
   const [checkingOut, setCheckingOut]       = useState(false);
   const [checkoutError, setCheckoutError]   = useState<string | null>(null);
   const [currentThumbnail, setCurrentThumbnail] = useState<string | null>(null);
+    const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
 
   const inputRef   = useRef<HTMLInputElement>(null);
   const initializedRef = useRef(false);
@@ -296,7 +297,63 @@ export default function QuotePage() {
     }
   }
 
-  async function handleFile(f: File | undefined) {
+async function addFileToCart(f: File): Promise<boolean> {
+      if (!/\.(stl|3mf|step|stp)$/i.test(f.name)) return false;
+      const mat: MaterialKey = "PLA", q: QualityKey = "standard", inf = 20;
+      try {
+              if (/\.(step|stp)$/i.test(f.name)) {
+                        const form = new FormData();
+                        form.append("step", f); form.append("material", mat); form.append("quality", q); form.append("infill", String(inf));
+                        const r = await fetch("/api/convert-step", { method: "POST", body: form });
+                        const data = await r.json();
+                        if (!data.stl || !data.price) return false;
+                        const bytes = Uint8Array.from(atob(data.stl), c => c.charCodeAt(0));
+                        const geo = parseSTL(bytes.buffer);
+                        geo.computeBoundingBox();
+                        const size = new THREE.Vector3(); geo.boundingBox!.getSize(size);
+                        const vol = computeVolume(geo);
+                        if (Math.max(size.x, size.y, size.z) >= 400) return false;
+                        const stats: Stats = { dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: vol };
+                        const quote: Quote = { grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown };
+                        setCartItems(prev => [...prev, { id: genId(), file: f, fileName: f.name, material: mat, quality: q, infill: inf, qty: 1, color: MATERIAL_COLORS[mat][0].name, stats, quote, geometry: geo, thumbnail: undefined }]);
+                        return true;
+              }
+              const buffer = await f.arrayBuffer();
+              const geo = /\.3mf$/i.test(f.name) ? await parse3MF(buffer) : parseSTL(buffer);
+              geo.computeBoundingBox();
+              const size = new THREE.Vector3(); geo.boundingBox!.getSize(size);
+              const stats: Stats = { dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: computeVolume(geo) };
+              if (Math.max(size.x, size.y, size.z) >= 400) return false;
+              const form = new FormData();
+              form.append("stl", f); form.append("material", mat); form.append("quality", q); form.append("infill", String(inf));
+              if (livePricing[mat]) form.append("costPerKg", String(livePricing[mat]));
+              const data = await sliceFileAsync(form);
+              if (!data.price || data.fallback) return false;
+              const quote: Quote = { grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown };
+              setCartItems(prev => [...prev, { id: genId(), file: f, fileName: f.name, material: mat, quality: q, infill: inf, qty: 1, color: MATERIAL_COLORS[mat][0].name, stats, quote, geometry: geo, thumbnail: undefined }]);
+              return true;
+      } catch {
+              return false;
+      }
+}
+  
+    async function handleFiles(fileList: FileList | File[]) {
+          const files = Array.from(fileList);
+          if (files.length === 0) return;
+          if (files.length === 1) { handleFile(files[0]); return; }
+          setFileError(null);
+          setBatchProgress({ current: 0, total: files.length });
+          const failed: string[] = [];
+          for (let i = 0; i < files.length; i++) {
+                  setBatchProgress({ current: i + 1, total: files.length });
+                  const ok = await addFileToCart(files[i]);
+                  if (!ok) failed.push(files[i].name);
+          }
+          setBatchProgress(null);
+          if (failed.length) setFileError(`Could not price: ${failed.join(", ")}`);
+    }
+  
+    async function handleFile(f: File | undefined) {
     if (!f) return;
     if (!/\.(stl|3mf|step|stp)$/i.test(f.name)) { setFileError("STL, 3MF, or STEP files only."); return; }
     setFileError(null); setFile(f); setStats(null); setGeometry(null);
@@ -439,7 +496,7 @@ export default function QuotePage() {
               <div
                 onDragOver={e => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
-                onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
+                                onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
                 onClick={() => inputRef.current?.click()}
                 className="cursor-pointer rounded-2xl text-center flex flex-col items-center justify-center gap-5 transition-all duration-200"
                 style={{
@@ -449,7 +506,7 @@ export default function QuotePage() {
                   boxShadow: dragOver ? "0 0 40px rgba(255,181,71,0.10), inset 0 1px 0 rgba(255,255,255,0.05)" : "inset 0 1px 0 rgba(255,255,255,0.04)",
                   minHeight: 200, padding: "24px 20px",
                 }}>
-                <input ref={inputRef} type="file" accept=".stl,.3mf,.step,.stp" className="hidden" onChange={e => handleFile(e.target.files?.[0])} />
+                                <input ref={inputRef} type="file" accept=".stl,.3mf,.step,.stp" multiple className="hidden" onChange={e => { if (e.target.files) handleFiles(e.target.files); e.target.value = ""; }} />
                 <div className="rounded-full grid place-items-center flex-shrink-0"
                   style={{ width: 64, height: 64, background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)", boxShadow: "0 0 24px rgba(255,181,71,0.35)" }}>
                   <Plus size={28} color="#08080a" />
@@ -459,7 +516,10 @@ export default function QuotePage() {
                     {cartItems.length > 0 ? "Add another part" : "Drop your file"}
                   </div>
                   <div className="text-bone/45 text-sm">or click to browse · .STL · .3MF · .STEP</div>
-<div className="text-bone/25 text-xs mt-1">Upload individual parts — one file per part. 3MF & STEP files are priced as a single unit.</div>
+                <div className="text-bone/25 text-xs mt-1">Select multiple files to upload them all at once. 3MF & STEP files are priced as a single unit.</div>
+                  {batchProgress && (
+                                    <div className="text-amber text-xs mt-2 font-mono uppercase tracking-[0.1em]">Pricing file {batchProgress.current} of {batchProgress.total}…</div>
+                                )}
                 </div>
                 {fileError && (
                   <div className="text-sm flex items-center gap-2 text-red-400">
