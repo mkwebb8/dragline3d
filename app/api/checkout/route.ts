@@ -72,7 +72,7 @@ export async function POST(request:Request){
     id:orderId,square_payment_link_id:data.payment_link?.id,
     customer_name:customerName||"",customer_email:customerEmail||"",
     address:address||"",city:city||"",state:state||"",zip:zip||"",
-    shipping_service:shippingLabel||"",shipping_cost:shipping,subtotal,total,status:"pending",items:dbItems,
+        shipping_service:shippingLabel||"",shipping_cost:shipping,subtotal,total,status:"pending",items:dbItems.map((i:any)=>{const{setup_fee,...rest}=i;return rest;}),
   } as any).then(()=>console.log("Order saved:",orderId)).catch((e:Error)=>console.error("DB error:",e.message));
   return Response.json({url:data.payment_link?.url,orderId});
 }
