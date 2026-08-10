@@ -168,6 +168,17 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
     URL.revokeObjectURL(url);
   }
 
+    async function downloadShippoCsv() {
+          const t = localStorage.getItem("dragline_admin_token") || "";
+          const res = await fetch(`/api/admin/orders/${id}/shippo-csv`, { headers: { Authorization: `Bearer ${t}` } });
+          if (!res.ok) { alert("Failed to generate CSV"); return; }
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url; a.download = `shippo-${id}.csv`; a.click();
+          URL.revokeObjectURL(url);
+    }
+
   async function uploadItemFile(item: any, file: File) {
     const t = localStorage.getItem("dragline_admin_token") || "";
     const fd = new FormData();
@@ -248,7 +259,12 @@ export default function AdminOrderDetail({ params }: { params: { id: string } })
           style={{ border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.03)" }}>
           <FileText size={15} />PACKING SLIP
         </button>
-        {labelUrl ? (
+                <button onClick={downloadShippoCsv}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-display font-bold text-sm text-bone cursor-pointer transition-opacity hover:opacity-80"
+                            style={{ border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.03)" }}>
+                            <Download size={15} />SHIPPO CSV
+                </button>
+                {labelUrl ? (
           <a href={labelUrl} target="_blank"
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-display font-bold text-sm text-white bg-blue-600 hover:bg-blue-500 transition-colors cursor-pointer">
             <Package size={15} />PRINT LABEL
