@@ -240,6 +240,7 @@ export default function AdminOrders() {
             { href: "/admin/analytics", label: "ANALYTICS" },
             { href: "/admin/inventory", label: "INVENTORY" },
             { href: "/admin/gallery", label: "GALLERY" },
+            { href: "/admin/catalog", label: "CATALOG" },
             { href: "/admin/manual-quote", label: "MANUAL QUOTE" },
             { href: "/admin/packing-slip/manual", label: "PACKING SLIP" },
           ].map(({ href, label }) => (
