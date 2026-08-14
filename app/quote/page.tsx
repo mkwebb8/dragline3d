@@ -773,6 +773,8 @@ export default function QuotePage() {
                               </div>
                             )}
                           </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
