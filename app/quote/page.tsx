@@ -12,7 +12,7 @@ const STLViewer = dynamic(() => import("@/components/STLViewer").then(m => ({ de
 
 type Stats = { dims: { x: number; y: number; z: number }; volumeMm3: number };
 type Quote = { grams: number; hours: number; price: number; setupFee: number; fromSlicer: boolean; breakdown: { material: number; machine: number; setup: number } };
-type CartItem = { id: string; file: File | null; fileName: string; material: MaterialKey; quality: QualityKey; infill: number; qty: number; color: string; stats: Stats; quote: Quote; geometry: any; thumbnail?: string };
+type CartItem = { id: string; file: File | null; fileName: string; material: MaterialKey; quality: QualityKey; infill: number; qty: number; color: string; stats: Stats; quote: Quote; geometry: any; thumbnail?: string; origin?: "catalog" | "upload" };
 type ShippingRate = { id: string; provider: string; service: string; amount: number; currency: string; days?: number };
 
 function genId() { return crypto.randomUUID(); }
@@ -65,6 +65,29 @@ export default function QuotePage() {
     fetch("/api/pricing").then(r => r.json()).then(setLivePricing).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    const catalogId = new URLSearchParams(window.location.search).get("catalog");
+    if (!catalogId) return;
+    setCatalogLoading(true);
+    (async () => {
+      try {
+        const r = await fetch(`/api/catalog/${catalogId}`);
+        if (!r.ok) throw new Error("Design not found");
+        const item = await r.json();
+        const fr = await fetch(item.file_url);
+        if (!fr.ok) throw new Error("Could not download design file");
+        const blob = await fr.blob();
+        const f = new File([blob], item.file_name, { type: blob.type });
+        await handleFile(f, "catalog");
+      } catch (e: any) {
+        setFileError(e.message || "Could not load catalog design.");
+      } finally {
+        setCatalogLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [file, setFile]                     = useState<File | null>(null);
   const [geometry, setGeometry]             = useState<THREE.BufferGeometry | null>(null);
   const [stats, setStats]                   = useState<Stats | null>(null);
@@ -100,7 +123,8 @@ export default function QuotePage() {
   const [checkingOut, setCheckingOut]       = useState(false);
   const [checkoutError, setCheckoutError]   = useState<string | null>(null);
   const [currentThumbnail, setCurrentThumbnail] = useState<string | null>(null);
-    const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const [fileOrigin, setFileOrigin] = useState<"catalog" | "upload">("upload");
+  const [catalogLoading, setCatalogLoading] = useState(false);
 
   const inputRef   = useRef<HTMLInputElement>(null);
   const initializedRef = useRef(false);
@@ -117,7 +141,7 @@ export default function QuotePage() {
     const serializable = cartItems.map(i => ({
       id: i.id, fileName: i.fileName, material: i.material, quality: i.quality,
       infill: i.infill, qty: i.qty, color: i.color, stats: i.stats, quote: i.quote,
-      thumbnail: i.thumbnail,
+      thumbnail: i.thumbnail, origin: i.origin,
     }));
     localStorage.setItem("dragline_cart", JSON.stringify(serializable));
   }, [cartItems]);
@@ -199,7 +223,13 @@ export default function QuotePage() {
   }
 
   const selectedRate   = shippingRates.find(r => r.id === selectedRateId);
-  const cartSubtotal   = cartItems.reduce((sum, i) => sum + i.quote.price * i.qty + (i.quote.setupFee ?? 12), 0);
+  const firstCatalogItemId = cartItems.find(i => i.origin === "catalog")?.id;
+  function effectiveSetupFee(i: CartItem) {
+    if (i.origin === "catalog") return i.id === firstCatalogItemId ? (i.quote.setupFee ?? 12) : 0;
+    return i.quote.setupFee ?? 12;
+  }
+  const cartSubtotal   = cartItems.reduce((sum, i) => sum + i.quote.price * i.qty + effectiveSetupFee(i), 0);
+  const stagingSetupFee = fileOrigin === "catalog" && cartItems.some(i => i.origin === "catalog") ? 0 : 12;
           const taxAmount     = Math.round((cartSubtotal + (localPickup ? 0 : (selectedRate?.amount || 0))) * 0.06 * 100) / 100;
   const orderTotal     = cartSubtotal + taxAmount + (localPickup ? 0 : (selectedRate?.amount || 0));
   const totalHours     = cartItems.reduce((s, i) => s + i.quote.hours * i.qty, 0);
@@ -297,65 +327,10 @@ export default function QuotePage() {
     }
   }
 
-async function addFileToCart(f: File): Promise<boolean> {
-      if (!/\.(stl|3mf|step|stp)$/i.test(f.name)) return false;
-      const mat: MaterialKey = "PLA", q: QualityKey = "standard", inf = 20;
-      try {
-              if (/\.(step|stp)$/i.test(f.name)) {
-                        const form = new FormData();
-                        form.append("step", f); form.append("material", mat); form.append("quality", q); form.append("infill", String(inf));
-                        const r = await fetch("/api/convert-step", { method: "POST", body: form });
-                        const data = await r.json();
-                        if (!data.stl || !data.price) return false;
-                        const bytes = Uint8Array.from(atob(data.stl), c => c.charCodeAt(0));
-                        const geo = parseSTL(bytes.buffer);
-                        geo.computeBoundingBox();
-                        const size = new THREE.Vector3(); geo.boundingBox!.getSize(size);
-                        const vol = computeVolume(geo);
-                        if (Math.max(size.x, size.y, size.z) >= 400) return false;
-                        const stats: Stats = { dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: vol };
-                        const quote: Quote = { grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown };
-                        setCartItems(prev => [...prev, { id: genId(), file: f, fileName: f.name, material: mat, quality: q, infill: inf, qty: 1, color: MATERIAL_COLORS[mat][0].name, stats, quote, geometry: geo, thumbnail: undefined }]);
-                        return true;
-              }
-              const buffer = await f.arrayBuffer();
-              const geo = /\.3mf$/i.test(f.name) ? await parse3MF(buffer) : parseSTL(buffer);
-              geo.computeBoundingBox();
-              const size = new THREE.Vector3(); geo.boundingBox!.getSize(size);
-              const stats: Stats = { dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: computeVolume(geo) };
-              if (Math.max(size.x, size.y, size.z) >= 400) return false;
-              const form = new FormData();
-              form.append("stl", f); form.append("material", mat); form.append("quality", q); form.append("infill", String(inf));
-              if (livePricing[mat]) form.append("costPerKg", String(livePricing[mat]));
-              const data = await sliceFileAsync(form);
-              if (!data.price || data.fallback) return false;
-              const quote: Quote = { grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown };
-              setCartItems(prev => [...prev, { id: genId(), file: f, fileName: f.name, material: mat, quality: q, infill: inf, qty: 1, color: MATERIAL_COLORS[mat][0].name, stats, quote, geometry: geo, thumbnail: undefined }]);
-              return true;
-      } catch {
-              return false;
-      }
-}
-  
-    async function handleFiles(fileList: FileList | File[]) {
-          const files = Array.from(fileList);
-          if (files.length === 0) return;
-          if (files.length === 1) { handleFile(files[0]); return; }
-          setFileError(null);
-          setBatchProgress({ current: 0, total: files.length });
-          const failed: string[] = [];
-          for (let i = 0; i < files.length; i++) {
-                  setBatchProgress({ current: i + 1, total: files.length });
-                  const ok = await addFileToCart(files[i]);
-                  if (!ok) failed.push(files[i].name);
-          }
-          setBatchProgress(null);
-          if (failed.length) setFileError(`Could not price: ${failed.join(", ")}`);
-    }
-  
-    async function handleFile(f: File | undefined) {
+  async function handleFile(f: File | undefined, origin: "catalog" | "upload" = "upload") {
     if (!f) return;
     if (!/\.(stl|3mf|step|stp)$/i.test(f.name)) { setFileError("STL, 3MF, or STEP files only."); return; }
+    setFileOrigin(origin);
     setFileError(null); setFile(f); setStats(null); setGeometry(null);
     setCurrentQuote(null); setCurrentThumbnail(null); setSlicerFailed(false); setSlicerTooLarge(null); setSlicerComplete(false);
 
@@ -394,12 +369,13 @@ async function addFileToCart(f: File): Promise<boolean> {
     if (!file || !stats || !currentQuote) return;
     if (!isVolume && !currentQuote.fromSlicer) return;
     if (!isStepFile && !geometry) return;
-    setCartItems(prev => [...prev, { id: genId(), file, fileName: file.name, material, quality, infill, qty, color, stats, quote: currentQuote, geometry: geometry || null, thumbnail: currentThumbnail || undefined }]);
+    setCartItems(prev => [...prev, { id: genId(), file, fileName: file.name, material, quality, infill, qty, color, stats, quote: currentQuote, geometry: geometry || null, thumbnail: currentThumbnail || undefined, origin: fileOrigin }]);
     setCurrentThumbnail(null);
     setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null); setIsStepFile(false);
     setMaterial("PLA"); setQuality("standard"); setInfill(20); setQty(1); setColor("Midnight Black");
     setSlicerComplete(false); setSlicerFailed(false); setSlicerTooLarge(null);
     setShippingRates([]); setSelectedRateId(null);
+    setFileOrigin("upload");
   }
 
   function updateQty(id: string, delta: number) {
@@ -447,14 +423,14 @@ async function addFileToCart(f: File): Promise<boolean> {
       notifyForm.append("shippingLabel", localPickup ? "Local Pickup" : (selectedRate?.service || "Standard"));
       notifyForm.append("shippingCost", String(localPickup ? 0 : (selectedRate?.amount || 0)));
       notifyForm.append("total", String(orderTotal));
-      notifyForm.append("items", JSON.stringify(cartItems.map(i => ({ id: i.id, fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, grams: i.quote.grams, hours: i.quote.hours, price: i.quote.price, setupFee: i.quote.setupFee ?? 12, lineTotal: i.quote.price * i.qty + (i.quote.setupFee ?? 12), thumbnail: i.thumbnail || null }))));
+      notifyForm.append("items", JSON.stringify(cartItems.map(i => ({ id: i.id, fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, grams: i.quote.grams, hours: i.quote.hours, price: i.quote.price, setupFee: effectiveSetupFee(i), lineTotal: i.quote.price * i.qty + effectiveSetupFee(i), thumbnail: i.thumbnail || null }))));
       for (const item of cartItems) { if (item.file) notifyForm.append(`file_${item.id}`, item.file); }
       fetch("/api/notify", { method: "POST", body: notifyForm }).catch(() => {});
       const res = await fetch("/api/checkout", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderId,
-                    items: cartItems.map(i => ({ fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, volumeMm3: i.stats.volumeMm3, price: i.quote.price, grams: i.quote.grams, hours: i.quote.hours, setupFee: i.quote.setupFee ?? 12 })),
+                    items: cartItems.map(i => ({ fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, volumeMm3: i.stats.volumeMm3, price: i.quote.price, grams: i.quote.grams, hours: i.quote.hours, setupFee: effectiveSetupFee(i) })),
           shippingCost: localPickup ? 0 : (selectedRate?.amount || 0),
           shippingLabel: localPickup ? "Local Pickup" : (selectedRate?.service || ""),
           customerEmail, customerName,
@@ -496,7 +472,7 @@ async function addFileToCart(f: File): Promise<boolean> {
               <div
                 onDragOver={e => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
-                                onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
+                onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
                 onClick={() => inputRef.current?.click()}
                 className="cursor-pointer rounded-2xl text-center flex flex-col items-center justify-center gap-5 transition-all duration-200"
                 style={{
@@ -506,7 +482,7 @@ async function addFileToCart(f: File): Promise<boolean> {
                   boxShadow: dragOver ? "0 0 40px rgba(255,181,71,0.10), inset 0 1px 0 rgba(255,255,255,0.05)" : "inset 0 1px 0 rgba(255,255,255,0.04)",
                   minHeight: 200, padding: "24px 20px",
                 }}>
-                                <input ref={inputRef} type="file" accept=".stl,.3mf,.step,.stp" multiple className="hidden" onChange={e => { if (e.target.files) handleFiles(e.target.files); e.target.value = ""; }} />
+                <input ref={inputRef} type="file" accept=".stl,.3mf,.step,.stp" className="hidden" onChange={e => handleFile(e.target.files?.[0])} />
                 <div className="rounded-full grid place-items-center flex-shrink-0"
                   style={{ width: 64, height: 64, background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)", boxShadow: "0 0 24px rgba(255,181,71,0.35)" }}>
                   <Plus size={28} color="#08080a" />
@@ -516,10 +492,7 @@ async function addFileToCart(f: File): Promise<boolean> {
                     {cartItems.length > 0 ? "Add another part" : "Drop your file"}
                   </div>
                   <div className="text-bone/45 text-sm">or click to browse · .STL · .3MF · .STEP</div>
-                <div className="text-bone/25 text-xs mt-1">Select multiple files to upload them all at once. 3MF & STEP files are priced as a single unit.</div>
-                  {batchProgress && (
-                                    <div className="text-amber text-xs mt-2 font-mono uppercase tracking-[0.1em]">Pricing file {batchProgress.current} of {batchProgress.total}…</div>
-                                )}
+<div className="text-bone/25 text-xs mt-1">Upload individual parts — one file per part. 3MF & STEP files are priced as a single unit.</div>
                 </div>
                 {fileError && (
                   <div className="text-sm flex items-center gap-2 text-red-400">
@@ -625,7 +598,9 @@ async function addFileToCart(f: File): Promise<boolean> {
                     <div className="font-display font-black text-xl w-10 text-center">{qty}</div>
                     <button onClick={() => setQty(q => Math.min(50, q + 1))} className="w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer transition-all duration-150 hover:border-amber/40" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}><Plus size={14} /></button>
                     {qty > 1 && currentQuote && !slicerLoading && (isVolume || currentQuote.fromSlicer) && (
-                      <div className="font-mono text-xs text-steel ml-1">${currentQuote.price.toFixed(2)} × {qty} + $12 setup = <span className="font-bold" style={{ color: "#ffb547" }}>${(currentQuote.price * qty + (currentQuote.setupFee ?? 12)).toFixed(2)}</span></div>
+                      <div className="font-mono text-xs text-steel ml-1">
+                        ${currentQuote.price.toFixed(2)} × {qty}{stagingSetupFee > 0 ? ` + $${stagingSetupFee} setup` : ""} = <span className="font-bold" style={{ color: "#ffb547" }}>${(currentQuote.price * qty + stagingSetupFee).toFixed(2)}</span>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -653,7 +628,7 @@ async function addFileToCart(f: File): Promise<boolean> {
                     {slicerLoading || !currentQuote || (!isVolume && !currentQuote.fromSlicer) ? (
                       <><span className="inline-block w-5 h-5 rounded-full animate-spin" style={{ border: "2px solid rgba(8,8,10,0.3)", borderTopColor: "#08080a" }} />CALCULATING...</>
                     ) : (
-                      <><ShoppingCart size={18} />ADD TO CART — ${(currentQuote.price * qty + (currentQuote.setupFee ?? 12)).toFixed(2)}{qty > 1 ? ` (${qty}× + $12 setup)` : ""}</>
+                      <><ShoppingCart size={18} />ADD TO CART — ${(currentQuote.price * qty + stagingSetupFee).toFixed(2)}{qty > 1 && stagingSetupFee > 0 ? ` (${qty}× + $${stagingSetupFee} setup)` : ""}</>
                     )}
                   </button>
                   </>
@@ -711,11 +686,11 @@ async function addFileToCart(f: File): Promise<boolean> {
                               <button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 rounded-lg flex items-center justify-center cursor-pointer" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}><Minus size={10} /></button>
                               <span className="font-mono text-xs font-bold w-4 text-center">{item.qty}</span>
                               <button onClick={() => updateQty(item.id, 1)} className="w-6 h-6 rounded-lg flex items-center justify-center cursor-pointer" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}><Plus size={10} /></button>
-                              {item.qty > 1 && <span className="font-mono text-[10px] text-steel">${item.quote.price.toFixed(2)} ea + $12 setup</span>}
+                              {item.qty > 1 && <span className="font-mono text-[10px] text-steel">${item.quote.price.toFixed(2)} ea{effectiveSetupFee(item) > 0 ? " + $12 setup" : ""}</span>}
                             </div>
                           </div>
                           <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                            <div className="font-display font-bold" style={{ color: "#ffb547" }}>${(item.quote.price * item.qty + (item.quote.setupFee ?? 12)).toFixed(2)}</div>
+                            <div className="font-display font-bold" style={{ color: "#ffb547" }}>${(item.quote.price * item.qty + effectiveSetupFee(item)).toFixed(2)}</div>
                             <div className="flex items-center gap-2">
                               {item.file && (
                                 <button onClick={() => setExpandedCartItem(isExpanded ? null : item.id)}
@@ -745,13 +720,13 @@ async function addFileToCart(f: File): Promise<boolean> {
                                     <div className="flex items-center gap-1.5">
                                       <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: m.swatch }} />
                                       <span className="font-display font-bold text-xs">{m.label}</span>
-                                    </div>
-                                  </button>
-                                ))}
-                              </div>
+                                  </div>
+                                </button>
+                              ))}
                             </div>
-                            <div>
-                              <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-2">Color</div>
+                          </div>
+                          <div>
+                            <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel mb-2">Color</div>
                               <div className="flex flex-wrap gap-1.5">
                                 {MATERIAL_COLORS[item.material]?.map(c => (
                                   <button key={c.name} title={c.name}
@@ -772,7 +747,7 @@ async function addFileToCart(f: File): Promise<boolean> {
                                     }}
                                     className="p-2 rounded-lg text-center transition-all duration-150 cursor-pointer"
                                     style={item.quality === key ? { background: "rgba(255,181,71,0.07)", border: "1px solid rgba(255,181,71,0.40)" } : { background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                                    <div className="font-mono font-bold text-xs" style={{ color: "#ffb547" }}>{q.label}mm</div>
+                                  <div className="font-mono font-bold text-xs" style={{ color: "#ffb547" }}>{q.label}mm</div>
                                   </button>
                                 ))}
                               </div>
@@ -798,8 +773,6 @@ async function addFileToCart(f: File): Promise<boolean> {
                               </div>
                             )}
                           </div>
-                        )}
-                      </div>
                     );
                   })}
                 </div>
@@ -853,7 +826,7 @@ async function addFileToCart(f: File): Promise<boolean> {
                           style={inputBase} onFocus={focusOn} onBlur={focusOff} />
                       </div>
                       <div className="grid grid-cols-3 gap-2">
-                        {[
+                        {(
                           { value: city, setter: setCity, placeholder: "Louisville", label: "City", cls: "col-span-1" },
                           { value: stateField, setter: setStateField, placeholder: "KY", label: "State", cls: "", max: 2 },
                           { value: zip, setter: setZip, placeholder: "40201", label: "ZIP", cls: "" },
@@ -937,3 +910,5 @@ async function addFileToCart(f: File): Promise<boolean> {
     </div>
   );
 }
+
+
