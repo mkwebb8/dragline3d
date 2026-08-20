@@ -1,117 +1,25 @@
 "use client";
-
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Menu, X, ArrowUpRight } from "lucide-react";
 import { DraglineMark } from "./DraglineMark";
 
-const NAV = [
-  { href: "/", label: "Home" },
-  { href: "/quote", label: "Quote" },
-  { href: "/gallery", label: "Work" },
-  { href: "/about", label: "About" },
-  { href: "/contact", label: "Contact" },
-  { href: "/account", label: "My Orders" },
+const links = [
+  { href: "/", label: "Home" }, { href: "/capabilities", label: "Capabilities" },
+  { href: "/materials", label: "Materials" }, { href: "/gallery", label: "Our Work" },
+  { href: "/catalog", label: "Shop" }, { href: "/account", label: "Account" },
 ];
-
 export function Nav() {
-  const pathname = usePathname();
-  const [open, setOpen] = useState(false);
-
-  return (
-    <header
-      className="sticky top-0 z-50 border-b"
-      style={{
-        background: "rgba(8,8,10,0.88)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        borderColor: "rgba(255,255,255,0.06)",
-      }}
-    >
-      <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-3 group">
-          <DraglineMark size={38} />
-          <div>
-            <div className="font-display font-extrabold text-xl leading-none">
-              DRAGLINE<span className="text-amber">.</span>
-              <span className="text-amber text-sm font-bold ml-1">3D</span>
-            </div>
-            <div className="font-mono text-[10px] text-steel tracking-[0.18em] mt-1">
-              ADDITIVE MFG · LOUISVILLE KY
-            </div>
-          </div>
-        </Link>
-
-        {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-8 text-sm">
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`relative pb-px transition-colors duration-150 font-medium ${
-                pathname === item.href
-                  ? "text-amber"
-                  : "text-bone/55 hover:text-bone"
-              }`}
-            >
-              {item.label}
-              {pathname === item.href && (
-                <span
-                  className="absolute -bottom-px left-0 right-0 h-px"
-                  style={{
-                    background: "#ffb547",
-                    boxShadow: "0 0 8px rgba(255,181,71,0.9)",
-                  }}
-                />
-              )}
-            </Link>
-          ))}
-          <Link
-            href="/quote"
-            className="font-display font-bold text-sm text-ironworks px-4 py-2 rounded-xl cursor-pointer transition-opacity duration-150 hover:opacity-90"
-            style={{
-              background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)",
-              boxShadow: "0 0 18px rgba(255,181,71,0.28)",
-            }}
-          >
-            GET A QUOTE
-          </Link>
-        </nav>
-
-        {/* Mobile toggle */}
-        <button
-          className="md:hidden text-bone cursor-pointer"
-          onClick={() => setOpen(!open)}
-          aria-label="Toggle menu"
-        >
-          {open ? <X size={24} /> : <Menu size={24} />}
-        </button>
-      </div>
-
-      {/* Mobile nav */}
-      {open && (
-        <nav
-          className="md:hidden border-t px-6 py-4 flex flex-col gap-3"
-          style={{
-            borderColor: "rgba(255,255,255,0.06)",
-            background: "rgba(8,8,10,0.96)",
-          }}
-        >
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className={`py-2 text-base font-medium transition-colors duration-150 ${
-                pathname === item.href ? "text-amber" : "text-bone/70"
-              }`}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-      )}
-    </header>
-  );
+  const pathname = usePathname(); const [open, setOpen] = useState(false);
+  useEffect(() => setOpen(false), [pathname]);
+  const active = (href: string) => href === "/" ? pathname === "/" : pathname.startsWith(href);
+  return <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0b0c0d]/95 backdrop-blur-xl">
+    <div className="public-container flex h-[72px] items-center justify-between gap-6">
+      <Link href="/" className="flex min-h-11 items-center gap-3" aria-label="Dragline 3D home"><DraglineMark size={34}/><div><div className="font-display text-lg font-black leading-none tracking-tight">DRAGLINE<span className="text-amber">/</span>3D</div><div className="mt-1 font-mono text-[8px] uppercase tracking-[.19em] text-steel">Additive manufacturing</div></div></Link>
+      <nav className="hidden lg:flex items-center gap-1" aria-label="Primary navigation">{links.map(l=><Link key={l.href} href={l.href} className={`flex min-h-11 items-center px-3 text-[13px] font-semibold transition-colors ${active(l.href)?"text-amber":"text-[#aaa8a1] hover:text-bone"}`}>{l.label}</Link>)}<Link href="/quote" className="btn-primary ml-3">Get a Quote<ArrowUpRight size={15}/></Link></nav>
+      <button className="flex h-11 w-11 items-center justify-center rounded-md border border-white/15 text-bone lg:hidden" onClick={()=>setOpen(v=>!v)} aria-expanded={open} aria-controls="mobile-menu" aria-label={open?"Close navigation":"Open navigation"}>{open?<X size={21}/>:<Menu size={21}/>}</button>
+    </div>
+    {open && <nav id="mobile-menu" className="border-t border-white/10 bg-[#0b0c0d] px-3 pb-5 pt-3 lg:hidden" aria-label="Mobile navigation"><div className="mx-auto flex max-w-content flex-col">{links.map(l=><Link key={l.href} href={l.href} className={`flex min-h-12 items-center border-b border-white/[.06] px-3 font-semibold ${active(l.href)?"text-amber":"text-bone/75"}`}>{l.label}</Link>)}<Link href="/quote" className="btn-primary mt-4 w-full">Get a Quote<ArrowUpRight size={15}/></Link></div></nav>}
+  </header>;
 }
