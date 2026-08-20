@@ -15,7 +15,7 @@ services:
       SHELLY_IP: 192.168.68.53
       ELECTRICITY_RATE: "0.12"
       SUPABASE_URL: ${SUPABASE_URL}
-      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY}
     volumes:
       - /mnt/media3/dragline3d/orders:/mnt/media/orders
     healthcheck:

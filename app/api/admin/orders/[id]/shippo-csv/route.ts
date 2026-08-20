@@ -3,7 +3,7 @@ import { verifyAdminToken } from "@/lib/adminAuth";
 import { getOrder } from "@/lib/db";
 
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_KEY!;
+const SB_KEY = process.env.SUPABASE_SECRET_KEY!;
 
 function csvEscape(val: any): string {
     const s = val === null || val === undefined ? "" : String(val);

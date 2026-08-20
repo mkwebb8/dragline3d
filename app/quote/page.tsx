@@ -828,7 +828,7 @@ export default function QuotePage() {
                           style={inputBase} onFocus={focusOn} onBlur={focusOff} />
                       </div>
                       <div className="grid grid-cols-3 gap-2">
-                        {(
+                        {[
                           { value: city, setter: setCity, placeholder: "Louisville", label: "City", cls: "col-span-1" },
                           { value: stateField, setter: setStateField, placeholder: "KY", label: "State", cls: "", max: 2 },
                           { value: zip, setter: setZip, placeholder: "40201", label: "ZIP", cls: "" },

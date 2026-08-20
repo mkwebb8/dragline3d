@@ -6,7 +6,7 @@
 //
 // Requires these env vars (reads from .env.local automatically):
 //   SUPABASE_URL
-//   SUPABASE_SERVICE_KEY
+//   SUPABASE_SECRET_KEY
 //   SQUARE_ACCESS_TOKEN   ← from Square Developer dashboard → your app → OAuth → Production Access Token
 //
 // What it does:
@@ -41,12 +41,12 @@ if (existsSync(envPath)) {
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const SB_URL   = process.env.SUPABASE_URL;
-const SB_KEY   = process.env.SUPABASE_SERVICE_KEY;
+const SB_KEY   = process.env.SUPABASE_SECRET_KEY;
 const SQ_TOKEN = process.env.SQUARE_ACCESS_TOKEN;
 const SQ_BASE  = "https://connect.squareup.com/v2";
 
 if (!SB_URL || !SB_KEY) {
-  console.error("✗ Missing SUPABASE_URL or SUPABASE_SERVICE_KEY");
+  console.error("✗ Missing SUPABASE_URL or SUPABASE_SECRET_KEY");
   process.exit(1);
 }
 if (!SQ_TOKEN) {

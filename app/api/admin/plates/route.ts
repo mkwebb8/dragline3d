@@ -3,7 +3,7 @@ import{verifyAdminToken}from "@/lib/adminAuth";
 
 function supabase(path:string,opts:RequestInit={},env:any={}){
   const url=env.SUPABASE_URL||process.env.SUPABASE_URL;
-  const key=env.SUPABASE_SERVICE_KEY||process.env.SUPABASE_SERVICE_KEY;
+  const key=env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SECRET_KEY;
   if(!url||!key)throw new Error("Supabase not configured");
   return fetch(`${url}/rest/v1/${path}`,{...opts,headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json",Prefer:"return=representation",...(opts.headers||{})}});
 }

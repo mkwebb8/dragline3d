@@ -1,29 +1,7 @@
 import type { Metadata } from "next";
-import { Archivo, Inter, Syne } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
-
-const archivo = Archivo({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800", "900"],
-  variable: "--font-archivo",
-  display: "swap",
-});
-
-const inter = Inter({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-inter",
-  display: "swap",
-});
-
-const syne = Syne({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-syne",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "Dragline 3D · Layer by layer.",
@@ -46,7 +24,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${archivo.variable} ${inter.variable} ${syne.variable}`}>
+      <body>
         <Nav />
         <main className="min-h-screen">{children}</main>
         <Footer />

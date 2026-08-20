@@ -73,7 +73,7 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
     if(tx.status==="SUCCESS"){
       await fetch(`${process.env.SUPABASE_URL}/rest/v1/orders?id=eq.${id}`,{
         method:"PATCH",
-        headers:{"Content-Type":"application/json","Authorization":`Bearer ${process.env.SUPABASE_SERVICE_KEY}`,"apikey":process.env.SUPABASE_SERVICE_KEY!},
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${process.env.SUPABASE_SECRET_KEY}`,"apikey":process.env.SUPABASE_SECRET_KEY!},
         body:JSON.stringify({tracking_number:tx.tracking_number}),
       });
       // Save label to NAS (non-fatal)
@@ -122,7 +122,7 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
   if(tx.status!=="SUCCESS"){console.error("Shippo tx error:",JSON.stringify(tx));return Response.json({error:tx.messages?.[0]?.text||"Label creation failed",detail:tx},{status:502});}
   await fetch(`${process.env.SUPABASE_URL}/rest/v1/orders?id=eq.${id}`,{
     method:"PATCH",
-    headers:{"Content-Type":"application/json","Authorization":`Bearer ${process.env.SUPABASE_SERVICE_KEY}`,"apikey":process.env.SUPABASE_SERVICE_KEY!},
+    headers:{"Content-Type":"application/json","Authorization":`Bearer ${process.env.SUPABASE_SECRET_KEY}`,"apikey":process.env.SUPABASE_SECRET_KEY!},
     body:JSON.stringify({tracking_number:tx.tracking_number}),
   });
   // Save label to NAS (non-fatal)

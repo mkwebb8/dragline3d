@@ -4,7 +4,7 @@ import { verifyAdminToken } from "@/lib/adminAuth";
 import { createClient } from "@supabase/supabase-js";
 
 function db() {
-  return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
+  return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
 }
 
 export async function GET(request: Request) {

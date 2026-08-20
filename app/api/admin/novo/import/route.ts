@@ -6,7 +6,7 @@ export const runtime = "edge";
 import { verifyAdminToken } from "@/lib/adminAuth";
 
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_KEY!;
+const SB_KEY = process.env.SUPABASE_SECRET_KEY!;
 
 const sbh = {
   apikey: SB_KEY,

@@ -10,7 +10,7 @@ export async function GET(request: Request) {
 
   const apiKey = process.env.GOVEE_API_KEY;
   const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+  const supabaseKey = process.env.SUPABASE_SECRET_KEY;
 
   if (!apiKey) return Response.json({ error: "Govee not configured" }, { status: 503 });
   if (!supabaseUrl || !supabaseKey) return Response.json({ error: "Supabase not configured" }, { status: 503 });

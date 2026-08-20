@@ -1,7 +1,7 @@
 export const runtime="edge";
 
 function supabase(path:string,opts:RequestInit={}){
-  const url=process.env.SUPABASE_URL;const key=process.env.SUPABASE_SERVICE_KEY;
+  const url=process.env.SUPABASE_URL;const key=process.env.SUPABASE_SECRET_KEY;
   if(!url||!key)throw new Error("Supabase not configured");
   return fetch(`${url}/rest/v1/${path}`,{...opts,headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json",Prefer:"return=representation",...(opts.headers||{})}});
 }

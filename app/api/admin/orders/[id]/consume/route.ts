@@ -5,7 +5,7 @@ import{verifyAdminToken}from "@/lib/adminAuth";
 import{getOrder}from "@/lib/db";
 
 const SB_URL=process.env.SUPABASE_URL!;
-const SB_KEY=process.env.SUPABASE_SERVICE_KEY!;
+const SB_KEY=process.env.SUPABASE_SECRET_KEY!;
 const h={apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,"Content-Type":"application/json",Prefer:"return=representation"};
 
 export async function POST(request:Request,{params}:{params:{id:string}}){

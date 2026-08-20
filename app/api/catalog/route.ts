@@ -2,7 +2,7 @@
 export const runtime = "edge";
 
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_KEY!;
+const SB_KEY = process.env.SUPABASE_SECRET_KEY!;
 
 export async function GET() {
     const r = await fetch(

@@ -16,7 +16,7 @@ const PROFILES_ROOT = path.join(ORCA_RESOURCES, "profiles");
 const SHELLY_IP = process.env.SHELLY_IP || "192.168.68.83";
 const ELECTRICITY_RATE_KWH = parseFloat(process.env.ELECTRICITY_RATE || "0.12");
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || "";
+const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY || "";
 const FILES_ROOT = process.env.FILES_ROOT || "/mnt/media/orders";
 const MACHINE_PROFILE = "Creality/machine/Creality K2 Plus 0.4 nozzle.json";
 const MACHINE_PROFILE_E5MAX = "Creality/machine/Creality Ender-5 Max 0.4 nozzle.json";
@@ -671,12 +671,12 @@ async function getShellyStatus() {
 }
 
 async function supabasePatch(table, id, data) {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
+  if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) return;
   await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
     method: "PATCH",
     headers: {
-      apikey: SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      apikey: SUPABASE_SECRET_KEY,
+      Authorization: `Bearer ${SUPABASE_SECRET_KEY}`,
       "Content-Type": "application/json",
       Prefer: "return=minimal",
     },
@@ -771,7 +771,7 @@ async function pollMoonraker() {
 
 async function autoStartShellySession(filename) {
   if (shellySession) return; // session already active (manual or previous auto)
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
+  if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) return;
   try {
     // Always fetch a fresh Shelly reading for an accurate baseline — avoids the
     // startup race where pollMoonraker fires before the first pollShelly resolves
@@ -788,7 +788,7 @@ async function autoStartShellySession(filename) {
     // Find the most recently updated order with status = "printing"
     const r = await fetch(
       `${SUPABASE_URL}/rest/v1/orders?status=eq.printing&order=updated_at.desc&limit=1&select=id`,
-      { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } }
+      { headers: { apikey: SUPABASE_SECRET_KEY, Authorization: `Bearer ${SUPABASE_SECRET_KEY}` } }
     );
     const orders = await r.json();
     if (!orders?.length) {
@@ -801,8 +801,8 @@ async function autoStartShellySession(filename) {
     const ins = await fetch(`${SUPABASE_URL}/rest/v1/print_sessions`, {
       method: "POST",
       headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        apikey: SUPABASE_SECRET_KEY,
+        Authorization: `Bearer ${SUPABASE_SECRET_KEY}`,
         "Content-Type": "application/json",
         Prefer: "return=representation",
       },

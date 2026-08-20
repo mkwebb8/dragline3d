@@ -50,7 +50,7 @@ export async function PATCH(request:Request,{params}:{params:{id:string}}){
         const ord=await getOrder(params.id);
         if(ord&&!ord.inventory_consumed){
           const sbUrl=process.env.SUPABASE_URL!;
-          const sbKey=process.env.SUPABASE_SERVICE_KEY!;
+          const sbKey=process.env.SUPABASE_SECRET_KEY!;
           const h={apikey:sbKey,Authorization:`Bearer ${sbKey}`,"Content-Type":"application/json",Prefer:"return=representation"};
           const items:Array<{material?:string;grams?:number;qty?:number}>=ord.order_items||[];
           for(const item of items){

@@ -10,7 +10,7 @@
 export const runtime = "edge";
 
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_KEY!;
+const SB_KEY = process.env.SUPABASE_SECRET_KEY!;
 const SHIPPO_TOKEN = process.env.SHIPPO_WEBHOOK_TOKEN;
 
 const sbh = {

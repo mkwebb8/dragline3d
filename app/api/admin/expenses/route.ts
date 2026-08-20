@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 function supabase() {
-  return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
+  return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
 }
 
 function auth(req: NextRequest) {

@@ -30,7 +30,7 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
       // Save it to Supabase so we don't have to search next time
       await fetch(`${process.env.SUPABASE_URL}/rest/v1/orders?id=eq.${id}`,{
         method:"PATCH",
-        headers:{"Content-Type":"application/json","Authorization":`Bearer ${process.env.SUPABASE_SERVICE_KEY}`,"apikey":process.env.SUPABASE_SERVICE_KEY!},
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${process.env.SUPABASE_SECRET_KEY}`,"apikey":process.env.SUPABASE_SECRET_KEY!},
         body:JSON.stringify({square_invoice_url:existingUrl}),
       });
       return Response.json({invoice_url:existingUrl,invoice_id:existing.id});
@@ -102,7 +102,7 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
 
   await fetch(`${process.env.SUPABASE_URL}/rest/v1/orders?id=eq.${id}`,{
     method:"PATCH",
-    headers:{"Content-Type":"application/json","Authorization":`Bearer ${process.env.SUPABASE_SERVICE_KEY}`,"apikey":process.env.SUPABASE_SERVICE_KEY!},
+    headers:{"Content-Type":"application/json","Authorization":`Bearer ${process.env.SUPABASE_SECRET_KEY}`,"apikey":process.env.SUPABASE_SECRET_KEY!},
     body:JSON.stringify({square_invoice_url:invoiceUrl}),
   });
 

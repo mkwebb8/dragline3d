@@ -10,7 +10,7 @@ export const runtime = "edge";
 
 const SQ_SIG_KEY = process.env.SQUARE_WEBHOOK_SIGNATURE_KEY;
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_KEY!;
+const SB_KEY = process.env.SUPABASE_SECRET_KEY!;
 
 const sbh = {
   apikey: SB_KEY,
