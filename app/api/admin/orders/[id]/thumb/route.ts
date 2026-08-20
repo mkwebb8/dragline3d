@@ -11,8 +11,9 @@ export async function GET(
   const itemId = url.searchParams.get("itemId");
   if (!itemId) return new Response("itemId required", { status: 400 });
 
-  const slicerUrl = process.env.SLICER_URL || "https://slicer.dragline3d.com";
-  const workerSecret = process.env.WORKER_SECRET || "";
+  const slicerUrl = process.env.SLICER_URL || process.env.SLICER_WORKER_URL;
+  const workerSecret = process.env.WORKER_SECRET;
+  if (!slicerUrl || !workerSecret) return new Response("Thumbnail service not configured", { status: 503 });
 
   try {
     const res = await fetch(

@@ -12,7 +12,6 @@ const SHIPPO_KEY = process.env.SHIPPO_API_KEY!;
 
 const sbh = {
   apikey: SB_KEY,
-  Authorization: `Bearer ${SB_KEY}`,
   "Content-Type": "application/json",
   Prefer: "return=representation",
 };
@@ -20,7 +19,8 @@ const sbh = {
 const shippoH = { Authorization: `ShippoToken ${SHIPPO_KEY}` };
 
 export async function POST(request: Request) {
-  const isCron = request.headers.get("x-cron-secret") === process.env.CRON_SECRET;
+  const cronSecret = process.env.CRON_SECRET;
+  const isCron = Boolean(cronSecret) && request.headers.get("x-cron-secret") === cronSecret;
   if (!isCron && !await verifyAdminToken(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }

@@ -138,11 +138,12 @@ export default function ManualQuotePage() {
       }));
       const r = await fetch("/api/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
+          manualPricing: true,
           items,
-          shippingCost: selectedRate?.amount ?? 0,
-          shippingLabel: selectedRate ? `${selectedRate.provider} ${selectedRate.service}` : "",
+          localPickup: !selectedRate,
+          shippingRateToken: selectedRate?.rateToken ?? null,
           customerEmail: custEmail,
           customerName: custName,
           address: toStreet,

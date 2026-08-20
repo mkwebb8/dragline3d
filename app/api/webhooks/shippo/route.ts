@@ -15,18 +15,15 @@ const SHIPPO_TOKEN = process.env.SHIPPO_WEBHOOK_TOKEN;
 
 const sbh = {
   apikey: SB_KEY,
-  Authorization: `Bearer ${SB_KEY}`,
   "Content-Type": "application/json",
   Prefer: "return=representation",
 };
 
 export async function POST(request: Request) {
-  // Verify Shippo signature if token is set
-  if (SHIPPO_TOKEN) {
-    const sig = request.headers.get("shippo-webhook-signature") ?? "";
-    if (sig !== SHIPPO_TOKEN) {
-      return Response.json({ error: "Invalid signature" }, { status: 401 });
-    }
+  if (!SHIPPO_TOKEN) return Response.json({ error: "Webhook verification is not configured" }, { status: 503 });
+  const sig = request.headers.get("shippo-webhook-signature") ?? "";
+  if (sig !== SHIPPO_TOKEN) {
+    return Response.json({ error: "Invalid signature" }, { status: 401 });
   }
 
   let event: any;

@@ -1,5 +1,4 @@
 "use client";
-import { useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2, ArrowRight, Package } from "lucide-react";
@@ -17,20 +16,15 @@ export default function OrderConfirmedContent() {
   const params = useSearchParams();
   const orderId = params.get("id");
 
-  useEffect(() => {
-    if (!orderId) return;
-    fetch(`/api/order/${orderId}`, { method: "POST" }).catch(() => {});
-  }, [orderId]);
-
   return (
     <div className="max-w-2xl mx-auto px-6 py-24 text-center">
       <div className="w-20 h-20 rounded-full bg-amber grid place-items-center mx-auto mb-8">
         <CheckCircle2 size={40} strokeWidth={2} color="#0f0f10" />
       </div>
 
-      <div className="font-mono text-xs uppercase tracking-widest text-amber mb-4">Payment received</div>
+      <div className="font-mono text-xs uppercase tracking-widest text-amber mb-4">Payment processing</div>
       <h1 className="font-display font-black text-5xl md:text-6xl leading-[0.95] mb-6">
-        Order confirmed<span className="text-amber">.</span>
+        Thank you<span className="text-amber">.</span>
       </h1>
 
       {orderId && (
@@ -41,7 +35,7 @@ export default function OrderConfirmedContent() {
       )}
 
       <p className="text-bone/70 text-lg leading-relaxed mb-10">
-        You will get a Square receipt by email. We will follow up shortly to confirm your print timeline. Most jobs ship in 2–5 business days.
+        Square is confirming your payment. Your order status will update automatically, and we will follow up with your print timeline. Most jobs ship in 2–5 business days.
       </p>
 
       <div className="rounded-xl p-6 text-left mb-10" style={glass}>

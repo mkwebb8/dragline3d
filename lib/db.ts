@@ -4,7 +4,7 @@ export type Order = { id:string;square_payment_link_id?:string;square_payment_id
 function supabase(path:string,opts:RequestInit={}){
   const url=process.env.SUPABASE_URL;const key=process.env.SUPABASE_SECRET_KEY;
   if(!url||!key)throw new Error("Supabase not configured");
-  return fetch(`${url}/rest/v1/${path}`,{...opts,headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json",Prefer:"return=representation",...(opts.headers||{})}});
+  return fetch(`${url}/rest/v1/${path}`,{...opts,headers:{apikey:key,"Content-Type":"application/json",Prefer:"return=representation",...(opts.headers||{})}});
 }
 
 export function generateOrderId(){
@@ -20,7 +20,10 @@ export async function createOrder(order:any):Promise<Order>{
   const[created]=await resp.json();
   if(items?.length){
     const ir=await supabase("order_items",{method:"POST",body:JSON.stringify(items.map((i:any)=>({...i,order_id:id})))});
-    if(!ir.ok)throw new Error(await ir.text());
+    if(!ir.ok){
+      await supabase(`orders?id=eq.${encodeURIComponent(id)}`,{method:"DELETE"}).catch(()=>null);
+      throw new Error(await ir.text());
+    }
   }
   return created;
 }

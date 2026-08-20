@@ -1,37 +1,31 @@
 export const runtime = 'edge';
 
-import { createClient } from '@supabase/supabase-js';
+import { authenticateCustomer, escapePostgrestLike } from '@/lib/customerAuth';
+import { supabaseRest } from '@/lib/supabaseRest';
 
 export async function GET(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const url = new URL(req.url);
-  const email = url.searchParams.get('email');
-  const fileName = url.searchParams.get('fileName');
-
-  if (!email || !fileName) return Response.json({ error: 'email and fileName required' }, { status: 400 });
-
-  // Verify order belongs to this customer
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!
-  );
-
-  const { id } = params;
-  const { data: order, error } = await supabase
-    .from('orders')
-    .select('id, customer_email')
-    .eq('id', id)
-    .single();
-
-  if (error || !order) return Response.json({ error: 'Order not found' }, { status: 404 });
-  if (order.customer_email?.toLowerCase() !== email.toLowerCase()) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  const auth = await authenticateCustomer(req);
+  if ("response" in auth) return auth.response;
+  const fileName = new URL(req.url).searchParams.get('fileName')?.trim();
+  if (!fileName || fileName.length > 255 || /[\\/\0]/.test(fileName)) {
+    return Response.json({ error: 'Invalid file request' }, { status: 400 });
   }
 
-  const slicerBase = process.env.SLICER_WORKER_URL!;
-  const secret = process.env.WORKER_SECRET!;
+  const { id } = params;
+  const orderResponse = await supabaseRest(
+    `orders?id=eq.${encodeURIComponent(id)}&customer_email=ilike.${encodeURIComponent(escapePostgrestLike(auth.email))}&select=id,order_items(file_name)`
+  );
+  if (!orderResponse.ok) return Response.json({ error: 'Failed to verify file access' }, { status: 500 });
+  const rows = await orderResponse.json();
+  const allowed = rows[0]?.order_items?.some((item: { file_name?: string }) => item.file_name === fileName);
+  if (!allowed) return Response.json({ error: 'File not found' }, { status: 404 });
+
+  const slicerBase = process.env.SLICER_WORKER_URL;
+  const secret = process.env.WORKER_SECRET;
+  if (!slicerBase || !secret) return Response.json({ error: 'File service is not configured' }, { status: 503 });
 
   const fileUrl = `${slicerBase}/get-file?orderId=${encodeURIComponent(id)}&fileName=${encodeURIComponent(fileName)}`;
   const fileRes = await fetch(fileUrl, {
@@ -44,7 +38,8 @@ export async function GET(
   return new Response(fileRes.body, {
     headers: {
       'Content-Type': 'application/octet-stream',
-      'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+      'Cache-Control': 'private, no-store',
     },
   });
 }

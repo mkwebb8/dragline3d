@@ -95,7 +95,17 @@ export default function NewOrderPage() {
     const form = new FormData();
     form.append("stl", f); form.append("material", mat); form.append("quality", q); form.append("infill", String(inf));
     fetch("/api/slice", { method: "POST", body: form })
-      .then(r => r.json())
+      .then(async r => {
+        const initial = await r.json();
+        if (!r.ok || !initial.jobToken) return initial;
+        for (let attempt = 0; attempt < 150; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const statusResponse = await fetch(`/api/slice-status?jobToken=${encodeURIComponent(initial.jobToken)}`);
+          const status = await statusResponse.json();
+          if (status.status !== "pending") return status;
+        }
+        return { error: "Slicer timed out" };
+      })
       .then(data => {
         if (data.price && !data.fallback) setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true });
         else setSlicerFailed(true);

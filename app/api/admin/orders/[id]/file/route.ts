@@ -10,7 +10,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
   const url = new URL(request.url);
   const fileName = url.searchParams.get("fileName");
   const itemId = url.searchParams.get("itemId");
-  if (!fileName) return Response.json({ error: "fileName required" }, { status: 400 });
+  if (!fileName || /[\\/\0]/.test(fileName)) return Response.json({ error: "Invalid fileName" }, { status: 400 });
 
   // Check if the item has a file_url override in Supabase Storage
   if (itemId) {
@@ -40,8 +40,9 @@ export async function GET(request: Request, { params }: { params: { id: string }
   }
 
   // Fall back to NAS worker
-  const slicerUrl = process.env.SLICER_WORKER_URL || "https://slicer.dragline3d.com";
-  const workerSecret = process.env.WORKER_SECRET || "";
+  const slicerUrl = process.env.SLICER_WORKER_URL || process.env.SLICER_URL;
+  const workerSecret = process.env.WORKER_SECRET;
+  if (!slicerUrl || !workerSecret) return Response.json({ error: "File service not configured" }, { status: 503 });
   try {
     const res = await fetch(
       `${slicerUrl}/get-file?orderId=${params.id}&fileName=${encodeURIComponent(fileName)}`,

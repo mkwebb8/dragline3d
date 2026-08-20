@@ -4,7 +4,8 @@ export async function GET(request: Request) {
   // Verify cron secret to prevent unauthorized calls
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret) return Response.json({ error: "Cron verification is not configured" }, { status: 503 });
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -45,7 +46,6 @@ export async function GET(request: Request) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${supabaseKey}`,
         "apikey": supabaseKey,
         "Prefer": "return=minimal",
       },

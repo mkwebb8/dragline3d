@@ -11,9 +11,9 @@ import * as THREE from "three";
 const STLViewer = dynamic(() => import("@/components/STLViewer").then(m => ({ default: m.STLViewer })), { ssr: false });
 
 type Stats = { dims: { x: number; y: number; z: number }; volumeMm3: number };
-type Quote = { grams: number; hours: number; price: number; setupFee: number; fromSlicer: boolean; breakdown: { material: number; machine: number; setup: number } };
-type CartItem = { id: string; file: File | null; fileName: string; material: MaterialKey; quality: QualityKey; infill: number; qty: number; color: string; stats: Stats; quote: Quote; geometry: any; thumbnail?: string; origin?: "catalog" | "upload" };
-type ShippingRate = { id: string; provider: string; service: string; amount: number; currency: string; days?: number };
+type Quote = { grams: number; hours: number; price: number; setupFee: number; fromSlicer: boolean; breakdown: { material: number; machine: number; setup: number }; quoteToken?: string };
+type CartItem = { id: string; file: File | null; fileName: string; material: MaterialKey; quality: QualityKey; infill: number; qty: number; color: string; stats: Stats; quote: Quote; geometry: any; thumbnail?: string; origin?: "catalog" | "upload"; catalogToken?: string };
+type ShippingRate = { id: string; provider: string; service: string; amount: number; currency: string; days?: number; rateToken: string };
 
 function genId() { return crypto.randomUUID(); }
 function genOrderId() { return `DL-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-${Math.random().toString(36).slice(2,6).toUpperCase()}`; }
@@ -43,12 +43,12 @@ function focusOff(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) {
 async function sliceFileAsync(form: FormData): Promise<any> {
   const r = await fetch("/api/slice", { method: "POST", body: form });
   const init = await r.json();
-  if (!init.jobId) return init; // direct result or error
+  if (!init.jobToken) return init;
   // Poll until done (up to 5 minutes)
   for (let i = 0; i < 150; i++) {
     await new Promise(res => setTimeout(res, 2000));
     try {
-      const sr = await fetch(`/api/slice-status?jobId=${encodeURIComponent(init.jobId)}`);
+      const sr = await fetch(`/api/slice-status?jobToken=${encodeURIComponent(init.jobToken)}`);
       const status = await sr.json();
       if (status.status !== "pending") return status;
     } catch {
@@ -78,7 +78,7 @@ export default function QuotePage() {
         if (!fr.ok) throw new Error("Could not download design file");
         const blob = await fr.blob();
         const f = new File([blob], item.file_name, { type: blob.type });
-        await handleFile(f, "catalog");
+        await handleFile(f, "catalog", item.catalogToken);
       } catch (e: any) {
         setFileError(e.message || "Could not load catalog design.");
       } finally {
@@ -124,6 +124,7 @@ export default function QuotePage() {
   const [checkoutError, setCheckoutError]   = useState<string | null>(null);
   const [currentThumbnail, setCurrentThumbnail] = useState<string | null>(null);
   const [fileOrigin, setFileOrigin] = useState<"catalog" | "upload">("upload");
+  const [catalogToken, setCatalogToken] = useState<string | undefined>();
   const [catalogLoading, setCatalogLoading] = useState(false);
 
   const inputRef   = useRef<HTMLInputElement>(null);
@@ -141,7 +142,7 @@ export default function QuotePage() {
     const serializable = cartItems.map(i => ({
       id: i.id, fileName: i.fileName, material: i.material, quality: i.quality,
       infill: i.infill, qty: i.qty, color: i.color, stats: i.stats, quote: i.quote,
-      thumbnail: i.thumbnail, origin: i.origin,
+      thumbnail: i.thumbnail, origin: i.origin, catalogToken: i.catalogToken,
     }));
     localStorage.setItem("dragline_cart", JSON.stringify(serializable));
   }, [cartItems]);
@@ -215,7 +216,7 @@ export default function QuotePage() {
       if (data.price && !data.fallback) {
         setCartItems(prev => prev.map(i => i.id === itemId ? {
           ...i, material: mat, quality: q, infill: inf,
-          quote: { grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown },
+          quote: { grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown, quoteToken: data.quoteToken },
         } : i));
       }
     } catch {}
@@ -263,14 +264,14 @@ export default function QuotePage() {
                 setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (400×400×400mm)`);
               } else {
                 // STEP files: slicer already ran for conversion, use its accurate output regardless of pricing mode
-                setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown });
+                setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown, quoteToken: data.quoteToken });
               }
             } catch(e) {
               console.warn("Could not parse converted STL for preview", e);
-              setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown });
+              setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown, quoteToken: data.quoteToken });
             }
           } else if (!isVolume) {
-            setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown });
+            setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown, quoteToken: data.quoteToken });
           }
         } else if (data.error && !data.fallback) {
           setSlicerTooLarge(data.error);
@@ -314,7 +315,7 @@ export default function QuotePage() {
       if (Math.max(size.x, size.y, size.z) >= 400) {
         setSlicerTooLarge(`Part ${size.x.toFixed(0)}×${size.y.toFixed(0)}×${size.z.toFixed(0)}mm exceeds build volume (400×400×400mm)`);
       } else if (data.price && data.grams && data.hours) {
-        setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown });
+        setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, setupFee: data.setupFee ?? 12, fromSlicer: true, breakdown: data.breakdown, quoteToken: data.quoteToken });
         setSlicerComplete(true);
       } else {
         setSlicerFailed(true);
@@ -327,10 +328,11 @@ export default function QuotePage() {
     }
   }
 
-  async function handleFile(f: File | undefined, origin: "catalog" | "upload" = "upload") {
+  async function handleFile(f: File | undefined, origin: "catalog" | "upload" = "upload", itemCatalogToken?: string) {
     if (!f) return;
     if (!/\.(stl|3mf|step|stp)$/i.test(f.name)) { setFileError("STL, 3MF, or STEP files only."); return; }
     setFileOrigin(origin);
+    setCatalogToken(itemCatalogToken);
     setFileError(null); setFile(f); setStats(null); setGeometry(null);
     setCurrentQuote(null); setCurrentThumbnail(null); setSlicerFailed(false); setSlicerTooLarge(null); setSlicerComplete(false);
 
@@ -369,13 +371,14 @@ export default function QuotePage() {
     if (!file || !stats || !currentQuote) return;
     if (!isVolume && !currentQuote.fromSlicer) return;
     if (!isStepFile && !geometry) return;
-    setCartItems(prev => [...prev, { id: genId(), file, fileName: file.name, material, quality, infill, qty, color, stats, quote: currentQuote, geometry: geometry || null, thumbnail: currentThumbnail || undefined, origin: fileOrigin }]);
+    setCartItems(prev => [...prev, { id: genId(), file, fileName: file.name, material, quality, infill, qty, color, stats, quote: currentQuote, geometry: geometry || null, thumbnail: currentThumbnail || undefined, origin: fileOrigin, catalogToken }]);
     setCurrentThumbnail(null);
     setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null); setIsStepFile(false);
     setMaterial("PLA"); setQuality("standard"); setInfill(20); setQty(1); setColor("Midnight Black");
     setSlicerComplete(false); setSlicerFailed(false); setSlicerTooLarge(null);
     setShippingRates([]); setSelectedRateId(null);
     setFileOrigin("upload");
+    setCatalogToken(undefined);
   }
 
   function updateQty(id: string, delta: number) {
@@ -407,6 +410,7 @@ export default function QuotePage() {
 
   async function handleCheckout() {
     if (cartItems.length === 0) return;
+    if (cartItems.some(item => !item.file)) { setCheckoutError("One or more model files are no longer available. Please remove and re-add those parts."); return; }
     if (!firstName || !lastName || !customerEmail) { setCheckoutError("Please fill in your name and email."); return; }
     if (!localPickup && (!address || !city || !stateField || !zip)) { setCheckoutError("Please fill in your shipping address or select Local Pickup."); return; }
     if (!selectedRate && !localPickup) { setCheckoutError("Please select a shipping option or Local Pickup."); return; }
@@ -425,14 +429,13 @@ export default function QuotePage() {
       notifyForm.append("total", String(orderTotal));
       notifyForm.append("items", JSON.stringify(cartItems.map(i => ({ id: i.id, fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, grams: i.quote.grams, hours: i.quote.hours, price: i.quote.price, setupFee: effectiveSetupFee(i), lineTotal: i.quote.price * i.qty + effectiveSetupFee(i), thumbnail: i.thumbnail || null }))));
       for (const item of cartItems) { if (item.file) notifyForm.append(`file_${item.id}`, item.file); }
-      fetch("/api/notify", { method: "POST", body: notifyForm }).catch(() => {});
       const res = await fetch("/api/checkout", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderId,
-                    items: cartItems.map(i => ({ fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, volumeMm3: i.stats.volumeMm3, price: i.quote.price, grams: i.quote.grams, hours: i.quote.hours, setupFee: effectiveSetupFee(i) })),
-          shippingCost: localPickup ? 0 : (selectedRate?.amount || 0),
-          shippingLabel: localPickup ? "Local Pickup" : (selectedRate?.service || ""),
+          items: cartItems.map(i => ({ fileName: i.fileName, material: i.material, quality: i.quality, infill: i.infill, qty: i.qty, color: i.color, origin: i.origin, quoteToken: i.quote.quoteToken, catalogToken: i.catalogToken })),
+          localPickup,
+          shippingRateToken: localPickup ? null : selectedRate?.rateToken,
           customerEmail, customerName,
           address: localPickup ? "Local Pickup" : address,
           city: localPickup ? "Louisville" : city,
@@ -442,6 +445,13 @@ export default function QuotePage() {
       });
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data.error || "Checkout failed");
+      notifyForm.set("orderId", data.orderId);
+      notifyForm.set("notificationToken", data.notificationToken || "");
+      const notifyResponse = await fetch("/api/notify", { method: "POST", body: notifyForm }).catch(() => null);
+      if (!notifyResponse?.ok) {
+        await fetch("/api/checkout/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: data.notificationToken }) }).catch(() => null);
+        throw new Error("Your files could not be secured and checkout was stopped. Please try again or contact us if the problem continues.");
+      }
       window.location.href = data.url;
     } catch (e: any) { setCheckoutError(e.message || "Something went wrong."); setCheckingOut(false); }
   }

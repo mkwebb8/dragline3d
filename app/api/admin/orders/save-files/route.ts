@@ -6,8 +6,9 @@ import { verifyAdminToken } from "@/lib/adminAuth";
 export async function POST(req: Request) {
   if (!await verifyAdminToken(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const slicerUrl = process.env.SLICER_URL || "https://slicer.dragline3d.com";
-  const workerSecret = process.env.WORKER_SECRET || "";
+  const slicerUrl = process.env.SLICER_URL || process.env.SLICER_WORKER_URL;
+  const workerSecret = process.env.WORKER_SECRET;
+  if (!slicerUrl || !workerSecret) return Response.json({ error: "File service not configured" }, { status: 503 });
 
   const form = await req.formData();
 

@@ -58,10 +58,10 @@ function PrinterWidget({ token, apiPath = "/api/printer", label = "K2 PLUS" }: {
 
   const fetchShelly = useCallback(async () => {
     try {
-      const res = await fetch("/api/shelly/power");
+      const res = await fetch("/api/shelly/power", { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) setShellyData(await res.json());
     } catch { /* shelly optional */ }
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     fetchPrinter();

@@ -1,32 +1,19 @@
 export const runtime = 'edge';
 
-import { createClient } from '@supabase/supabase-js';
+import { authenticateCustomer, escapePostgrestLike } from '@/lib/customerAuth';
+import { supabaseRest } from '@/lib/supabaseRest';
 
 export async function GET(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const { id } = params;
-  const url = new URL(req.url);
-  const email = url.searchParams.get('email');
-
-  if (!email) return Response.json({ error: 'email required' }, { status: 400 });
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!
+  const auth = await authenticateCustomer(req);
+  if ("response" in auth) return auth.response;
+  const response = await supabaseRest(
+    `orders?id=eq.${encodeURIComponent(params.id)}&customer_email=ilike.${encodeURIComponent(escapePostgrestLike(auth.email))}&select=id,order_items(file_name,material,quality,infill,qty,color,grams,hours,price)`
   );
-
-  const { data: order, error } = await supabase
-    .from('orders')
-    .select('id, customer_email, order_items(file_name, material, quality, infill, qty, color, grams, hours, price)')
-    .eq('id', id)
-    .single();
-
-  if (error || !order) return Response.json({ error: 'Order not found' }, { status: 404 });
-  if (order.customer_email?.toLowerCase() !== email.toLowerCase()) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  return Response.json({ orderItems: order.order_items });
+  if (!response.ok) return Response.json({ error: 'Failed to fetch order files' }, { status: 500 });
+  const rows = await response.json();
+  if (!rows.length) return Response.json({ error: 'Order not found' }, { status: 404 });
+  return Response.json({ orderItems: rows[0].order_items || [] });
 }

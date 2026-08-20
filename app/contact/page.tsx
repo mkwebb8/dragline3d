@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Mail, MapPin, Send, ArrowRight } from "lucide-react";
 import type { ReactNode, CSSProperties, FormEvent } from "react";
 
@@ -21,15 +21,30 @@ const inputStyle = {
 } as CSSProperties;
 
 export default function ContactPage() {
+  const [formToken, setFormToken] = useState("");
+  const [company, setCompany] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [name, setName]       = useState("");
   const [email, setEmail]     = useState("");
   const [message, setMessage] = useState("");
 
-  function handleSubmit(e: FormEvent) {
+  useEffect(() => {
+    fetch("/api/contact").then(response => response.ok ? response.json() : null).then(data => setFormToken(data?.token || "")).catch(() => {});
+  }, []);
+
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const subject = encodeURIComponent(`Dragline 3D inquiry from ${name}`);
-    const body    = encodeURIComponent(`${message}\n\n— ${name}\n${email}`);
-    window.location.href = `mailto:info@dragline3d.com?subject=${subject}&body=${body}`;
+    setSubmitting(true); setResult(null);
+    try {
+      const response = await fetch("/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, email, message, company, token: formToken }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Message could not be sent");
+      setResult({ ok: true, message: "Message sent. We will get back to you soon." });
+      setName(""); setEmail(""); setMessage("");
+    } catch (error: any) {
+      setResult({ ok: false, message: error.message || "Message could not be sent." });
+    } finally { setSubmitting(false); }
   }
 
   return (
@@ -69,6 +84,7 @@ export default function ContactPage() {
         <div className="grid md:grid-cols-5 gap-8">
           {/* Form */}
           <form onSubmit={handleSubmit} className="md:col-span-3 space-y-5">
+            <input type="text" name="company" value={company} onChange={(event) => setCompany(event.target.value)} tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
             <FormField label="Name">
               <input type="text" required value={name} onChange={(e) => setName(e.target.value)}
                 className="w-full px-4 py-3.5 rounded-xl text-bone text-sm focus:ring-0 transition-colors duration-150"
@@ -94,11 +110,12 @@ export default function ContactPage() {
                 onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.boxShadow = "none"; }}
               />
             </FormField>
-            <button type="submit"
+            {result && <div role="status" className={`font-mono text-xs ${result.ok ? "text-green-400" : "text-red-400"}`}>{result.message}</div>}
+            <button type="submit" disabled={submitting || !formToken}
               className="inline-flex items-center gap-2 font-display font-bold text-ironworks text-sm px-6 py-4 rounded-xl cursor-pointer transition-opacity duration-150 hover:opacity-90"
               style={{ background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)",
                 boxShadow: "0 0 24px rgba(255,181,71,0.28)" }}>
-              SEND MESSAGE <Send size={15} />
+              {submitting ? "SENDING..." : "SEND MESSAGE"} <Send size={15} />
             </button>
           </form>
 

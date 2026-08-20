@@ -166,7 +166,7 @@ export default function AnalyticsPage() {
       .then(r => r.ok ? r.json() : [])
       .then(data => setBoxes(data))
       .catch(() => {});
-    fetch("/api/shelly/power").then(r => r.ok ? r.json() : null).then(data => {
+    fetch("/api/shelly/power", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : null).then(data => {
       if (data?.watts !== undefined) setShellyWatts(data.watts);
       if (data?.wh_total !== undefined) setShellyWhTotal(data.wh_total);
     }).catch(() => {});

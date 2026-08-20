@@ -11,6 +11,21 @@ function getSupabase() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!);
 }
 
+async function sliceForReorder(form: FormData) {
+  const response = await fetch("/api/slice", { method: "POST", body: form });
+  const initial = await response.json();
+  if (!response.ok || !initial.jobToken) throw new Error(initial.error || "Could not start slicer.");
+  for (let attempt = 0; attempt < 150; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    const statusResponse = await fetch(`/api/slice-status?jobToken=${encodeURIComponent(initial.jobToken)}`);
+    const status = await statusResponse.json();
+    if (!statusResponse.ok) throw new Error(status.error || "Could not retrieve slicer result.");
+    if (status.status === "done") return status;
+    if (status.status === "error") throw new Error(status.error || "Slicing failed.");
+  }
+  throw new Error("Slicing timed out.");
+}
+
 const glass: CSSProperties = {
   background: "rgba(255,255,255,0.03)",
   backdropFilter: "blur(20px)",
@@ -37,8 +52,9 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
     const supabase = getSupabase();
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session) { router.push("/account"); return; }
-      const email = data.session.user.email || "";
-      const res = await fetch(`/api/account/orders/${id}?email=${encodeURIComponent(email)}`);
+      const res = await fetch(`/api/account/orders/${id}`, {
+        headers: { Authorization: `Bearer ${data.session.access_token}` },
+      });
       if (res.ok) {
         const data = await res.json();
         setOrder(data);
@@ -76,11 +92,11 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
       const supabase = getSupabase();
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/account"); return; }
-      const email = session.user.email || "";
+      const authHeaders = { Authorization: `Bearer ${session.access_token}` };
 
       // Step 1: Get order items from API
       setReorderStep("Loading order…");
-      const filesRes = await fetch(`/api/account/orders/${id}/files?email=${encodeURIComponent(email)}`);
+      const filesRes = await fetch(`/api/account/orders/${id}/files`, { headers: authHeaders });
       if (!filesRes.ok) throw new Error("Could not load order details.");
       const { orderItems } = await filesRes.json();
 
@@ -93,7 +109,8 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
         setReorderStep(`Retrieving file ${i + 1} of ${selectedFileNames.length}…`);
         try {
           const res = await fetch(
-            `/api/account/orders/${id}/file?email=${encodeURIComponent(email)}&fileName=${encodeURIComponent(fileName)}`
+            `/api/account/orders/${id}/file?fileName=${encodeURIComponent(fileName)}`,
+            { headers: authHeaders }
           );
           if (res.ok) {
             const blob = await res.blob();
@@ -126,8 +143,7 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
               form.append("infill", String(item.infill));
               if (livePricing[item.material]) form.append("costPerKg", String(livePricing[item.material]));
 
-              const sliceRes = await fetch("/api/slice", { method: "POST", body: form });
-              const sliceData = await sliceRes.json();
+              const sliceData = await sliceForReorder(form);
 
               if (sliceData.price && !sliceData.fallback) {
                 return {
@@ -139,7 +155,7 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
                   qty,
                   color: item.color || "Midnight Black",
                   stats: { dims: { x: 0, y: 0, z: 0 }, volumeMm3: 0 },
-                  quote: { grams: sliceData.grams, hours: sliceData.hours, price: sliceData.price, fromSlicer: true, breakdown: sliceData.breakdown },
+                  quote: { grams: sliceData.grams, hours: sliceData.hours, price: sliceData.price, setupFee: sliceData.setupFee ?? 12, fromSlicer: true, breakdown: sliceData.breakdown, quoteToken: sliceData.quoteToken },
                   geometry: null,
                 };
               }
@@ -148,19 +164,7 @@ export default function AccountOrderDetailPage({ params }: { params: { id: strin
             }
           }
 
-          // Fallback: stored price
-          return {
-            id: itemId, file: file || null,
-            fileName: item.file_name,
-            material: item.material,
-            quality: item.quality,
-            infill: item.infill,
-            qty,
-            color: item.color || "Midnight Black",
-            stats: { dims: { x: 0, y: 0, z: 0 }, volumeMm3: 0 },
-            quote: { grams: item.grams || 0, hours: item.hours || 0, price: item.price, fromSlicer: true, breakdown: { material: 0, machine: 0, setup: 0 } },
-            geometry: null,
-          };
+          throw new Error(`Could not securely re-price ${item.file_name}. Please contact us for assistance.`);
         })
       );
 

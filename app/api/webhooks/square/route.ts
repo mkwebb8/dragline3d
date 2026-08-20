@@ -7,6 +7,8 @@
 //
 // Required env var: SQUARE_WEBHOOK_SIGNATURE_KEY (from Square Developer dashboard)
 export const runtime = "edge";
+import { getOrder } from "@/lib/db";
+import { sendOrderConfirmation } from "@/lib/orderEmail";
 
 const SQ_SIG_KEY = process.env.SQUARE_WEBHOOK_SIGNATURE_KEY;
 const SB_URL = process.env.SUPABASE_URL!;
@@ -14,13 +16,12 @@ const SB_KEY = process.env.SUPABASE_SECRET_KEY!;
 
 const sbh = {
   apikey: SB_KEY,
-  Authorization: `Bearer ${SB_KEY}`,
   "Content-Type": "application/json",
   Prefer: "return=representation",
 };
 
 async function verifySig(body: string, sig: string, url: string): Promise<boolean> {
-  if (!SQ_SIG_KEY) return true; // skip in dev if key not set
+  if (!SQ_SIG_KEY) return false;
   try {
     const key = await crypto.subtle.importKey(
       "raw",
@@ -59,6 +60,7 @@ async function patchOrder(orderId: string, data: Record<string, unknown>) {
 }
 
 export async function POST(request: Request) {
+  if (!SQ_SIG_KEY) return Response.json({ error: "Webhook verification is not configured" }, { status: 503 });
   const body = await request.text();
   const sig = request.headers.get("x-square-hmacsha256-signature") ?? "";
 
@@ -96,23 +98,35 @@ export async function POST(request: Request) {
     }
 
     if (orderId) {
+      const existingOrder = await getOrder(orderId);
       await patchOrder(orderId, {
+        status: "received",
         total,
         square_fee: squareFee,
         square_payment_id: squarePaymentId,
       });
+      if (existingOrder?.status === "pending") {
+        await sendOrderConfirmation({ ...existingOrder, status: "received", total }).catch(() => false);
+      }
     }
   }
 
   // refund.updated fires when a refund reaches COMPLETED status
   if (event.type === "refund.updated" && event.data?.object?.refund?.status === "COMPLETED") {
     const refund = event.data.object.refund;
-    const refundCents: number = refund.amount_money?.amount ?? 0;
-    const refundedAmount = refundCents / 100;
-    const paymentId: string = refund.payment_id;
+      const paymentId: string = refund.payment_id;
 
     if (paymentId) {
-      // Find order by square_payment_id
+      let refundedAmount = (refund.amount_money?.amount ?? 0) / 100;
+      if (process.env.SQUARE_ACCESS_TOKEN) {
+        const paymentResponse = await fetch(`https://connect.squareup.com/v2/payments/${encodeURIComponent(paymentId)}`, {
+          headers: { "Square-Version": "2026-01-22", Authorization: `Bearer ${process.env.SQUARE_ACCESS_TOKEN}` },
+        });
+        if (paymentResponse.ok) {
+          const paymentData = await paymentResponse.json();
+          refundedAmount = Number(paymentData.payment?.refunded_money?.amount || 0) / 100;
+        }
+      }
       const r = await fetch(
         `${SB_URL}/rest/v1/orders?square_payment_id=eq.${encodeURIComponent(paymentId)}&select=id,refunded_amount`,
         { headers: sbh }
@@ -120,8 +134,7 @@ export async function POST(request: Request) {
       const rows: Array<{ id: string; refunded_amount: number }> = await r.json();
       const order = rows[0];
       if (order) {
-        const newTotal = Math.round(((Number(order.refunded_amount) || 0) + refundedAmount) * 100) / 100;
-        await patchOrder(order.id, { refunded_amount: newTotal });
+        await patchOrder(order.id, { refunded_amount: Math.round(refundedAmount * 100) / 100 });
       }
     }
   }

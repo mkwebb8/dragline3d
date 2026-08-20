@@ -34,7 +34,9 @@ export default function AccountOrdersPage() {
       if (!data.session) { router.push("/account"); return; }
       const userEmail = data.session.user.email || "";
       setEmail(userEmail);
-      const res = await fetch(`/api/account/orders?email=${encodeURIComponent(userEmail)}`);
+      const res = await fetch("/api/account/orders", {
+        headers: { Authorization: `Bearer ${data.session.access_token}` },
+      });
       if (res.ok) setOrders(await res.json());
       setLoading(false);
     });

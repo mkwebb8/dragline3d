@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test:security": "node scripts/verify-phase-0.mjs && node --experimental-strip-types --test tests/security-core.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

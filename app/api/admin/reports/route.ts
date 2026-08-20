@@ -25,7 +25,7 @@ function pct(n: number, total: number) { return total > 0 ? `${((n / total) * 10
 async function fetchOrders(since: string): Promise<any[]> {
   const r = await fetch(
     `${SB_URL}/rest/v1/orders?created_at=gte.${since}&status=neq.pending&status=neq.cancelled&select=*,order_items(*)&order=created_at.desc`,
-    { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } }
+    { headers: { apikey: SB_KEY } }
   );
   if (!r.ok) return [];
   return r.json();
@@ -155,7 +155,8 @@ function buildEmailHtml(type: string, period: string, m: ReturnType<typeof calcM
 
 export async function POST(request: Request) {
   // Allow both admin token and internal cron calls
-  const isCron = request.headers.get("x-cron-secret") === process.env.CRON_SECRET;
+  const cronSecret = process.env.CRON_SECRET;
+  const isCron = Boolean(cronSecret) && request.headers.get("x-cron-secret") === cronSecret;
   if (!isCron && !await verifyAdminToken(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }

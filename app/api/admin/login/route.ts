@@ -3,7 +3,8 @@ export async function POST(request:Request){
   const{username,password}=await request.json();
   const adminUsername=process.env.ADMIN_USERNAME;
   const adminPassword=process.env.ADMIN_PASSWORD;
-  const secret=process.env.ADMIN_SECRET||"dragline-admin-secret";
+  const secret=process.env.ADMIN_SECRET;
+  if(!secret)return Response.json({error:"Admin authentication is not configured"},{status:503});
   if(!adminPassword||password!==adminPassword||!adminUsername||username!==adminUsername)return Response.json({error:"Invalid credentials"},{status:401});
   const payload=JSON.stringify({ts:Date.now(),role:"admin"});
   const enc=new TextEncoder();
