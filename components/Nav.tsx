@@ -1,25 +1,13 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { Menu, X, ArrowUpRight } from "lucide-react";
-import { DraglineMark } from "./DraglineMark";
-
-const links = [
-  { href: "/", label: "Home" }, { href: "/capabilities", label: "Capabilities" },
-  { href: "/materials", label: "Materials" }, { href: "/gallery", label: "Our Work" },
-  { href: "/catalog", label: "Shop" }, { href: "/account", label: "Account" },
-];
-export function Nav() {
-  const pathname = usePathname(); const [open, setOpen] = useState(false);
-  useEffect(() => setOpen(false), [pathname]);
-  const active = (href: string) => href === "/" ? pathname === "/" : pathname.startsWith(href);
-  return <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0b0c0d]/95 backdrop-blur-xl">
-    <div className="public-container flex h-[72px] items-center justify-between gap-6">
-      <Link href="/" className="flex min-h-11 items-center gap-3" aria-label="Dragline 3D home"><DraglineMark size={34}/><div><div className="font-display text-lg font-black leading-none tracking-tight">DRAGLINE<span className="text-amber">/</span>3D</div><div className="mt-1 font-mono text-[8px] uppercase tracking-[.19em] text-steel">Additive manufacturing</div></div></Link>
-      <nav className="hidden lg:flex items-center gap-1" aria-label="Primary navigation">{links.map(l=><Link key={l.href} href={l.href} className={`flex min-h-11 items-center px-3 text-[13px] font-semibold transition-colors ${active(l.href)?"text-amber":"text-[#aaa8a1] hover:text-bone"}`}>{l.label}</Link>)}<Link href="/quote" className="btn-primary ml-3">Get a Quote<ArrowUpRight size={15}/></Link></nav>
-      <button className="flex h-11 w-11 items-center justify-center rounded-md border border-white/15 text-bone lg:hidden" onClick={()=>setOpen(v=>!v)} aria-expanded={open} aria-controls="mobile-menu" aria-label={open?"Close navigation":"Open navigation"}>{open?<X size={21}/>:<Menu size={21}/>}</button>
-    </div>
-    {open && <nav id="mobile-menu" className="border-t border-white/10 bg-[#0b0c0d] px-3 pb-5 pt-3 lg:hidden" aria-label="Mobile navigation"><div className="mx-auto flex max-w-content flex-col">{links.map(l=><Link key={l.href} href={l.href} className={`flex min-h-12 items-center border-b border-white/[.06] px-3 font-semibold ${active(l.href)?"text-amber":"text-bone/75"}`}>{l.label}</Link>)}<Link href="/quote" className="btn-primary mt-4 w-full">Get a Quote<ArrowUpRight size={15}/></Link></div></nav>}
-  </header>;
-}
+import {usePathname}from"next/navigation";
+import{useEffect,useState}from"react";
+import{Menu,X,ArrowUpRight}from"lucide-react";
+import{DraglineMark}from"./DraglineMark";
+const links=[["/capabilities","Capabilities"],["/materials","Materials"],["/gallery","Our Work"],["/catalog","Shop"]] as const;
+export function Nav(){const pathname=usePathname();const[open,setOpen]=useState(false);useEffect(()=>setOpen(false),[pathname]);return <header className="sticky top-0 z-50 border-b border-white/10 bg-[#090a0b]/95 backdrop-blur-xl"><div className="grid h-[76px] grid-cols-[1fr_auto] lg:grid-cols-[280px_1fr_auto]">
+<Link href="/" className="flex items-center gap-3 border-r border-white/10 px-4 sm:px-7" aria-label="Dragline 3D home"><DraglineMark size={32}/><div><div className="font-display text-lg font-black tracking-tight">DRAGLINE<span className="text-amber">/</span>3D</div><div className="font-mono text-[7px] uppercase tracking-[.22em] text-steel">Louisville / Kentucky</div></div></Link>
+<nav className="hidden items-stretch lg:flex" aria-label="Primary navigation">{links.map(([href,label],i)=><Link key={href} href={href} className={`group flex min-w-[120px] items-center justify-center border-r border-white/[.07] px-5 text-xs font-semibold uppercase tracking-[.08em] transition-colors ${pathname.startsWith(href)?"bg-white/[.05] text-amber":"text-bone/55 hover:bg-white/[.03] hover:text-bone"}`}><span className="mr-2 font-mono text-[8px] text-steel">0{i+1}</span>{label}</Link>)}</nav>
+<div className="hidden items-center gap-2 px-5 lg:flex"><Link href="/account" className="btn-quiet text-xs">Account</Link><Link href="/quote" className="btn-primary">Start a Quote<ArrowUpRight size={15}/></Link></div>
+<button className="m-4 flex h-11 w-11 items-center justify-center border border-white/15 lg:hidden" onClick={()=>setOpen(v=>!v)} aria-expanded={open} aria-controls="mobile-menu" aria-label={open?"Close navigation":"Open navigation"}>{open?<X/>:<Menu/>}</button></div>
+{open&&<nav id="mobile-menu" className="border-t border-white/10 bg-[#090a0b] lg:hidden"><div className="grid grid-cols-2">{links.map(([href,label],i)=><Link key={href} href={href} className="flex min-h-20 flex-col justify-between border-b border-r border-white/10 p-4"><span className="font-mono text-[9px] text-steel">0{i+1}</span><span className="font-display text-xl font-bold">{label}</span></Link>)}<Link href="/account" className="flex min-h-16 items-center border-r border-white/10 px-4 font-semibold">Account</Link><Link href="/quote" className="flex min-h-16 items-center justify-between bg-amber px-4 font-display font-black uppercase text-[#15100a]">Get a Quote<ArrowUpRight size={17}/></Link></div></nav>}</header>}
