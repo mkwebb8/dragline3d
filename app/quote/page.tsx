@@ -459,24 +459,16 @@ export default function QuotePage() {
   const availableColors = MATERIAL_COLORS[material];
 
   return (
-    <div className="relative overflow-hidden">
-      <div className="absolute -top-20 right-0 w-[600px] h-[600px] rounded-full pointer-events-none"
-        style={{ background: "radial-gradient(circle, rgba(255,181,71,0.06) 0%, transparent 65%)", filter: "blur(80px)" }} />
-
-      <div className="relative max-w-7xl mx-auto px-6 py-5">
-        <div className="flex items-center justify-between border-b pb-3 mb-5" style={softBorder}>
-          <div className="flex items-center gap-3">
-            <h1 className="font-display font-black text-xl text-bone">Build your <span style={{ WebkitTextStroke: "1.5px #ffb547", color: "transparent" }}>order.</span></h1>
-            <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-steel hidden sm:inline">· Upload · Configure · Checkout</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-amber" style={{ boxShadow: "0 0 6px rgba(255,181,71,0.9)" }} />
-            <span className="font-mono text-[9px] uppercase tracking-[0.28em] text-steel hidden sm:inline">Dragline 3D</span>
-          </div>
+    <div className="quote-rebuild relative overflow-hidden">
+      <header className="quote-intro border-b border-black/15">
+        <div className="public-container grid gap-8 py-10 lg:grid-cols-[1.2fr_.8fr] lg:items-end lg:py-14">
+          <div><div className="font-mono text-[9px] uppercase tracking-[.2em] text-[#8b6429]">Custom print workbench / 01</div><h1 className="mt-4 font-display text-[clamp(3.6rem,8vw,7.8rem)] font-black uppercase leading-[.78] tracking-[-.055em] text-[#151719]">Turn the file into <span className="text-[#b8751d]">a real print.</span></h1></div>
+          <div className="border-l border-[#b8751d] pl-5"><p className="max-w-lg text-sm leading-6 text-black/60">Upload a model, choose the material and print details, then review delivery and payment. Functional, creative, personal, or just for fun—the workflow is the same.</p><div className="mt-5 flex flex-wrap gap-4 font-mono text-[9px] uppercase tracking-[.14em] text-black/45"><span>01 Upload</span><span>02 Configure</span><span>03 Review</span><span>04 Checkout</span></div></div>
         </div>
+      </header>
 
-        <div className="grid xl:grid-cols-5 gap-4">
-          <div className="xl:col-span-3 space-y-3">
+      <div className="quote-frame mx-auto grid max-w-[1500px] xl:grid-cols-5">
+          <div className="quote-builder space-y-3 p-3 sm:p-6 xl:col-span-3 xl:p-8">
 
             {!file ? (
               <div
@@ -647,7 +639,7 @@ export default function QuotePage() {
             )}
           </div>
 
-          <div className="xl:col-span-2"><div className="sticky top-4 space-y-4 max-h-[calc(100vh-5rem)] overflow-y-auto pb-4">
+          <div className="quote-checkout border-t border-white/10 p-3 sm:p-6 xl:col-span-2 xl:border-l xl:border-t-0 xl:p-8"><div className="sticky top-24 space-y-4 max-h-[calc(100vh-7rem)] overflow-y-auto pb-4">
             {/* Cart */}
             <div className="rounded-2xl overflow-hidden" style={glass}>
               <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
@@ -919,7 +911,6 @@ export default function QuotePage() {
           </div></div>
         </div>
       </div>
-    </div>
   );
 }
 

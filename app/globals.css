@@ -57,3 +57,22 @@ button, input, textarea, select { font: inherit; }
 @media (max-width: 639px) { .public-container { width: min(100% - 1.25rem, 76rem); } .display-xl { font-size: clamp(3rem, 17vw, 4.8rem); } .public-section { padding-block: 4.5rem; } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
 input[type="range"] { accent-color: var(--amber); }
+
+/* Quote workbench: presentation only; pricing and checkout logic remain unchanged. */
+.quote-rebuild { background:#e8e3d7; color:#151719; }
+.quote-intro { background:#f1ede3; }
+.quote-builder { background:#e8e3d7; }
+.quote-checkout { background:#0d0f10; color:var(--bone); }
+.quote-builder > div, .quote-builder [style*="backdrop-filter"] { border-radius:2px !important; box-shadow:none !important; backdrop-filter:none !important; }
+.quote-builder [style*="rgba(255,255,255,0.03)"] { background:#f4f0e7 !important; border-color:rgba(16,18,19,.18) !important; }
+.quote-builder [style*="rgba(255,255,255,0.04)"] { background:#fffaf0 !important; border-color:rgba(16,18,19,.2) !important; }
+.quote-builder [class*="text-bone"] { color:#242628 !important; }
+.quote-builder [class*="text-steel"] { color:#686866 !important; }
+.quote-builder [class*="rounded-2xl"], .quote-builder [class*="rounded-xl"], .quote-builder [class*="rounded-lg"] { border-radius:2px !important; }
+.quote-builder button { min-height:44px; }
+.quote-builder input:not([type="range"]), .quote-builder textarea { color:#161819 !important; }
+.quote-checkout [class*="rounded-2xl"], .quote-checkout [class*="rounded-xl"], .quote-checkout [class*="rounded-lg"] { border-radius:2px !important; }
+.quote-checkout [style*="rgba(255,255,255,0.03)"] { background:#121516 !important; border-color:rgba(255,255,255,.13) !important; box-shadow:none !important; }
+.quote-checkout button { min-height:44px; }
+@media(max-width:1279px){.quote-checkout>div{position:static;max-height:none}.quote-intro .public-container{padding-top:2.75rem;padding-bottom:2.75rem}}
+@media(max-width:639px){.quote-builder,.quote-checkout{padding:10px}.quote-intro h1{font-size:clamp(3.2rem,16vw,4.8rem)}.quote-builder [class*="grid-cols-4"]{grid-template-columns:repeat(2,minmax(0,1fr))}.quote-builder [class*="grid-cols-3"]{grid-template-columns:repeat(2,minmax(0,1fr))}}
