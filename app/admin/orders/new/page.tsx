@@ -3,7 +3,7 @@ export const runtime = "edge";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus, Minus, Trash2, ShoppingCart, Truck, Save, AlertCircle, Package } from "lucide-react";
+import { ArrowLeft, Plus, Minus, Trash2, ShoppingCart, Truck, Save, AlertCircle, Package, Settings } from "lucide-react";
 import { parseSTL, computeVolume, MATERIALS, QUALITIES, MATERIAL_COLORS, type MaterialKey, type QualityKey } from "@/lib/stl";
 import { parse3MF } from "@/lib/parse3mf";
 import dynamic from "next/dynamic";
@@ -29,6 +29,8 @@ function focusOff(e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) {
   e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)";
   e.currentTarget.style.boxShadow = "none";
 }
+
+const SETUP_FEE = 12; // must match lib/stl.ts / server.js setup cost
 
 type Stats = { dims: { x: number; y: number; z: number }; volumeMm3: number };
 type Quote = { grams: number; hours: number; price: number; fromSlicer: boolean };
@@ -78,6 +80,11 @@ export default function NewOrderPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // ── Pricing overrides for batch/negotiated orders ──
+  const [singleSetupFee, setSingleSetupFee] = useState(false);
+  const [serviceFee, setServiceFee] = useState<string>("");
+  const [showPricingOptions, setShowPricingOptions] = useState(false);
+
   useEffect(() => {
     const t = localStorage.getItem("dragline_admin_token");
     if (!t) { router.push("/admin/login"); return; }
@@ -91,7 +98,16 @@ export default function NewOrderPage() {
 
   const customerName = `${firstName} ${lastName}`.trim();
   const selectedRate = shippingRates.find(r => r.id === selectedRateId);
-  const subtotal = cartItems.reduce((s, i) => s + i.quote.price * i.qty, 0);
+
+  // ── Adjusted subtotal: if singleSetupFee is on, only the FIRST unit across
+  // the whole cart keeps its $12 setup; every other unit (across all parts,
+  // including qty > 1) has $12 subtracted from its line price. ──
+  const rawSubtotal = cartItems.reduce((s, i) => s + i.quote.price * i.qty, 0);
+  const totalUnits = cartItems.reduce((s, i) => s + i.qty, 0);
+  const setupAdjustment = singleSetupFee && totalUnits > 0 ? (totalUnits - 1) * SETUP_FEE : 0;
+  const serviceFeeNum = parseFloat(serviceFee) || 0;
+  const subtotal = Math.max(0, rawSubtotal - setupAdjustment) + serviceFeeNum;
+
   const taxAmount = Math.round(subtotal * 0.06 * 100) / 100;
   const shipping = selectedRate?.amount || 0;
   const total = subtotal + taxAmount + shipping;
@@ -107,7 +123,6 @@ export default function NewOrderPage() {
           setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true });
           setSlicerFailed(false);
 
-          // If a converted STL came back (STEP file), parse and show preview
           if (data.convertedStl) {
             try {
               const bytes = Uint8Array.from(atob(data.convertedStl), c => c.charCodeAt(0));
@@ -194,11 +209,15 @@ export default function NewOrderPage() {
       const res = await fetch("/api/admin/orders", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ id: orderId, customer_name: customerName, customer_email: email, address, city, state: stateField, zip, shipping_service: selectedRate?.service || "", shipping_cost: shipping, subtotal, total, status: "received", items: dbItems }),
+        body: JSON.stringify({
+          id: orderId, customer_name: customerName, customer_email: email, address, city, state: stateField, zip,
+          shipping_service: selectedRate?.service || "", shipping_cost: shipping,
+          subtotal, total, status: "received", items: dbItems,
+          pricing_note: singleSetupFee ? `Single setup fee applied (saved $${setupAdjustment.toFixed(2)})${serviceFeeNum ? ` + $${serviceFeeNum.toFixed(2)} service fee` : ""}` : (serviceFeeNum ? `$${serviceFeeNum.toFixed(2)} service fee` : undefined),
+        }),
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed to create order"); }
 
-      // Save files + thumbnails to NAS via slicer worker
       const filesWithFile = cartItems.filter(i => i.file);
       if (filesWithFile.length > 0) {
         try {
@@ -376,7 +395,7 @@ export default function NewOrderPage() {
             <div className="rounded-xl overflow-hidden" style={glass}>
               <div className="px-5 py-4 border-b flex items-center justify-between font-mono text-xs text-amber tracking-widest" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
                 <span>PARTS ({cartItems.length})</span>
-                <span className="text-bone">${subtotal.toFixed(2)}</span>
+                <span className="text-bone">${rawSubtotal.toFixed(2)}</span>
               </div>
               <div>
                 {cartItems.map(item => (
@@ -396,6 +415,37 @@ export default function NewOrderPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              {/* Pricing overrides */}
+              <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+                <button onClick={() => setShowPricingOptions(!showPricingOptions)}
+                  className="w-full px-5 py-3 flex items-center gap-2 font-mono text-xs text-steel hover:text-bone transition-colors cursor-pointer">
+                  <Settings size={12} />PRICING OPTIONS {showPricingOptions ? "▲" : "▼"}
+                </button>
+                {showPricingOptions && (
+                  <div className="px-5 pb-5 space-y-4" style={{ background: "rgba(255,255,255,0.01)" }}>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input type="checkbox" checked={singleSetupFee} onChange={e => setSingleSetupFee(e.target.checked)} className="accent-amber w-4 h-4" />
+                      <div>
+                        <div className="text-sm font-medium">Charge setup fee once for whole order</div>
+                        <div className="font-mono text-xs text-steel">Removes ${SETUP_FEE} setup from all but one unit — for batch/negotiated orders</div>
+                      </div>
+                    </label>
+                    {singleSetupFee && totalUnits > 1 && (
+                      <div className="font-mono text-xs text-green-400 pl-7">Saves ${setupAdjustment.toFixed(2)} across {totalUnits} units</div>
+                    )}
+                    <div>
+                      <label className="block font-mono text-xs text-steel mb-1">SERVICE / FIT-CHECK FEE (optional)</label>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-steel">$</span>
+                        <input type="number" step="0.01" min="0" value={serviceFee} onChange={e => setServiceFee(e.target.value)} placeholder="0.00"
+                          className="w-28 px-3 py-2 rounded-xl text-bone text-sm transition-colors"
+                          style={inputSt} onFocus={focusOn} onBlur={focusOff} />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -493,7 +543,13 @@ export default function NewOrderPage() {
           {cartItems.length > 0 && (
             <div className="rounded-xl p-5" style={{ background: "rgba(255,181,71,0.12)", border: "1px solid rgba(255,181,71,0.25)", boxShadow: "0 0 40px rgba(255,181,71,0.08)" }}>
               <div className="space-y-1.5 font-mono text-sm mb-4">
-                <div className="flex justify-between"><span className="text-bone/60">Parts ({cartItems.reduce((s, i) => s + i.qty, 0)})</span><span className="font-bold">${subtotal.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-bone/60">Parts ({totalUnits})</span><span className="font-bold">${rawSubtotal.toFixed(2)}</span></div>
+                {singleSetupFee && setupAdjustment > 0 && (
+                  <div className="flex justify-between text-green-400"><span>Setup fee consolidation</span><span className="font-bold">−${setupAdjustment.toFixed(2)}</span></div>
+                )}
+                {serviceFeeNum > 0 && (
+                  <div className="flex justify-between"><span className="text-bone/60">Service / fit-check fee</span><span className="font-bold">${serviceFeeNum.toFixed(2)}</span></div>
+                )}
                 <div className="flex justify-between"><span className="text-bone/60">KY Sales Tax (6%)</span><span className="font-bold">${taxAmount.toFixed(2)}</span></div>
                 {selectedRate && <div className="flex justify-between"><span className="text-bone/60">Shipping</span><span className="font-bold">${shipping.toFixed(2)}</span></div>}
               </div>
