@@ -12,6 +12,9 @@ export async function POST(request:Request){
     const shippingLabel=form.get("shippingLabel") as string;
     const shippingCost=form.get("shippingCost") as string;
     const total=form.get("total") as string;
+    const setupFee=parseFloat(form.get("setupFee") as string || "0");
+    const handlingFee=parseFloat(form.get("handlingFee") as string || "0");
+    const handlingUnits=parseInt(form.get("handlingUnits") as string || "0");
     const itemsJson=form.get("items") as string;
     const items=JSON.parse(itemsJson||"[]");
     const resendKey=process.env.RESEND_API_KEY;
@@ -84,6 +87,13 @@ export async function POST(request:Request){
     const shippingDisplay=shippingLabel==="Local Pickup"?`Local Pickup · $0`:`${shippingLabel} · $${shippingCost}`;
     const addressDisplay=shippingLabel==="Local Pickup"?`Local Pickup — Louisville, KY`:`${address}, ${city}, ${state} ${zip}`;
 
+    const setupHandlingRow = (setupFee>0)?`
+      <tr style="border-top:1px solid #444">
+        <td colspan="5" style="padding:8px;color:#aaa;text-align:right">Job Setup${handlingUnits>0?` + Additional-part Handling (${handlingUnits} × $4)`:""}</td>
+        <td></td>
+        <td style="padding:8px;color:#f59e0b;text-align:right">$${(setupFee+handlingFee).toFixed(2)}</td>
+      </tr>`:"";
+
     const html=`
     <div style="background:#111;color:#fff;font-family:monospace;padding:32px;max-width:600px">
       <div style="font-size:20px;font-weight:bold;color:#f59e0b;margin-bottom:4px">DRAGLINE 3D</div>
@@ -110,7 +120,7 @@ export async function POST(request:Request){
               <th style="padding:8px;color:#666;text-align:right;font-size:11px">PRICE</th>
             </tr>
           </thead>
-          <tbody>${itemRows}</tbody>
+          <tbody>${itemRows}${setupHandlingRow}</tbody>
         </table>
       </div>
       <div style="text-align:right;font-size:20px;font-weight:bold;color:#f59e0b">Total: $${Number(total).toFixed(2)}</div>
