@@ -6,8 +6,11 @@ import Link from "next/link";
 import { ArrowLeft, Plus, Minus, Trash2, ShoppingCart, Truck, Save, AlertCircle, Package } from "lucide-react";
 import { parseSTL, computeVolume, MATERIALS, QUALITIES, MATERIAL_COLORS, type MaterialKey, type QualityKey } from "@/lib/stl";
 import { parse3MF } from "@/lib/parse3mf";
+import dynamic from "next/dynamic";
 import * as THREE from "three";
 import type { CSSProperties } from "react";
+
+const STLViewer = dynamic(() => import("@/components/STLViewer").then(m => ({ default: m.STLViewer })), { ssr: false });
 
 const glass: CSSProperties = {
   background: "rgba(255,255,255,0.03)",
@@ -29,7 +32,7 @@ function focusOff(e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) {
 
 type Stats = { dims: { x: number; y: number; z: number }; volumeMm3: number };
 type Quote = { grams: number; hours: number; price: number; fromSlicer: boolean };
-type CartItem = { id: string; file: File | null; fileName: string; material: MaterialKey; quality: QualityKey; infill: number; qty: number; color: string; stats: Stats; quote: Quote };
+type CartItem = { id: string; file: File | null; fileName: string; material: MaterialKey; quality: QualityKey; infill: number; qty: number; color: string; stats: Stats; quote: Quote; thumbnail?: string };
 type ShippingRate = { id: string; provider: string; service: string; amount: number; days?: number };
 
 function genId() { return Math.random().toString(36).slice(2, 10); }
@@ -44,6 +47,7 @@ export default function NewOrderPage() {
   const [token, setToken] = useState("");
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [file, setFile] = useState<File | null>(null);
+  const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [material, setMaterial] = useState<MaterialKey>("PLA");
   const [quality, setQuality] = useState<QualityKey>("standard");
@@ -51,10 +55,12 @@ export default function NewOrderPage() {
   const [qty, setQty] = useState(1);
   const [color, setColor] = useState("Midnight Black");
   const [currentQuote, setCurrentQuote] = useState<Quote | null>(null);
+  const [currentThumbnail, setCurrentThumbnail] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
   const [slicerLoading, setSlicerLoading] = useState(false);
   const [slicerFailed, setSlicerFailed] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [isStepFile, setIsStepFile] = useState(false);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -97,8 +103,28 @@ export default function NewOrderPage() {
     fetch("/api/slice", { method: "POST", body: form })
       .then(r => r.json())
       .then(data => {
-        if (data.price && !data.fallback) setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true });
-        else setSlicerFailed(true);
+        if (data.price && !data.fallback) {
+          setCurrentQuote({ grams: data.grams, hours: data.hours, price: data.price, fromSlicer: true });
+          setSlicerFailed(false);
+
+          // If a converted STL came back (STEP file), parse and show preview
+          if (data.convertedStl) {
+            try {
+              const bytes = Uint8Array.from(atob(data.convertedStl), c => c.charCodeAt(0));
+              const geo = parseSTL(bytes.buffer);
+              geo.computeBoundingBox();
+              const size = new THREE.Vector3();
+              geo.boundingBox!.getSize(size);
+              setStats({ dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: computeVolume(geo) });
+              setGeometry(geo);
+              setIsStepFile(false);
+            } catch (e) {
+              console.warn("Could not parse converted STL for preview", e);
+            }
+          }
+        } else {
+          setSlicerFailed(true);
+        }
       })
       .catch(() => setSlicerFailed(true))
       .finally(() => setSlicerLoading(false));
@@ -106,23 +132,34 @@ export default function NewOrderPage() {
 
   async function handleFile(f: File | undefined) {
     if (!f) return;
-    if (!/\.(stl|3mf)$/i.test(f.name)) { setFileError("STL or 3MF only."); return; }
-    setFileError(null); setFile(f); setParsing(true); setStats(null); setCurrentQuote(null); setSlicerFailed(false);
+    if (!/\.(stl|3mf|step|stp)$/i.test(f.name)) { setFileError("STL, 3MF, or STEP files only."); return; }
+    setFileError(null); setFile(f); setStats(null); setGeometry(null);
+    setCurrentQuote(null); setCurrentThumbnail(null); setSlicerFailed(false);
+
+    if (/\.(step|stp)$/i.test(f.name)) {
+      setIsStepFile(true); setParsing(false);
+      setStats({ dims: { x: 0, y: 0, z: 0 }, volumeMm3: 0 });
+      runSlicer(f, material, quality, infill);
+      return;
+    }
+
+    setIsStepFile(false); setParsing(true);
     try {
       const buffer = await f.arrayBuffer();
       const geo = /\.3mf$/i.test(f.name) ? await parse3MF(buffer) : parseSTL(buffer);
       geo.computeBoundingBox();
       const size = new THREE.Vector3(); geo.boundingBox!.getSize(size);
       const s: Stats = { dims: { x: size.x, y: size.y, z: size.z }, volumeMm3: computeVolume(geo) };
-      setStats(s); runSlicer(f, material, quality, infill);
+      setStats(s); setGeometry(geo); runSlicer(f, material, quality, infill);
     } catch { setFileError("Could not parse file."); }
     setParsing(false);
   }
 
   function addToCart() {
     if (!file || !stats || !currentQuote?.fromSlicer) return;
-    setCartItems(prev => [...prev, { id: genId(), file, fileName: file.name, material, quality, infill, qty, color, stats, quote: currentQuote }]);
-    setFile(null); setStats(null); setCurrentQuote(null); setSlicerFailed(false);
+    if (!isStepFile && !geometry) return;
+    setCartItems(prev => [...prev, { id: genId(), file, fileName: file.name, material, quality, infill, qty, color, stats, quote: currentQuote, thumbnail: currentThumbnail || undefined }]);
+    setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null); setCurrentThumbnail(null); setSlicerFailed(false); setIsStepFile(false);
     setMaterial("PLA"); setQuality("standard"); setInfill(15); setQty(1); setColor("Midnight Black");
     setShippingRates([]); setSelectedRateId(null);
   }
@@ -161,7 +198,7 @@ export default function NewOrderPage() {
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed to create order"); }
 
-      // Save files to NAS via slicer worker
+      // Save files + thumbnails to NAS via slicer worker
       const filesWithFile = cartItems.filter(i => i.file);
       if (filesWithFile.length > 0) {
         try {
@@ -171,7 +208,7 @@ export default function NewOrderPage() {
           for (const item of filesWithFile) {
             if (item.file) saveForm.append("file", item.file, item.fileName);
           }
-          saveForm.append("items", JSON.stringify(dbItems.map(i => ({ id: i.file_name, thumbnail: null }))));
+          saveForm.append("items", JSON.stringify(dbItems.map((i, idx) => ({ id: i.file_name, thumbnail: cartItems[idx]?.thumbnail || null }))));
           await fetch("/api/admin/orders/save-files", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: saveForm });
         } catch { /* NAS save non-fatal — order is created */ }
       }
@@ -196,20 +233,54 @@ export default function NewOrderPage() {
       <div className="grid xl:grid-cols-5 gap-6">
         {/* Left: file upload + part config */}
         <div className="xl:col-span-3 space-y-6">
-          {/* File upload */}
-          <div onClick={() => inputRef.current?.click()}
-            className="cursor-pointer rounded-xl flex flex-col items-center justify-center gap-4 p-10 transition-colors hover:opacity-90"
-            style={{ background: "rgba(255,255,255,0.02)", border: "2px dashed rgba(255,255,255,0.09)" }}>
-            <input ref={inputRef} type="file" accept=".stl,.3mf" className="hidden" onChange={e => handleFile(e.target.files?.[0])} />
-            <div className="rounded-full grid place-items-center w-14 h-14" style={{ background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)" }}>
-              <Plus size={24} color="#0f0f10" />
+          {/* File upload / preview */}
+          {!file ? (
+            <div onClick={() => inputRef.current?.click()}
+              className="cursor-pointer rounded-xl flex flex-col items-center justify-center gap-4 p-10 transition-colors hover:opacity-90"
+              style={{ background: "rgba(255,255,255,0.02)", border: "2px dashed rgba(255,255,255,0.09)" }}>
+              <input ref={inputRef} type="file" accept=".stl,.3mf,.step,.stp" className="hidden" onChange={e => handleFile(e.target.files?.[0])} />
+              <div className="rounded-full grid place-items-center w-14 h-14" style={{ background: "linear-gradient(135deg, #ffb547 0%, #d99535 100%)" }}>
+                <Plus size={24} color="#0f0f10" />
+              </div>
+              <div className="text-center">
+                <div className="font-display font-bold text-lg">{cartItems.length > 0 ? "Add another part" : "Upload STL, 3MF, or STEP"}</div>
+                <div className="font-mono text-xs text-steel mt-1">click to browse</div>
+              </div>
+              {fileError && <div className="text-red-400 text-xs flex items-center gap-1"><AlertCircle size={12} />{fileError}</div>}
             </div>
-            <div className="text-center">
-              <div className="font-display font-bold text-lg">{cartItems.length > 0 ? "Add another part" : "Upload STL or 3MF"}</div>
-              <div className="font-mono text-xs text-steel mt-1">click to browse</div>
+          ) : (
+            <div>
+              <div className="rounded-xl overflow-hidden" style={{ ...glass, height: 340 }}>
+                {isStepFile ? (
+                  <div className="h-full grid place-items-center">
+                    <div className="text-center">
+                      <div className="font-mono text-[10px] tracking-[0.2em] text-steel mb-2">STEP FILE</div>
+                      <div className="font-mono text-xs text-steel/40">No preview — slicing on server</div>
+                      {slicerLoading && <div className="inline-block w-6 h-6 border-2 border-t-amber rounded-full animate-spin mt-4" style={{ borderColor: "rgba(255,181,71,0.2)", borderTopColor: "#ffb547" }} />}
+                    </div>
+                  </div>
+                ) : parsing || !geometry ? (
+                  <div className="h-full grid place-items-center">
+                    <div className="text-center">
+                      <div className="inline-block w-8 h-8 rounded-full animate-spin mb-4"
+                        style={{ border: "2px solid rgba(255,181,71,0.2)", borderTopColor: "#ffb547" }} />
+                      <div className="font-mono text-[10px] tracking-[0.2em] text-steel">PARSING MESH...</div>
+                    </div>
+                  </div>
+                ) : (
+                  <STLViewer geometry={geometry} onStats={() => {}} onCapture={(dataUrl) => setCurrentThumbnail(dataUrl)} />
+                )}
+              </div>
+              <div className="mt-2 flex justify-between items-center">
+                <span className="font-mono text-[10px] text-steel tracking-wider">{file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                <button
+                  onClick={() => { setFile(null); setGeometry(null); setStats(null); setCurrentQuote(null); setCurrentThumbnail(null); setSlicerFailed(false); setIsStepFile(false); }}
+                  className="font-mono text-[10px] text-steel hover:text-bone transition-colors underline cursor-pointer">
+                  Remove
+                </button>
+              </div>
             </div>
-            {fileError && <div className="text-red-400 text-xs flex items-center gap-1"><AlertCircle size={12} />{fileError}</div>}
-          </div>
+          )}
 
           {/* Part config */}
           {stats && file && (
@@ -310,9 +381,14 @@ export default function NewOrderPage() {
               <div>
                 {cartItems.map(item => (
                   <div key={item.id} className="px-5 py-3 flex items-center justify-between gap-4 border-b last:border-b-0" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate">{item.fileName.replace(/\.(stl|3mf)$/i, "")}</div>
-                      <div className="font-mono text-xs text-steel">{item.material} · {item.color} · {item.quality} · {item.infill}% · {item.quote.grams}g · {formatHours(item.quote.hours)}</div>
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      {item.thumbnail && (
+                        <img src={item.thumbnail} alt={item.fileName} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" style={{ border: "1px solid rgba(255,255,255,0.1)" }} />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate">{item.fileName.replace(/\.(stl|3mf|step|stp)$/i, "")}</div>
+                        <div className="font-mono text-xs text-steel">{item.material} · {item.color} · {item.quality} · {item.infill}% · {item.quote.grams}g · {formatHours(item.quote.hours)}</div>
+                      </div>
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <span className="font-display font-bold text-amber">${(item.quote.price * item.qty).toFixed(2)}</span>
