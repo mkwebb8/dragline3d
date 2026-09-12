@@ -11,7 +11,7 @@ import * as THREE from "three";
 const STLViewer = dynamic(() => import("@/components/STLViewer").then(m => ({ default: m.STLViewer })), { ssr: false });
 
 type Stats = { dims: { x: number; y: number; z: number }; volumeMm3: number };
-type Quote = { grams: number; hours: number; price: number; fromSlicer: boolean; breakdown: { material: number; machine: number; setup: number } };
+type Quote = { grams: number; hours: number; price: number; setupFee?: number; fromSlicer: boolean; breakdown: { material: number; machine: number; setup: number } };
 type ShippingRate = { id: string; provider: string; service: string; amount: number; currency: string; days?: number };
 type CartItem = { id: string; file: File | null; fileName: string; material: MaterialKey; quality: QualityKey; infill: number; qty: number; color: string; stats: Stats; quote: Quote; geometry: any; thumbnail?: string };
 
@@ -176,11 +176,10 @@ export default function QuotePage() {
   const totalLbs     = cartItems.reduce((s, i) => s + i.quote.grams * i.qty, 0) / 453.592;
 
   function recalc(s: Stats, mat: MaterialKey, q: QualityKey, inf: number) {
-    if (slicerLoading) return;
-    setCurrentQuote(quoteFromGeometry(s.volumeMm3, mat, q, inf));
-    if (slicerComplete && file) runSlicer(file, mat, q, inf);
-  }
-
+  if (slicerLoading) return;
+  setCurrentQuote(quoteFromGeometry(s.volumeMm3, mat, q, inf, livePricing[mat]));
+  if (slicerComplete && file) runSlicer(file, mat, q, inf);
+}
   function runSlicer(f: File, mat: MaterialKey, q: QualityKey, inf: number) {
     setSlicerLoading(true); setSlicerFailed(false); setSlicerComplete(false);
     const form = new FormData();
