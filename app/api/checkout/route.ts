@@ -8,14 +8,31 @@ const MATERIALS: Record<string, { costPerKg: number; density: number }> = {
 };
 const QUALITIES:Record<string,{mult:number}>={draft:{mult:0.7},fast:{mult:0.85},standard:{mult:1.0},fine:{mult:1.6}};
 const TAX_RATE=0.06;
-const SETUP_FEE=12;
+
+// ── Bulk pricing — site-wide rule ──
+// First unit in the cart: $12 job setup. Every additional unit (including
+// qty>1 of the same part): $4 additional-part handling. Applied ONCE for
+// the whole order, not per part.
+const JOB_SETUP_FEE=12;
+const HANDLING_FEE_PER_UNIT=4;
+
 function computePrice(volumeMm3:number,material:string,quality:string,infill:number){
   const mat=MATERIALS[material];const q=QUALITIES[quality];
   if(!mat||!q)return null;
   const grams=(volumeMm3/1000)*mat.density*(0.12+(1-0.12)*(infill/100));
   const hours=(grams/10)*q.mult;
-  return Math.max(8,Math.round(((grams/1000)*mat.costPerKg*2.5+hours*0.50)*100)/100);
+  // Pure unit cost — material + machine only, no setup fee folded in.
+  return Math.max(0.50,Math.round(((grams/1000)*mat.costPerKg*2.5+hours*0.50)*100)/100);
 }
+
+function computeSetupAndHandling(totalUnits:number){
+  if(totalUnits<=0)return{setupFee:0,handlingFee:0,handlingUnits:0,total:0};
+  const handlingUnits=Math.max(0,totalUnits-1);
+  const setupFee=JOB_SETUP_FEE;
+  const handlingFee=handlingUnits*HANDLING_FEE_PER_UNIT;
+  return{setupFee,handlingFee,handlingUnits,total:setupFee+handlingFee};
+}
+
 export async function POST(request:Request){
   const body=await request.json();
   const{items,shippingCost,shippingLabel,customerEmail,customerName,address,city,state,zip,orderId:passedId}=body;
@@ -25,25 +42,34 @@ export async function POST(request:Request){
   const orderId=passedId||`DL-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-${Math.random().toString(36).slice(2,6).toUpperCase()}`;
   const lineItems:any[]=[];
   const dbItems:any[]=[];
+  let totalUnits=0;
+
   if(items&&Array.isArray(items)){
     for(const item of items){
-      const price=item.price||computePrice(item.volumeMm3,item.material,item.quality,item.infill)||8;
+      const price=item.price||computePrice(item.volumeMm3,item.material,item.quality,item.infill)||0.50;
       const qty=item.qty||1;
-      const fee=item.setupFee??SETUP_FEE;
+      totalUnits+=qty;
       lineItems.push({
         name:`${item.fileName.replace(/\.(stl|3mf|step|stp)$/i,"")} - ${item.material} ${item.quality} ${item.infill}%`,
         quantity:String(qty),
         base_price_money:{amount:Math.round(price*100),currency:"USD"},
       });
-      lineItems.push({
-        name:`${item.fileName.replace(/\.(stl|3mf|step|stp)$/i,"")} - Setup Fee`,
-        quantity:"1",
-        base_price_money:{amount:Math.round(fee*100),currency:"USD"},
-      });
-      dbItems.push({file_name:item.fileName,material:item.material,quality:item.quality,infill:item.infill,grams:item.grams,hours:item.hours,price,qty,setup_fee:fee});
+      dbItems.push({file_name:item.fileName,material:item.material,quality:item.quality,infill:item.infill,grams:item.grams,hours:item.hours,price,qty});
     }
   }
-  const subtotal=dbItems.reduce((s:number,i:any)=>s+i.price*i.qty+i.setup_fee,0);
+
+  // ── Server-side authoritative Setup & Handling — never trust client math for the final charge ──
+  const{setupFee,handlingFee,handlingUnits,total:setupAndHandling}=computeSetupAndHandling(totalUnits);
+  if(setupAndHandling>0){
+    lineItems.push({
+      name:`Job Setup${handlingUnits>0?` + Additional-part Handling (${handlingUnits} × $${HANDLING_FEE_PER_UNIT})`:""}`,
+      quantity:"1",
+      base_price_money:{amount:Math.round(setupAndHandling*100),currency:"USD"},
+    });
+  }
+
+  const partsSubtotal=dbItems.reduce((s:number,i:any)=>s+i.price*i.qty,0);
+  const subtotal=partsSubtotal+setupAndHandling;
   const shipping=shippingCost||0;
   const taxAmount=Math.round((subtotal+shipping)*TAX_RATE*100)/100;
   lineItems.push({name:"KY Sales Tax (6%)",quantity:"1",base_price_money:{amount:Math.round(taxAmount*100),currency:"USD"}});
@@ -63,7 +89,7 @@ export async function POST(request:Request){
     headers:{"Square-Version":"2026-01-22","Authorization":`Bearer ${accessToken}`,"Content-Type":"application/json"},
     body:JSON.stringify(squareBody),
   });
-      const data=await resp.json();
+  const data=await resp.json();
   if(!resp.ok){
     console.error("Square error:",JSON.stringify(data));
     return Response.json({error:"Payment provider error",square_error:data},{status:502});
@@ -72,7 +98,13 @@ export async function POST(request:Request){
     id:orderId,square_payment_link_id:data.payment_link?.id,
     customer_name:customerName||"",customer_email:customerEmail||"",
     address:address||"",city:city||"",state:state||"",zip:zip||"",
-        shipping_service:shippingLabel||"",shipping_cost:shipping,subtotal,total,status:"pending",items:dbItems.map((i:any)=>{const{setup_fee,...rest}=i;return rest;}),
+    shipping_service:shippingLabel||"",shipping_cost:shipping,
+    subtotal:partsSubtotal,
+    setup_fee:setupFee,
+    handling_fee:handlingFee,
+    handling_units:handlingUnits,
+    tax:taxAmount,
+    total,status:"pending",items:dbItems,
   } as any).then(()=>console.log("Order saved:",orderId)).catch((e:Error)=>console.error("DB error:",e.message));
   return Response.json({url:data.payment_link?.url,orderId});
 }
