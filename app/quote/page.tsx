@@ -52,7 +52,7 @@ export default function QuotePage() {
   const [stats, setStats]                   = useState<Stats | null>(null);
   const [material, setMaterial]             = useState<MaterialKey>("PLA");
   const [quality, setQuality]               = useState<QualityKey>("standard");
-  const [infill, setInfill]                 = useState(15);
+  const [infill, setInfill]                 = useState(20);
   const [qty, setQty]                       = useState(1);
   const [color, setColor]                   = useState("Midnight Black");
   const [currentQuote, setCurrentQuote]     = useState<Quote | null>(null);
@@ -471,7 +471,7 @@ export default function QuotePage() {
                     <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel">Infill</div>
                     <div className="font-mono text-sm font-bold" style={{ color: "#ffb547" }}>{infill}%</div>
                   </div>
-                  <input type="range" min="5" max="100" step="5" value={infill}
+                  <input type="range" min="20" max="100" step="5" value={infill}
                     onChange={e => { const v = +e.target.value; setInfill(v); recalc(stats, material, quality, v); }}
                     className="w-full" />
                   <div className="flex justify-between font-mono text-[9px] mt-1.5 text-steel"><span>LIGHT</span><span>SOLID</span></div>
@@ -628,7 +628,7 @@ export default function QuotePage() {
                                 <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel">Infill</div>
                                 <div className="font-mono text-xs font-bold" style={{ color: "#ffb547" }}>{item.infill}%</div>
                               </div>
-                              <input type="range" min="5" max="100" step="5" value={item.infill}
+                              <input type="range" min="20" max="100" step="5" value={item.infill}
                                 onChange={e => {
                                   const v = +e.target.value;
                                   setCartItems(prev => prev.map(i => i.id === item.id ? { ...i, infill: v } : i));
