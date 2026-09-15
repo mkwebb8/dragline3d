@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     const contentType = request.headers.get("content-type") || "";
     const body = await request.arrayBuffer();
 
-    const resp = await fetch(`${workerUrl}/slice-async`, {
+    const resp = await fetch(`${workerUrl}/slice`, {
       method: "POST",
       headers: {
         "content-type": contentType,
