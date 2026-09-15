@@ -51,7 +51,7 @@ function calcItemPrice(grams: number, hours: number, material: string): number {
 type Part = { id: string; fileName: string; material: string; infill: number; grams: number; hours: number; qty: number; color: string };
 
 function newPart(): Part {
-  return { id: crypto.randomUUID(), fileName: "", material: "PLA", infill: 15, grams: 0, hours: 0, qty: 1, color: "Black" };
+  return { id: crypto.randomUUID(), fileName: "", material: "PLA", infill: 20, grams: 0, hours: 0, qty: 1, color: "Black" };
 }
 
 export default function ManualQuotePage() {
@@ -294,8 +294,8 @@ export default function ManualQuotePage() {
                   </div>
                   <div>
                     <label className={labelBase}>Infill %</label>
-                    <input type="number" min="0" max="100" step="5" value={p.infill}
-                      onChange={e => updatePart(p.id, "infill", parseInt(e.target.value) || 15)}
+                    <input type="number" min="20" max="100" step="5" value={p.infill}
+                      onChange={e => updatePart(p.id, "infill", parseInt(e.target.value) || 20)}
                       className={`${inputBase}`} style={inputSt} onFocus={focus} onBlur={blur} />
                   </div>
                   <div>
