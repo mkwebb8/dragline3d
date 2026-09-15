@@ -51,7 +51,7 @@ export default function NewOrderPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [material, setMaterial] = useState<MaterialKey>("PLA");
   const [quality, setQuality] = useState<QualityKey>("standard");
-  const [infill, setInfill] = useState(15);
+  const [infill, setInfill] = useState(20);
   const [qty, setQty] = useState(1);
   const [color, setColor] = useState("Midnight Black");
   const [currentQuote, setCurrentQuote] = useState<Quote | null>(null);
@@ -351,7 +351,7 @@ export default function NewOrderPage() {
                   <div className="font-mono text-xs text-steel tracking-wider">INFILL</div>
                   <div className="font-mono text-xs text-amber font-bold">{infill}%</div>
                 </div>
-                <input type="range" min="5" max="100" step="5" value={infill}
+                <input type="range" min="20" max="100" step="5" value={infill}
                   onChange={e => { const v = +e.target.value; setInfill(v); if (file) runSlicer(file, material, quality, v); }}
                   className="w-full accent-amber" />
               </div>
